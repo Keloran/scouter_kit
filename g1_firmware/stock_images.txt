@@ -1,0 +1,16 @@
+# Even Realities' official G1 firmware, as served by Even's CDN (the file name is the zip's MD5).
+# Fetched by scripts/fetch_stock.sh and checked against these SHA-256 sums; never stored in this tree.
+# VERSION FILE SHA-256 [URL | FILE@OFFSET+LENGTH: a part of that file, written to work/fw/VERSION_NAME.bin]
+1.6.6 zip 748836f2d9d092b0783cbb7672fdccec4f730051cad27f095bbb156ac3e5d316 https://cdn.evenreal.co/firmware/dcfa510c090e476c10a6f6c348a22415.zip
+1.6.6 app_update.bin ae032838e27037156da98e19de90df78f5406715751f3b38adf50498db3010c1
+1.6.6 net_core_app_update.bin c277749be97a2763742db399afeb10ca6916059abd60d41bbc05c8892c002c77
+1.6.6 manifest.json 9e9ee1788771f7fb34ee2b5c93e3ce8a381b01e5ad6e0be87e140332015bf153
+1.6.6 aw9320x_table 92e73a6dd92da734bc21e8184d94d69e9a49e23056e378670b24334a305a953d app_update.bin@0x81b58+352
+1.5.6 zip 40f5839def1c00da3e0ffea9274dc0e04f249596d31787bd0c497be363cf6f8f https://cdn.evenreal.co/firmware/3adb8ebbd35c2343409d6d0c9fe6cbb9.zip
+1.5.6 app_update.bin 1eba87bfb1df261d197ca42e0850cc4ff7e668a9e94e02a8be46369b3bfaf483
+1.5.6 net_core_app_update.bin 523efcef45a657de827dce2120b5ab1314779e8c51767bee82654559614c2a1d
+1.5.6 manifest.json 4e229c24e2d38168d9987f8a6c7be13c7e2360d3d6beb09f7934dde4e73748ff
+1.3.6 zip f5a45ac8ae3badf2e894fc3a3f3616fb837824d9a469faf41ba579ff0cabcf5a https://cdn.evenreal.co/firmware/6fa7396c48250f0ea1ceac49a845bdc6.zip
+1.3.6 app_update.bin ca56e7fa7e83941619185732ecc12c1755779947c9ae367c5bbaf83fca99329e
+1.3.6 net_core_app_update.bin ea76cd7d433fcd797cd99c7aaa08b17c510e622881c655d1ab8f340b81a98583
+1.3.6 manifest.json 649ba461cd96deb378986fcbb4faf1ec5201257499a5bb5392c5284aa9d4a25b

@@ -1,0 +1,11 @@
+moodycamel::ConcurrentQueue
+
+concurrentqueue.h and LICENSE.md are unmodified files of release v1.0.5 of
+https://github.com/cameron314/concurrentqueue (tag v1.0.5, tarball
+https://github.com/cameron314/concurrentqueue/archive/refs/tags/v1.0.5.tar.gz, SHA-256
+4d6368a27492d86011fde5ca0cf386dce7c49cd425aa3d9b063ca6ec373a6ef3).
+
+Copyright (c) 2013-2020, Cameron Desrochers. Simplified BSD License, or at your choice the Boost Software
+License 1.0 (LICENSE.md).
+
+ScouterKit's C++ library includes it in src/g1/scouter_kit_g1.cpp.

@@ -1,0 +1,3 @@
+# Adds the scripted virtual phone (emulator/models/G1_VirtualPhone.cs) on the emulated radio.
+i $ORIGIN/../models/G1_VirtualPhone.cs
+machine LoadPlatformDescriptionFromString "vphone: Wireless.G1_VirtualPhone @ sysbus 0x42002000 { radio: radio }"

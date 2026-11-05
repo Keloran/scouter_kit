@@ -1,0 +1,19 @@
+Scouter SSH — a mosh terminal for the Even Realities G1 under the ScouterKit firmware.
+Copyright the ScouterKit authors. GPL-3.0-or-later (LICENSE), because it includes mosh.
+
+It includes:
+- mosh 1.4.0 (https://mosh.org): GPL-3.0-or-later with the OpenSSL linking exception (LICENSE).
+- OpenSSL 3.5.9 (libcrypto, https://openssl-library.org): Apache-2.0 (licenses/openssl.txt).
+- Protocol Buffers 21.12 (lite runtime, https://protobuf.dev): BSD-3-Clause (licenses/protobuf.txt).
+- JSch, the mwiede fork (https://github.com/mwiede/jsch): BSD-3-Clause (licenses/jsch.txt).
+- Bouncy Castle (https://www.bouncycastle.org): MIT (licenses/bouncycastle.txt).
+- Departure Mono Nerd Font Mono (Nerd Fonts v3.5.1): SIL Open Font License 1.1, its icons under their own
+  licences (licenses/departure_mono_nerd.txt, scouter_kit/third_party/departure_mono_nerd).
+- ScouterKit's C++ library (scouter_kit/src): MIT (scouter_kit/LICENSE), with
+  - moodycamel ConcurrentQueue 1.0.5 (https://github.com/cameron314/concurrentqueue): Simplified BSD
+    (licenses/concurrentqueue.txt, scouter_kit/third_party/concurrentqueue);
+  - TinyCrypt 0.2.8's SHA-256 (https://github.com/intel/tinycrypt): BSD-3-Clause (licenses/tinycrypt.txt,
+    scouter_kit/third_party/tinycrypt).
+
+The source tree also has the Gradle 8.10.2 wrapper (gradlew, gradlew.bat, gradle/wrapper/; https://gradle.org):
+Apache-2.0, as gradlew's header says. It is a build tool, not part of the app.

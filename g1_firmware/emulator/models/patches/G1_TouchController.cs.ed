@@ -1,0 +1,113 @@
+276a
+        private const ushort RegWst = 0x1BAC;
+        private const ushort RegHostCtrl1 = 0xFF10;
+        private const uint ModeActive = 1;
+        private const uint ModeSleep = 2;
+        private const uint ModeDeepSleep = 3;
+        private const uint EventRemoved = 0x80;
+        private const uint EventWorn = 0x100;
+.
+249a
+                UpdateIrq();
+                break;
+            case RegHostCtrl1:
+.
+246c
+                if(value >= ModeActive && value <= ModeDeepSleep)
+                {
+                    Mode = value;
+                    CommitWritten |= value == ModeActive && configWrites >= MinimumConfigWrites;
+                }
+                UpdateIrq();
+.
+243a
+                UpdateIrq();
+.
+227a
+            if(register == RegWst)
+            {
+                return Mode == ModeActive ? 0x01000000u : Mode == ModeSleep ? 0x03000000u : 0u;
+            }
+.
+225a
+                UpdateIrq();
+.
+201c
+        public bool EventsArmed => CommitWritten && Mode == ModeActive && (EnableMask & 0x6) == 0x6
+.
+197a
+        public bool IrqAsserted { get; private set; }
+        // 0x4408 writes 1 active, 2 sleep, 3 deep sleep (REG_WST 0x1BAC reads 0x01000000, 0x03000000, 0); events
+        // are delivered only while active. The chip comes up in sleep (both arms read 0x03000000 unconfigured).
+        public uint Mode { get; private set; }
+.
+180a
+        // The controller's own wear classification (Awinic's in-ear / out-of-ear bits 8 and 7).
+        public void Worn()
+        {
+            Queue(EventWorn);
+        }
+
+        public void Removed()
+        {
+            Queue(EventRemoved);
+        }
+
+        // Any 0x4410 value, delivered like a touch event.
+        public void Event(uint bits)
+        {
+            Queue(bits);
+        }
+
+        // A controller that is not scanning (asleep, or not configured) senses nothing.
+        private void Queue(uint bits)
+        {
+            if(!EventsArmed)
+            {
+                this.Log(LogLevel.Info, "G1TOUCH event 0x{0:X} not sensed: not scanning", bits);
+                return;
+            }
+            queuedEvents.Add(bits);
+            UpdateIrq();
+        }
+
+        private void UpdateIrq()
+        {
+            var active = (pendingEvents & (EnableMask | EventControllerReset)) != 0
+                || (EventsArmed && queuedEvents.Count > 0 && (queuedEvents[0] & EnableMask) != 0);
+            IrqAsserted = active;
+            IRQ.Set(!active);
+        }
+
+.
+177c
+            Queue(EventTouchUp);
+.
+171c
+            Queue(EventTouchDown);
+.
+105a
+            Mode = ModeSleep;
+            UpdateIrq();
+        }
+
+        // A brown-out of the controller alone: its configuration is gone and bit0 says so (the firmware loads
+        // it again); the observability counters stay.
+        public void ControllerReset()
+        {
+            configWrites = 0;
+            CommitWritten = false;
+            EnableMask = 0;
+            Mode = ModeSleep;
+            pendingEvents |= EventControllerReset;
+            UpdateIrq();
+.
+64a
+        // The interrupt line (P1.09 on the arms), active low: asserted while an enabled event (bit0 always)
+        // waits to be read from 0x4410, or a queued touch/wear event can be delivered.
+        public GPIO IRQ { get; }
+
+.
+61a
+            IRQ = new GPIO();
+.

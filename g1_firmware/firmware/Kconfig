@@ -1,0 +1,113 @@
+config G1_FAULT_INJECTION
+	bool "Accept the FAULT control request (test builds only)"
+	default y
+
+config G1_WDT0_CRV
+	int "nRF WDT0 reload value when this image starts it (32768 = 1 s)"
+	default 3932160
+	help
+	  120 s. WDT0 keeps running through the soft reset into MCUboot and nothing may feed it during
+	  an install (the genuine MCUboot's feeding is unverified), so it must outlast the whole install:
+	  DK (D1) stock 976 KB 36.8 s; arm worst case ~44 s (240 pages x 89.7 ms erase, slower genuine
+	  QSPI reads), ~56 s with a PCD net update in the same pass. The health thread feeds WDT0 every
+	  0.5 s and reboots by itself on a thread hang (< 5 s), so only a total hang waits for WDT0;
+	  with the nPM1300 watchdog armed (30 s, power cycle) that one comes first. A running WDT0
+	  keeps its CRV until a watchdog, pin or power-on reset.
+
+config G1_NET_ESB_QUIET
+	bool "Tell the stock net core to quiesce its arm-to-arm ESB link (work mode 1, as stock's DFU mode)"
+	default n
+	help
+	  Off since 0.5.0 (power.md §5, ESB mode): with work mode 1 on both arms the right arm (ESB master) missed most
+	  BLE connection events under traffic (in the case, 0.4–1.4 KB/s and a link loss every 5–15 s, reason
+	  0x28 Instant Passed), across power cycles; mode 0 on both arms gave 12–13 KB/s with no loss. Mode 0
+	  as stock: both arms must run the same mode (an arm in mode 0 whose partner is quiet loses its links).
+
+config G1_NET_FALLBACK_BOOTS
+	int "Reflash the net core after this many consecutive boots without Bluetooth (M)"
+	default 3
+
+config G1_NET_FALLBACK_TIMEOUT_S
+	int "A boot without Bluetooth after this many seconds reboots and counts as failed (N)"
+	default 30
+
+config G1_REQUIRE_SECURITY
+	bool "Out of the case, require an encrypted, bonded link for every write (CMD, CTRL, SMP)"
+	default y
+
+config G1_PAIRING_WINDOW_S
+	int "Seconds after boot during which a new bond may be created out of the case"
+	default 0
+	help
+	  0 on the arm: bondable only in the case (VBUS), per the user's rule. The nRF5340 DK build
+	  sets 120, since a bare DK has no PMIC and so is never "in the case".
+
+config G1_CASE_LINK
+	bool "Answer the charging case's requests over the ST25DV mailbox as stock (battery status: charging, full)"
+	default y if !G1_NO_PANEL
+	help
+	  Without the reply the case never learns that the battery is full and keeps its NFC power transfer
+	  on (power.md). Needs the ST25DV on TWIM1 and its GPO on P1.10 (the arm; the DK has neither).
+
+config G1_IN_CASE_HOLD_S
+	int "IN_CASE stays 1 this many seconds after the last VBUS sample, tag field or case message, unless the arm moved"
+	default 400
+	help
+	  VM.md §2.5: a full case re-checks an arm about every 300 s. The emulator test build uses less.
+
+config G1_PANEL_IDLE_S
+	int "With no host connected and no running program, the panel goes off this many seconds after the last DRAW"
+	default 30
+	help
+	  VM.md §6.6. The emulator test build uses a few seconds: its emulated net core stalls when the arm
+	  advertises much longer (emulator.md §10.15).
+
+config G1_PANEL_BUDGET_MA
+	int "The panel guard's discharge budget, mA: above it the panel's level is capped"
+	range 80 150
+	default 100
+	help
+	  VM.md §6.6: while the panel is on and the arm runs on its battery, the mean IBAT (the whole arm's) above
+	  this lowers BRIGHTNESS_CAP. 100 (1.25 C of the 80 mAh cell) since the acceptance run of 2026-11-04: at 120 the
+	  right arm's pack rose 6.7 °C in 12 min of white (docs/review-dimming.md points 9 and 14, docs/power.md §17).
+
+config G1_GUARD_BURST_MS
+	int "While the panel is on, each PMIC round's 16 VBAT+IBAT conversions span at least this many ms"
+	range 40 200
+	default 40
+	help
+	  VM.md §6.6: the panel's current is pulsed; the burst covers at least two pulse periods (docs/power.md §17).
+
+config G1_MIC_ANY_LINK
+	bool "Emulator test build: MIC on an unencrypted link; never on an arm"
+	default n
+	help
+	  VM.md §6.5: MIC needs an encrypted link, in the case too. The emulator's virtual central cannot
+	  pair, so its test build sets this to exercise the capture, the indicator and the stop rules.
+
+config G1_MIC_128MHZ
+	bool "Run the app core at 128 MHz while the microphone captures"
+	default n
+	help
+	  The LC3 encoder takes ~160k cycles per 10 ms frame: 25 % of the 64 MHz core, 12.5 % at 128 MHz.
+	  Off as the codec review decided (docs/audio-codec.md: a cycle costs ~10 % more energy at 128 MHz, and
+	  the encoder thread starves nothing at 64 MHz); test builds can switch it with DIAG SET 5.
+
+config G1_IMU_BASE_DEFAULT
+	int "Stock's IMU pitch base (centidegrees) for an arm whose settings record has none (0)"
+	default -1987
+	help
+	  The head frame's tilt against the arm's board (imu.c). Stock's factory test stored it on the right
+	  arm only (+0x0C of the settings record; -1987 on the development unit) and left the left arm's at 0,
+	  stock's "no base": the glasses are rigid, so the left arm uses this value, until a worn calibration.
+
+config G1_NO_PANEL
+	bool "Board without a panel (the nRF5340 DK build); reported in HELLO and the pair record"
+	default n
+
+config G1_DK_NCS_NET
+	bool "DK bench: the net core runs NCS's hci_rpmsg (no stock handshake, no ESB)"
+	depends on G1_NO_PANEL
+	default n
+
+source "Kconfig.zephyr"

@@ -1,0 +1,180 @@
+/* G1 arm board on top of the nRF5340 DK board files (whose SoC, IPC, net-core release, DC/DC and LFXO
+ * settings match what stock writes: emulator traces runs/aud-stock*, docs/arm-rollout.md §10).
+ * Everything else the DK board defines is removed or disabled here, so g1v0 configures only pins the
+ * stock firmware configures on the G1 (stock pin map: runs/aud-stock, g1-fw docs/g1-pin-map-dump.md):
+ *   panel SPIM4: P0.08 SCK, P0.09 MOSI, P0.10 MISO, CS P0.11 by GPIO (panel.c drives SPIM4 itself,
+ *     no Zephyr SPI driver); nPM1300 (0x6B) and ST25DV (0x53/0x57) on TWIM1: P0.04 SCL, P0.05 SDA;
+ *   LSM6DSO (0x6B) on TWIM2: P1.03 SCL, P1.02 SDA;
+ *   QSPI NOR (MX25U, 32 MiB): P0.13-P0.18; console UART0: TX P0.20, RX P0.22 (no RTS/CTS, as stock);
+ *   GPIO: P0.24 panel -2 V enable, P0.26 role strap (input), P0.19/P0.21/P0.23 low and P0.30 high = the
+ *     TouchBar controller's rail (stock button_init), P1.13 low (stock's idle PDM clock); P1.00/P1.01 to
+ *     the net core (as stock);
+ *   P0.00/P0.01 LFXO (SoC). */
+/ {
+	chosen {
+		nordic,pm-ext-flash = &mx25r64;
+	};
+	zephyr,user {
+		panel-en-gpios = <&gpio0 24 GPIO_ACTIVE_HIGH>;
+		role-gpios = <&gpio0 26 GPIO_ACTIVE_HIGH>;
+		/* ST25DV GPO (open drain, active low; stock: nfc_gpo_init pin 10, PIN_CNF input + pull-up) */
+		nfc-gpo-gpios = <&gpio1 10 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
+		board-low-gpios = <&gpio0 19 GPIO_ACTIVE_HIGH>, <&gpio0 21 GPIO_ACTIVE_HIGH>,
+				  <&gpio0 23 GPIO_ACTIVE_HIGH>, <&gpio1 13 GPIO_ACTIVE_HIGH>;
+		touch-power-gpios = <&gpio0 30 GPIO_ACTIVE_HIGH>;
+		/* the TouchBar controller's interrupt (stock: P1.09, active low, pull-up) */
+		touch-int-gpios = <&gpio1 9 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
+		/* LSM6DSO INT1 (push-pull, active high as reset); INT2 is P1.04 (DIAG PIN_PROBE, 0.5.2) */
+		imu-int1-gpios = <&gpio1 15 GPIO_ACTIVE_HIGH>;
+	};
+	aliases {
+		/delete-property/ led0;
+		/delete-property/ led1;
+		/delete-property/ led2;
+		/delete-property/ led3;
+		/delete-property/ pwm-led0;
+		/delete-property/ sw0;
+		/delete-property/ sw1;
+		/delete-property/ sw2;
+		/delete-property/ sw3;
+		/delete-property/ bootloader-led0;
+		/delete-property/ mcuboot-button0;
+		/delete-property/ mcuboot-led0;
+	};
+	/* DK LEDs (P0.28-P0.31; P0.28 is a board-ID strap on the G1), DK buttons (P0.23, P0.24, P0.08,
+	 * P0.09: G1 enable rail, panel enable, panel SCK/MOSI), Arduino header and ADC connector. */
+	/delete-node/ leds;
+	/delete-node/ pwmleds;
+	/delete-node/ buttons;
+	/delete-node/ connector;
+	/delete-node/ analog-connector;
+};
+
+&mx25r64 {
+	jedec-id = [c2 25 39];
+	size = <268435456>;
+	/delete-property/ sfdp-bfp;
+};
+
+&pinctrl {
+	/* stock UART0: PSEL.TXD P0.20, PSEL.RXD P0.22, RTS/CTS not connected (the DK adds P0.19/P0.21) */
+	uart0_default: uart0_default {
+		group1 {
+			psels = <NRF_PSEL(UART_TX, 0, 20)>;
+		};
+		group2 {
+			psels = <NRF_PSEL(UART_RX, 0, 22)>;
+			bias-pull-up;
+		};
+	};
+	uart0_sleep: uart0_sleep {
+		group1 {
+			psels = <NRF_PSEL(UART_TX, 0, 20)>,
+				<NRF_PSEL(UART_RX, 0, 22)>;
+			low-power-enable;
+		};
+	};
+	/* panel pins; panel.c configures them as stock's nrfx does at 32 MHz (H0H1) */
+	g1_spi4_default: g1_spi4_default {
+		group1 {
+			psels = <NRF_PSEL(SPIM_SCK, 0, 8)>,
+				<NRF_PSEL(SPIM_MOSI, 0, 9)>,
+				<NRF_PSEL(SPIM_MISO, 0, 10)>;
+			nordic,drive-mode = <NRF_DRIVE_H0H1>;
+		};
+	};
+	g1_i2c1_default: g1_i2c1_default {
+		group1 {
+			psels = <NRF_PSEL(TWIM_SCL, 0, 4)>,
+				<NRF_PSEL(TWIM_SDA, 0, 5)>;
+		};
+	};
+	g1_i2c1_sleep: g1_i2c1_sleep {
+		group1 {
+			psels = <NRF_PSEL(TWIM_SCL, 0, 4)>,
+				<NRF_PSEL(TWIM_SDA, 0, 5)>;
+			low-power-enable;
+		};
+	};
+	/* stock's TWIM2: LSM6DSO (0x6B) and the touch controller (0x12); external pull-ups (stock PIN_CNF 0x600) */
+	g1_i2c2_default: g1_i2c2_default {
+		group1 {
+			psels = <NRF_PSEL(TWIM_SCL, 1, 3)>,
+				<NRF_PSEL(TWIM_SDA, 1, 2)>;
+		};
+	};
+	g1_i2c2_sleep: g1_i2c2_sleep {
+		group1 {
+			psels = <NRF_PSEL(TWIM_SCL, 1, 3)>,
+				<NRF_PSEL(TWIM_SDA, 1, 2)>;
+			low-power-enable;
+		};
+	};
+};
+
+&spi4 {
+	status = "okay";
+	cs-gpios = <&gpio0 11 GPIO_ACTIVE_LOW>;
+	pinctrl-0 = <&g1_spi4_default>;
+	/delete-property/ pinctrl-1;
+	pinctrl-names = "default";
+};
+
+&i2c1 {
+	status = "okay";
+	clock-frequency = <I2C_BITRATE_FAST>;
+	pinctrl-0 = <&g1_i2c1_default>;
+	pinctrl-1 = <&g1_i2c1_sleep>;
+	pinctrl-names = "default", "sleep";
+};
+
+&i2c2 {
+	status = "okay";
+	clock-frequency = <I2C_BITRATE_FAST>;
+	pinctrl-0 = <&g1_i2c2_default>;
+	pinctrl-1 = <&g1_i2c2_sleep>;
+	pinctrl-names = "default", "sleep";
+};
+
+/* DK-only peripherals (LED PWM, USB device, 802.15.4) and SoC blocks the G1 does not use
+ * (NFCT: the case link is the ST25DV tag on I2C; USB regulator): none has a driver in g1v0. */
+&pwm0 {
+	status = "disabled";
+};
+
+/* SAADC: stock's VRECT measurement on AIN3 (P0.07) for the case link */
+&adc {
+	status = "okay";
+};
+
+&usbd {
+	status = "disabled";
+};
+
+/* console TX only (stock's P0.20; nothing reads P0.22): with disable-rx the driver keeps UARTE0 off
+ * between transmissions instead of a receiver that holds the HF clock (power.md) */
+&uart0 {
+	disable-rx;
+};
+
+&ieee802154 {
+	status = "disabled";
+};
+
+&nfct {
+	status = "disabled";
+};
+
+&usbreg {
+	status = "disabled";
+};
+
+/* The nRF5340 DK board forwards P1.01, P1.00, P0.11 and P0.10 to the network core (its UART); Zephyr's
+ * nRF53 start-up then sets MCUSEL = network for them. On the G1, P0.10/P0.11 are the panel's MISO and CS
+ * (found on the left arm: panel ID 0000, MISO stuck low; DK PIN_CNF[10/11] = 0x10000002). Forward only
+ * P1.01/P1.00, as stock does. */
+&gpio_fwd {
+	uart {
+		gpios = <&gpio1 1 0>, <&gpio1 0 0>;
+	};
+};

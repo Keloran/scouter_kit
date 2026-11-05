@@ -1,0 +1,30 @@
+412c
+                return (byte)(ehCtrl | (RfField ? 0x04 : 0x00));   // FIELD_ON (bit 2) while the reader's field is on
+.
+300a
+            interruptStatus |= 0x40; // RF_GET_MSG
+.
+291a
+            interruptStatus |= 0x20; // RF_PUT_MSG
+        }
+
+        public void RfEnableMailbox()
+        {
+            mailboxMode = 0x01;
+            mailboxEnabled = true;
+            hostPutMessage = false;
+            rfPutMessage = false;
+            mailboxLength = 0;
+.
+183a
+        // ScouterKit: the reader's RF field (the case powering the tag), EH_CTRL_Dyn FIELD_ON
+        public bool RfField { get; set; }
+
+.
+45a
+// Project copy (emu/models, 2026-10-26): an RF message sets IT_STS_Dyn.RF_PUT_MSG (bit 5) and
+// the RF read of a host message sets RF_GET_MSG (bit 6), as on hardware; RfEnableMailbox() sets
+// MB_MODE and MB_EN from the RF side (the factory/case state seen on the arms). The GPO pulse is
+// driven by the test script (gpio1.sw1 = P1.10, stock's nfc_gpo_init pin).
+//
+.

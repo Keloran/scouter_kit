@@ -1,0 +1,6 @@
+/* nRF5340 DK rehearsal variant: restore the DK's own MX25R64 (8 MiB, JEDEC c2 28 17).
+ * Applied last (EXTRA_DTC_OVERLAY_FILE), after the G1 flash override. */
+&mx25r64 {
+	jedec-id = [c2 28 17];
+	size = <67108864>;
+};

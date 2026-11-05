@@ -1,0 +1,12 @@
+/* G1 external flash: Macronix MX25U25645G (32 MiB, JEDEC c2 25 39) on the DK's QSPI node. */
+/ {
+	chosen {
+		nordic,pm-ext-flash = &mx25r64;
+	};
+};
+
+&mx25r64 {
+	jedec-id = [c2 25 39];
+	size = <268435456>;
+	/delete-property/ sfdp-bfp;
+};

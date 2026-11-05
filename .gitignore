@@ -1,0 +1,47 @@
+# fetched and built files: NCS, Renode, g1-fw, Even's firmware images, builds, emulator runs.
+# No trailing slash: g1_firmware/work may also be a local symlink to a work directory elsewhere.
+g1_firmware/work
+# firmware images (Even's included) and archives never belong in the tree
+*.bin
+*.hex
+*.elf
+*.zip
+# build outputs: python/build.sh, the C/C++ tests built in the root (src/README.md), Gradle, PlatformIO
+*.so
+*.o
+*.a
+*.test
+/g1_test
+/c_test
+/mic_test
+/dk_smoke
+/glasses_check
+/video_records
+/vm_test
+build/
+.gradle/
+.cxx/
+.pio/
+*.egg-info/
+# Python caches and environments
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+# logs and captures (the tools write to logs/ by default)
+logs/
+*.log
+*.btsnoop
+*.pcap
+*.pcapng
+# local machine settings and secrets
+local.properties
+keystore.properties
+*.jks
+*.keystore
+# editor and temporary files
+*~
+*.swp
+*.tmp
+*.part
+.DS_Store

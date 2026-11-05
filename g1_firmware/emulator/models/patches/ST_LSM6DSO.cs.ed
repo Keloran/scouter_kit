@@ -1,0 +1,306 @@
+618a
+        private IValueRegisterField int1Ctrl;
+        private IValueRegisterField int2Ctrl;
+        private IValueRegisterField md1Cfg;
+        private IValueRegisterField md2Cfg;
+        private IValueRegisterField tapCfg0;
+        private IValueRegisterField tapCfg2;
+        private IValueRegisterField wakeUpThs;
+        private IValueRegisterField wakeUpDur;
+        private IFlagRegisterField activeLow;
+        private bool newSample;
+        private bool wakeUp;
+        private int wakeAxes;
+        private bool havePrevious;
+        private short[] previous = new short[3];
+        private bool fifoOverrun;
+        private readonly List<byte[]> fifo = new List<byte[]>();
+        private readonly LimitTimer odrTimer;
+        private const int FifoCapacity = 1316;
+.
+511a
+            ClearSampling();
+.
+417,423c
+            for(var k = 0; k < 7; k++)
+            {
+                var index = k;
+                ((Registers)((long)Registers.FifoDataOutTag + k)).Define(this)
+                    .WithValueField(0, 8, FieldMode.Read, name: $"FIFO_DATA_OUT_{k}", valueProviderCallback: _ => FifoByte(index));
+            }
+        }
+
+        // -------------------- sampling, FIFO, wake-up, INT pins (project additions) --------------------
+
+        private bool LatchedInterrupts => (tapCfg0.Value & 1) != 0;
+        private bool InterruptsEnabled => (tapCfg2.Value & 0x80) != 0;
+        private int Watermark => (int)(RegistersCollection.Read((long)Registers.FifoCtrl1) | ((RegistersCollection.Read((long)Registers.FifoCtrl2) & 1u) << 8));
+        private bool FifoWatermarkReached => Watermark > 0 && fifo.Count >= Watermark;
+
+        private void UpdateOdrTimer()
+        {
+            var hz = OdrHz(accelOutputDataRate.Value);
+            if(hz <= 0)
+            {
+                odrTimer.Enabled = false;
+                newSample = false;
+                UpdateInterrupts();
+                return;
+            }
+            odrTimer.Limit = (ulong)Math.Round(1000000.0 / hz);
+            odrTimer.Value = 0;
+            odrTimer.Enabled = true;
+            havePrevious = false;
+        }
+
+        private static double OdrHz(ulong code)
+        {
+            switch(code)
+            {
+            case 1: return 12.5;
+            case 2: return 26;
+            case 3: return 52;
+            case 4: return 104;
+            case 5: return 208;
+            case 6: return 416;
+            case 7: return 833;
+            case 8: return 1660;
+            case 9: return 3330;
+            case 10: return 6660;
+            case 11: return 1.6;
+            default: return 0;
+            }
+        }
+
+        private void TakeSample()
+        {
+            var raw = new short[] { AccelRaw(AccelerationX), AccelRaw(AccelerationY), AccelRaw(AccelerationZ) };
+            newSample = true;
+            if(fifoMode.Value == 6 && (RegistersCollection.Read((long)Registers.FifoCtrl3) & 0x0F) != 0)
+            {
+                if(fifo.Count >= FifoCapacity)
+                {
+                    fifo.RemoveAt(0);
+                    fifoOverrun = true;
+                }
+                var word = new byte[7];
+                word[0] = 0x02 << 3;
+                for(var i = 0; i < 3; i++)
+                {
+                    word[1 + 2 * i] = (byte)raw[i];
+                    word[2 + 2 * i] = (byte)(raw[i] >> 8);
+                }
+                fifo.Add(word);
+            }
+            if(InterruptsEnabled && havePrevious)
+            {
+                var lsbMg = (wakeUpDur.Value & 0x10) != 0 ? FullScaleMg / 256.0 : FullScaleMg / 64.0;
+                var threshold = (wakeUpThs.Value & 0x3F) * lsbMg;
+                var axes = 0;
+                for(var i = 0; i < 3; i++)
+                {
+                    var slopeMg = (raw[i] - previous[i]) / 2.0 * MgPerLsb;
+                    if(Math.Abs(slopeMg) > threshold)
+                    {
+                        axes |= 4 >> i;
+                    }
+                }
+                if(axes != 0)
+                {
+                    wakeUp = true;
+                    wakeAxes = axes;
+                }
+                else if(!LatchedInterrupts)
+                {
+                    wakeUp = false;
+                    wakeAxes = 0;
+                }
+            }
+            previous = raw;
+            havePrevious = true;
+            UpdateInterrupts();
+        }
+
+        private uint FifoByte(int index)
+        {
+            if(fifo.Count == 0)
+            {
+                return 0;
+            }
+            var b = fifo[0][index];
+            if(index == 6)
+            {
+                fifo.RemoveAt(0);
+                UpdateInterrupts();
+            }
+            return b;
+        }
+
+        private void UpdateInterrupts()
+        {
+            if(int1Ctrl == null || md1Cfg == null || tapCfg2 == null)
+            {
+                return;
+            }
+            var wake = InterruptsEnabled && wakeUp;
+            var level1 = ((int1Ctrl.Value & 1) != 0 && AccelerometerEnabled && newSample)
+                         || ((int1Ctrl.Value & 0x08) != 0 && FifoWatermarkReached)
+                         || ((md1Cfg.Value & 0x20) != 0 && wake);
+            var level2 = ((int2Ctrl.Value & 1) != 0 && AccelerometerEnabled && newSample)
+                         || ((int2Ctrl.Value & 0x08) != 0 && FifoWatermarkReached)
+                         || ((md2Cfg.Value & 0x20) != 0 && wake);
+            var low = activeLow != null && activeLow.Value;
+            Int1.Set(level1 != low);
+            Int2.Set(level2 != low);
+        }
+
+        private void ClearSampling()
+        {
+            odrTimer.Enabled = false;
+            fifo.Clear();
+            fifoOverrun = false;
+            newSample = false;
+            wakeUp = false;
+            wakeAxes = 0;
+            havePrevious = false;
+            UpdateInterrupts();
+        }
+
+        private double MgPerLsb
+        {
+            get
+            {
+                switch(accelFullScale.Value)
+                {
+                case 0: return 0.061;
+                case 1: return 0.488;
+                case 2: return 0.122;
+                default: return 0.244;
+                }
+            }
+        }
+
+        private double FullScaleMg
+        {
+            get
+            {
+                switch(accelFullScale.Value)
+                {
+                case 0: return 2000;
+                case 1: return 16000;
+                case 2: return 4000;
+                default: return 8000;
+                }
+            }
+.
+403,404c
+            Registers.Md1Cfg.Define(this)
+                .WithValueField(0, 8, out md1Cfg, name: "MD1_CFG", changeCallback: (_, __) => UpdateInterrupts());
+            Registers.Md2Cfg.Define(this)
+                .WithValueField(0, 8, out md2Cfg, name: "MD2_CFG", changeCallback: (_, __) => UpdateInterrupts());
+.
+400,401c
+            Registers.WakeUpThs.Define(this)
+                .WithValueField(0, 8, out wakeUpThs, name: "WAKE_UP_THS");
+            Registers.WakeUpDur.Define(this)
+                .WithValueField(0, 8, out wakeUpDur, name: "WAKE_UP_DUR");
+.
+397c
+            Registers.TapCfg2.Define(this)
+                .WithValueField(0, 8, out tapCfg2, name: "TAP_CFG2", changeCallback: (_, __) => UpdateInterrupts());
+.
+395c
+            Registers.TapCfg0.Define(this)
+                .WithValueField(0, 8, out tapCfg0, name: "TAP_CFG0");
+.
+387,388c
+            Registers.FifoStatus1.Define(this)
+                .WithValueField(0, 8, FieldMode.Read, name: "FIFO_STATUS1", valueProviderCallback: _ => (uint)(fifo.Count & 0xFF));
+            Registers.FifoStatus2.Define(this)
+                .WithValueField(0, 8, FieldMode.Read, name: "FIFO_STATUS2", valueProviderCallback: _ =>
+                    (uint)(((fifo.Count >> 8) & 3) | (FifoWatermarkReached ? 0x80 : 0) | (fifoOverrun ? 0x40 : 0)
+                           | (fifo.Count >= FifoCapacity ? 0x20 : 0)));
+.
+381c
+            Registers.OutZLA.Define(this)
+                .WithValueField(0, 8, FieldMode.Read, valueProviderCallback: _ => (byte)(AccelerometerEnabled ? AccelRaw(AccelerationZ) : (short)0));
+            Registers.OutZHA.Define(this)
+                .WithValueField(0, 8, FieldMode.Read, valueProviderCallback: _ =>
+                {
+                    newSample = false;
+                    UpdateInterrupts();
+                    return (byte)((AccelerometerEnabled ? AccelRaw(AccelerationZ) : (short)0) >> 8);
+                });
+.
+366c
+                .WithFlag(0, FieldMode.Read, name: "XLDA", valueProviderCallback: _ => AccelerometerEnabled && newSample)
+.
+360,361c
+            Registers.AllIntSrc.Define(this)
+                .WithValueField(0, 8, FieldMode.Read, name: "ALL_INT_SRC", valueProviderCallback: _ => wakeUp ? 0x02u : 0u);
+            Registers.WakeUpSrc.Define(this)
+                .WithValueField(0, 8, FieldMode.Read, name: "WAKE_UP_SRC", valueProviderCallback: _ =>
+                {
+                    var v = wakeUp ? (uint)(0x08 | wakeAxes) : 0u;
+                    if(LatchedInterrupts)
+                    {
+                        wakeUp = false;
+                        wakeAxes = 0;
+                        UpdateInterrupts();
+                    }
+                    return v;
+                });
+.
+338c
+                .WithFlag(5, out activeLow, name: "H_LACTIVE", changeCallback: (_, __) => UpdateInterrupts())
+.
+321c
+                .WithValueField(4, 4, out accelOutputDataRate, name: "ODR_XL",
+                    changeCallback: (_, __) => UpdateOdrTimer())
+.
+310,311c
+            Registers.Int1Ctrl.Define(this)
+                .WithValueField(0, 8, out int1Ctrl, name: "INT1_CTRL", changeCallback: (_, __) => UpdateInterrupts());
+            Registers.Int2Ctrl.Define(this)
+                .WithValueField(0, 8, out int2Ctrl, name: "INT2_CTRL", changeCallback: (_, __) => UpdateInterrupts());
+.
+302a
+                        if(value == 0)
+                        {
+                            fifo.Clear();
+                            fifoOverrun = false;
+                        }
+                        UpdateInterrupts();
+.
+301c
+                            this.Log(LogLevel.Warning, "UNSUPPORTED periph=LSM6DSO what=FIFO_MODE detail=bypass (0) and continuous (6) are modelled, got {0}", value);
+.
+299c
+                        if(value != 0 && value != 6)
+.
+82a
+            ClearSampling();
+.
+71a
+        public GPIO Int1 { get; }
+        public GPIO Int2 { get; }
+
+.
+67a
+            odrTimer = new LimitTimer(machine.ClockSource, TimerFrequency, this, "odr", 80000,
+                Antmicro.Renode.Time.Direction.Ascending, enabled: false, workMode: WorkMode.Periodic,
+                eventEnabled: true, autoUpdate: true);
+            odrTimer.LimitReached += TakeSample;
+            Int1 = new GPIO();
+            Int2 = new GPIO();
+.
+3a
+// Project copy (G1 repair project, 2026-10-27) of the g1-fw model: the accelerometer now samples at its
+// ODR over virtual time (STATUS_REG XLDA set per sample, cleared by reading OUTZ_H_A), the FIFO's
+// continuous mode stores accelerometer samples (BDR = ODR) with the watermark and overrun flags and the
+// FIFO_DATA_OUT_TAG..Z_H words (one 7-byte word per sample, popped when Z_H is read), the wake-up function
+// compares the slope ((cur - prev) / 2 per axis) with WK_THS (FS/64 or FS/256 per WAKE_THS_W) when
+// INTERRUPTS_ENABLE is set, and INT1/INT2 drive GPIOs (Int1, Int2: DRDY_XL, FIFO_TH, WU; H_LACTIVE flips the
+// level). Connect them from a script: sysbus.twim2.lsm6dso Int1 Connect sysbus.gpio1 15.
+//
+.

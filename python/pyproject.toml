@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "scouterkit"
+version = "0.1.0"
+description = "Python wrapper of the ScouterKit C++ library for Even Realities G1 glasses on the scouter firmware"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["Pillow>=9.1"]
+
+[project.optional-dependencies]
+numpy = ["numpy"]
+test = ["pytest", "numpy"]
+
+[tool.setuptools]
+packages = ["scouterkit"]
+
+[tool.setuptools.package-data]
+scouterkit = ["*.so", "py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

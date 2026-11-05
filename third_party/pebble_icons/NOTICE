@@ -1,0 +1,20 @@
+Pebble notification icons
+
+The SVG files here are unmodified copies of 50 x 50 notification and timeline icons of PebbleOS, under the
+Apache License, Version 2.0.
+
+- Pebble_50x50_*.svg: https://github.com/coredevices/PebbleOS at commit
+  f40a377469d5ed0083a8b7b0be78b4e51954623e (2026-10-18), from resources/normal/base/images/
+  (Pebble_50x50_Slack.svg from resources/normal/snowy/images/). Created by Pebble Technology Corp and
+  released in the PebbleOS sources by Google LLC (2024). Licence: LICENSE.
+- *_50px.svg: https://github.com/pebble-dev/iconography at commit
+  99e2660ccd8c0c98e596612bb1c21700e28156b3 (the iconography submodule that PebbleOS pins at the commit
+  above), from brand-logos/, contributed by the Rebble community. Licence: LICENSE.iconography (the same
+  Apache License, Version 2.0).
+
+ScouterKit converts them with go/examples/g1/icons_gen.go into the 4-bpp bitmaps in go/examples/g1/icons/:
+rendered at 50 x 50 by rsvg-convert and inverted for a see-through display (the ink lit, the white fill and
+the background off).
+
+The brand icons show names and logos that are trademarks of their owners; ScouterKit uses them only to show
+which app a notification comes from.

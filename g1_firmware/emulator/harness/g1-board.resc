@@ -1,0 +1,5 @@
+# G1 arm board on Renode 1.16.1: g1-fw's nRF5340 platform and models, one machine named $g1_name (default g1).
+# Paths are relative to the work directory, where scripts/box runs Renode. Firmware loading is done by the caller.
+i $ORIGIN/g1-models.resc
+$g1_name?="g1"
+i $ORIGIN/g1-arm.resc

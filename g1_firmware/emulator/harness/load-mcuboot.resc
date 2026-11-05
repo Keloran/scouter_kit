@@ -1,0 +1,37 @@
+# Boot through the MCUboot replica (built from sdk-mcuboot v1.10.99-ncs1 with the G1 config, g1min/).
+# MCUboot at 0x0, an app image in the primary slot at 0xC000, the stock net image at its link base.
+# Defines the machine's reset macro so firmware-triggered resets (SYSRESETREQ) restart in MCUboot.
+# Paths are relative to the work directory (scripts/setup.sh emulator, scripts/fetch_stock.sh).
+$mcuboot_bin?=@build/g1min/mcuboot/zephyr/zephyr.bin
+$app_bin?=@firmware/1.6.6/app_update.bin
+$net_raw?=@fw/1.6.6_net_raw.bin
+macro g1_vectors
+"""
+    cpuapp VectorTableOffset 0x0
+    cpuapp SP `sysbus ReadDoubleWord 0x0`
+    cpuapp PC `sysbus ReadDoubleWord 0x4`
+    cpunet VectorTableOffset 0x01008800
+    cpunet SP `sysbus ReadDoubleWord 0x01008800`
+    cpunet PC `sysbus ReadDoubleWord 0x01008804`
+"""
+# On hardware an app-core reset sets RESET.NETWORK.FORCEOFF again, so the net core stays held
+# until the app releases it; the g1-fw clock model does not re-halt the CPU on reset, so do it here.
+# MCUboot write-protects its own partition (replica CONFIG_FPROTECT=y); the emulator does not enforce
+# FPROTECT, so the reset restores the bootloader bytes (stock 1.6.6 writes 0 to 0x0 through a NULL
+# k_fifo poll list at boot in the emulator).
+macro reset
+"""
+    echo "G1RESET: machine reset, restarting in MCUboot"
+    sysbus LoadBinary $mcuboot_bin 0x0
+    runMacro $g1_vectors
+    cpunet IsHalted true
+"""
+sysbus LoadBinary $mcuboot_bin 0x0
+sysbus LoadBinary $app_bin 0xC000
+sysbus LoadBinary $net_raw 0x01000000
+sysbus LoadBinary $net_raw 0x01008800
+runMacro $g1_vectors
+# Code flash is plain MappedMemory, so an NVMC page erase only rewrites one word. Make the
+# replica's nrfx_nvmc_page_erase (0x5118 in this build) erase the whole 4 KiB page like hardware.
+sysbus.cpuapp AddHook 0x5118 "[cpu.Bus.WriteDoubleWord(a + i, 0xFFFFFFFF) for a in [cpu.GetRegisterUnsafe(0).RawValue] if a < 0xFC000 for i in range(0, 4096, 4)]"
+sysbus.cpuapp AddHook 0x5118 "cpu.Log(LogLevel.Debug, 'mcuboot page erase 0x%x' % cpu.GetRegisterUnsafe(0).RawValue)"

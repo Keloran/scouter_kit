@@ -1,0 +1,7 @@
+/* UART0 = the DK's J-Link virtual COM port (TX P0.20, RX P0.22, RTS P0.19, CTS P0.21): H:4 to the PC. */
+&uart0 {
+	compatible = "nordic,nrf-uarte";
+	current-speed = <1000000>;
+	hw-flow-control;
+	status = "okay";
+};

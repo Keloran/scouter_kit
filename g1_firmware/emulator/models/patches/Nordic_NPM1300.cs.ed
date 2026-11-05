@@ -1,0 +1,61 @@
+997a
+                powerCycling = true;
+.
+977a
+            timerDeadlineS = NowS + milliseconds / 1000.0;
+.
+237a
+        // one-argument helpers for the bridge (G1_VirtualPhone 'C' calls take at most one argument)
+        public void InjectChargerErrorReason(byte reason) => InjectChargerError(reason, 0);
+
+        public void ClearChargerError()
+        {
+            chargerErrorReason = 0;
+        }
+
+        public void ClearCompletedLatch()
+        {
+            chargerCompletedLatch = false;
+        }
+
+.
+114a
+        // Opt-in (default off): see the header. Set before the first reset that matters.
+        public bool KeepTimerOnSocReset { get; set; }
+
+        private double NowS => machine.ElapsedVirtualTime.TimeElapsed.TotalSeconds;
+        private double timerDeadlineS;
+        private bool powerCycling;
+
+.
+112a
+            if(keep)
+            {
+                timerMode = keptMode;
+                timerPrescalerFast = keptFast;
+                timerTargetLatched = keptLatched;
+                timerTargetShadow = keptShadow;
+                timerRunning = true;
+                watchdogTimer.Limit = (ulong)leftMs;
+                watchdogTimer.Value = 0;
+                watchdogTimer.Enabled = true;
+                this.Log(LogLevel.Warning, "SoC reset: the PMIC watchdog keeps running, {0:F0} ms left", leftMs);
+            }
+.
+79a
+            var keep = KeepTimerOnSocReset && !powerCycling && timerRunning;
+            var leftMs = keep ? Math.Max(1.0, (timerDeadlineS - NowS) * 1000.0) : 0.0;
+            var keptMode = timerMode;
+            var keptFast = timerPrescalerFast;
+            var keptLatched = timerTargetLatched;
+            var keptShadow = timerTargetShadow;
+            powerCycling = false;
+.
+0a
+// Copy of g1-fw/models/Nordic_NPM1300.cs (commit b8ec262) with one change for this project
+// (2026-10-22): KeepTimerOnSocReset. On hardware a SoC reset (SYSRESETREQ, WDT0) does not reset the
+// nPM1300, so its watchdog keeps counting into MCUboot; only its own power cycle (or a power loss)
+// clears it. Renode resets every peripheral with the machine, so with the property on, a machine
+// reset that is not this model's own power cycle keeps the TIMER block and the time left.
+//
+.

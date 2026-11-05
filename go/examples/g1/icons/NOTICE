@@ -1,0 +1,3 @@
+The 4-bpp bitmaps here are converted by ../icons_gen.go from the Pebble icons in
+scouter_kit/third_party/pebble_icons (from PebbleOS and pebble-dev/iconography, under the Apache License,
+Version 2.0: see the LICENSE and NOTICE files there).

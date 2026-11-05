@@ -1,0 +1,13 @@
+Departure Mono
+
+DepartureMono-Regular.otf and LICENSE are unmodified files of Departure Mono 1.500
+(https://github.com/rektdeckard/departure-mono, release v1.500, DepartureMono-1.500.zip, SHA-256
+bf3e48059aeef4617ec585bdea81dcc3491c576b3e7a472f52faf40e09ee5c3a).
+
+Copyright 2022-2024 Helena Zhang (helenazhang.com). SIL Open Font License 1.1 without Reserved Font Names
+(LICENSE).
+
+ScouterKit converts the font with font_converter.py (src/README.md, "Fonts", has the command) into
+src/base/departure_mono.inc: 1-bpp glyphs at 11 px as a C array (kDepartureMonoBlob). That file is a
+modified version of the font under the same licence; the C++, C, Go and Python libraries and the tests
+include it.

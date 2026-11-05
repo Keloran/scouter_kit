@@ -1,0 +1,4 @@
+# tested with bleak 3.0.2, Pillow 13.0.0, pyserial 3.5 (Python 3.13, BlueZ 5.82)
+bleak>=0.22
+Pillow>=9.1
+pyserial>=3.5

@@ -1,0 +1,44 @@
+/* nRF5340 DK rehearsal variant (applied after app.overlay): same code, harmless pins.
+ * Panel SPI on the DK's Arduino SPI pins (P1.15 SCK, P1.13 MOSI, P1.14 MISO, CS P1.12), nothing attached;
+ * the PMIC bus stays on P0.04/P0.05 (Arduino A0/A1, nothing attached -> PMIC reported absent);
+ * no board GPIO baseline (P0.19/21 are the DK console's flow-control lines, P0.23/24 buttons, P0.30 a LED);
+ * panel enable on P1.04 (Arduino D4); role strap P0.26 with pull-down (= right arm);
+ * the DK's own MX25R64 flash (8 MiB, JEDEC c2 28 17). */
+/ {
+	zephyr,user {
+		panel-en-gpios = <&gpio1 4 GPIO_ACTIVE_HIGH>;
+		role-gpios = <&gpio0 26 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>;
+		/delete-property/ board-low-gpios;
+		/delete-property/ touch-power-gpios;
+		/delete-property/ touch-int-gpios;
+		/delete-property/ imu-int1-gpios;
+	};
+};
+
+&mx25r64 {
+	jedec-id = [c2 28 17];
+	size = <67108864>;
+};
+
+&pinctrl {
+	g1_spi4_default: g1_spi4_default {
+		group1 {
+			psels = <NRF_PSEL(SPIM_SCK, 1, 15)>,
+				<NRF_PSEL(SPIM_MOSI, 1, 13)>,
+				<NRF_PSEL(SPIM_MISO, 1, 14)>;
+		};
+	};
+};
+
+&spi4 {
+	cs-gpios = <&gpio1 12 GPIO_ACTIVE_LOW>;
+};
+
+/* no IMU on the DK (P1.02/P1.03 are its Arduino I2C pins, nothing attached) */
+&i2c2 {
+	status = "disabled";
+};
+
+&adc {
+	status = "disabled";
+};

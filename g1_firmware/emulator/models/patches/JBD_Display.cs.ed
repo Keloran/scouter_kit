@@ -1,0 +1,247 @@
+481a
+            ReadData,
+.
+479,480c
+            Coord,
+            Marker,
+.
+472c
+            0x01, 0x06, 0x31, 0x35, 0x36, 0x37, 0x46, 0x47, 0x66, 0x71, 0x73, 0x97, 0x99, 0xA3, 0xA9, 0xAB, 0xB9, 0xC0,
+.
+466a
+        private const byte CommandCacheRead = 0x03;
+.
+463d
+457,461d
+454d
+450c
+        private readonly byte[] pixels = new byte[Width * Height];
+.
+448a
+        private readonly IMachine machine;
+.
+440,445c
+        private int startX;
+        private int startY;
+        private int address;
+        private int windowPixels;
+        private int pendingNibble;
+        private bool hasPendingNibble;
+.
+416,417c
+            hasPendingNibble = false;
+            windowPixels = 0;
+.
+380,382c
+            int hi = address < pixels.Length ? pixels[address] : -1;
+            int lo = address + 1 < pixels.Length ? pixels[address + 1] : -1;
+            address += 2;
+            if(hi < 0)
+            {
+                return FillByte;
+            }
+            return (byte)((hi << 4) | (lo < 0 ? FillByte & 0xF : lo));
+.
+378c
+        private byte NextReadByte()
+.
+375c
+            address++;
+            windowPixels++;
+.
+372,373c
+                pixels[address] = (byte)value;
+                PixelsStored++;
+.
+370c
+            address = startY * Width + startX;
+        }
+
+        private void StorePixel(int value)
+        {
+            if(address < pixels.Length)
+.
+366c
+                    Label, startX, startY, Width, Height);
+.
+354,362c
+            coord &= 0x7FFFF;
+            startX = (int)(coord & 0x3FF);
+            startY = (int)((coord >> 10) & 0x1FF);
+            if(startX >= Width || startY >= Height)
+.
+325c
+                state = State.Coord;
+.
+322c
+            else if(opcode == CommandPixelWrite || opcode == CommandCacheRead)
+.
+305,311d
+294d
+281,284c
+            return pixels[y * Width + x];
+.
+272c
+            var sb = new StringBuilder();
+            for(var x = 0; x < Width; x += 2)
+            {
+                sb.Append(((pixels[y * Width + x] << 4) | pixels[y * Width + x + 1]).ToString("X2"));
+            }
+            return sb.ToString();
+.
+263c
+            var packed = new byte[Width * Height / 2];
+            for(var i = 0; i < packed.Length; i++)
+            {
+                packed[i] = (byte)((pixels[2 * i] << 4) | pixels[2 * i + 1]);
+            }
+            return Convert.ToBase64String(packed);
+.
+244,250c
+                var v = (byte)(pixels[i] * 17);
+                body[3 * i] = v;
+                body[3 * i + 1] = v;
+                body[3 * i + 2] = v;
+.
+241,242c
+            for(var i = 0; i < Width * Height; i++)
+.
+210a
+        // The last 32 pixel windows as "virtual µs:y:pixels" separated by ";" (when each write ended), so tests
+        // can compare when two emulated panels changed.
+        public string PixelWindows => string.Join(";", windows);
+
+        // The next n bytes of cache reads come back inverted (a transient on the read line), the cache unchanged.
+        public int FaultReadNoise { get; set; }
+        private readonly Queue<string> windows = new Queue<string>();
+        public ulong PixelsStored { get; private set; }
+
+.
+203,204d
+197,201c
+        // Dummy bytes after the 0x9F opcode before the ID bytes (stock reads the ID on rx[2..3]: 1).
+.
+194a
+        // true: the low nibble of each SPI byte is the earlier pixel (not the JBD013's order)
+.
+192d
+183,184c
+                AddJournalEntry(currentOpcode, true,
+                    string.Format("discarded cache window (bad header) x={0} y={1}", startX, startY));
+.
+173,175c
+                    "UNSUPPORTED periph={0} what=pixel-truncated detail=transaction ended inside the 0x{1:X2} header",
+                    Label, currentOpcode);
+                AddJournalEntry(currentOpcode, true, "truncated cache-window header");
+.
+170,171c
+            case State.Coord:
+            case State.Marker:
+.
+164,167c
+                    string.Format("pixel-window x={0} y={1} pixels={2}{3}", startX, startY, windowPixels,
+                        hasPendingNibble ? " (+1 dummy nibble)" : ""));
+                this.Log(LogLevel.Info, "pixel window done: x={0} y={1} {2} pixels, frame #{3}",
+                    startX, startY, windowPixels, FrameCounter);
+                break;
+
+            case State.ReadData:
+                AddJournalEntry(0x03, true, string.Format("cache read x={0} y={1}", startX, startY));
+.
+162a
+                windows.Enqueue(string.Format("{0}:{1}:{2}",
+                    (ulong)machine.ElapsedVirtualTime.TimeElapsed.TotalMicroseconds, startY, windowPixels));
+                while(windows.Count > 32)
+                {
+                    windows.Dequeue();
+                }
+.
+161c
+                // The last nibble had no 4 clocks after it: it only completed the previous pixel.
+.
+148a
+            case State.ReadData:
+.
+145,146c
+                StorePixel(first);
+                pendingNibble = second;
+                hasPendingNibble = true;
+.
+143c
+                    StorePixel(pendingNibble);
+.
+137,141c
+                // A nibble is stored once 4 more clocks follow it: the pending nibble when this
+                // byte's high nibble arrives, then the high nibble when the low one arrives.
+                var first = FirstPixelInLowNibble ? data & 0xF : data >> 4;
+                var second = FirstPixelInLowNibble ? data >> 4 : data & 0xF;
+                if(hasPendingNibble)
+.
+130,131c
+                    hasPendingNibble = false;
+                    windowPixels = 0;
+.
+125c
+                        Label, data, startX, startY);
+.
+120,121c
+            case State.Marker:
+                if(currentOpcode == CommandCacheRead)
+                {
+                    state = State.ReadData;
+                }
+                else if(data != 0xFF)
+.
+116c
+                    if(state != State.DiscardFrame)
+                    {
+                        state = State.Marker;
+                    }
+.
+111c
+            case State.Coord:
+.
+92c
+            if(state == State.ReadData)
+            {
+                response = NextReadByte();
+                if(FaultReadNoise > 0)
+                {
+                    FaultReadNoise--;
+                    response ^= 0xFF;   // a disturbed MISO line: the panel's content stays as it is
+                }
+            }
+            else if(responseQueue.Count > 0)
+.
+84a
+            PixelsStored = 0;
+.
+80c
+            Array.Clear(pixels, 0, pixels.Length);
+.
+10,58c
+// Monitor surface: FrameCounter (completed 02 frames), DumpFrame "path" (P6 PPM, nibble * 17),
+// GetFramebufferBase64, GetFramebufferRowHex y, GetPixel x y, GetJournal / JournalCount /
+// ClearJournal, PixelsStored (pixels stored by all 02 frames), FaultWrongId.
+.
+4,8c
+//   - 0x02 SPI cache write: 02, A23-A16, A15-A8, A7-A0, one dummy byte (0xFF), then 4-bpp pixels,
+//     two per byte, the high nibble first (MSB-first SPI clocks it first). Address = {5'b0, ROW[8:0],
+//     COL[9:0]} in PIXELS, so any column (odd too) can start a write. A pixel is stored only once 4
+//     more SCLK cycles follow it in the same CS frame ("Final 4 dummy clocks are needed", datasheet
+//     7.3.15): a frame with n data bytes stores 2n - 1 pixels and its last nibble only supplies the
+//     dummy clocks. Measured on the arm (0.3.8, virtual-display.md 6): w/2 pixel bytes + a trailing
+//     0 byte store w + 1 pixels, the extra one a 0 at the next address.
+//     The address advances one pixel at a time and wraps from column 639 to column 0 of the next row
+//     (datasheet 4.2.2, also measured). Writes past (639, 479) are dropped (assumption; not measured).
+//   - 0x03 SPI cache read: 03, A23-A16, A15-A8, A7-A0, one dummy byte, then the cache from that
+//     pixel address, two pixels per byte, high nibble first, with the same wrap; FillByte past the end.
+//   - 0x9F: identification (ID 0x4010 on the bytes after IdReadLatency dummies).
+//   - other known opcodes: journaled, no side effects (current, luminance, offsets, 97 Sync...).
+//     The cache -> pixel latch at 0x97 is not modelled: pixels land in the image at once.
+.
+2c
+// JBD_Display: JBD013VGA microdisplay behind SPI. Project copy of g1-fw's model (emu/g1-fw/models,
+// same class name and monitor surface) with the cache write and read as the real panel does them
+// (2026-10-23, docs/arm-rollout.md section 12):
+.

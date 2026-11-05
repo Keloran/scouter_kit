@@ -1,0 +1,17 @@
+#!/bin/sh
+# Runs a command in a rootless podman container without network: the work directory (G1_WORK, default
+# g1_firmware/work) is mounted read-write, scouter_kit/ read-only, both at their host paths.
+# Usage: [BOXIMAGE=g1-ncs] [BOXNET=pasta] [BOXCWD=dir] [BOXNAME=name] scripts/box CMD [ARGS...]
+# BOXNET=pasta gives network (source fetches only). The default image is g1-renode.
+set -eu
+FW=$(dirname "$(dirname "$(readlink -f "$0")")")
+SK=$(dirname "$FW")
+WORK=${G1_WORK:-$FW/work}
+mkdir -p "$WORK"
+WORK=$(cd "$WORK" && pwd -P)
+exec podman run --rm -i ${BOXNAME:+--name "$BOXNAME"} --network="${BOXNET:-none}" --userns=keep-id \
+	--cap-drop=ALL --security-opt no-new-privileges \
+	--read-only --tmpfs /tmp:rw,size=2g --shm-size=512m \
+	-v "$SK":"$SK":ro -v "$WORK":"$WORK":rw -w "${BOXCWD:-$WORK}" \
+	-e HOME=/tmp -e G1_WORK="$WORK" \
+	"${BOXIMAGE:-g1-renode}" "$@"

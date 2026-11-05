@@ -1,0 +1,28 @@
+# One G1 arm, machine $g1_name, on g1-fw's nRF5340 platform (models: g1-models.resc). Firmware loading is done
+# by the caller (load-mcuboot.resc).
+mach create $g1_name
+python "from Antmicro.Renode.Core import EmulationManager; EmulationManager.Instance.CurrentEmulation.MasterTimeSource.ExecuteInSerial = True"
+machine LoadPlatformDescription @g1-fw/platforms/nrf5340.repl
+# The LSM6DSO's interrupt lines as wired on the arms (g1v0 0.5.2 PIN_PROBE): INT1 P1.15, INT2 P1.04.
+python "from Antmicro.Renode.Core import EmulationManager; m = self.Machine; imu = m['sysbus.twim2.lsm6dso']; gp = m['sysbus.gpio1']; imu.Int1.Connect(gp, 15); imu.Int2.Connect(gp, 4)"
+# The TouchBar controller (stock: TWIM2 0x12, its interrupt on P1.09, where g1-fw's platform also has a button
+# that the tests leave alone; disconnecting it stops Renode's GPIOTE from seeing the pin's edges).
+machine LoadPlatformDescriptionFromString "touch: Sensors.G1_TouchController @ twim2 0x12"
+python "from Antmicro.Renode.Core import EmulationManager; m = self.Machine; gp = m['sysbus.gpio1']; m['sysbus.twim2.touch'].IRQ.Connect(gp, 9)"
+
+# JBD panel protocol as the stock firmware uses it.
+spim_a.jbd IdReadLatency 1
+spim_a.jbd CoordBigEndian true
+
+sysbus LoadBinary @g1-fw/fw/ficr_app.bin 0x00FF0000
+sysbus LoadBinary @g1-fw/fw/uicr_app.bin 0x00FF8000
+sysbus LoadBinary @g1-fw/fw/ficr_net.bin 0x01FF0000
+sysbus LoadBinary @g1-fw/fw/uicr_net.bin 0x01FF8000
+
+# Provisioned settings store on the external NOR (scripts/make_seeds.sh).
+$seed?=@fw/seed/g1_extstore_seed_paired34.bin
+sysbus.qspi.qspi_flash LoadSegment 0x130000 $seed
+
+# Charged battery, not charging (worn, out of the case).
+sysbus.twim1.npm1300 BatteryVoltageMilliVolts 4100
+sysbus.twim1.npm1300 BatteryCurrentMilliAmps 0

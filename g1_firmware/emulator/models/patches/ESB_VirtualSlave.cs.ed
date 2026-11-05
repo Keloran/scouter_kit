@@ -1,0 +1,22 @@
+205a
+                if(!string.IsNullOrEmpty(ResponsePayloadHex))
+                {
+                    var r = ParseHex(ResponsePayloadHex);
+                    Array.Copy(r, payload, Math.Min(r.Length, 32));
+                }
+.
+147a
+            if(!lastWasAnnounce && frame.Length > markerIndex + radio.CrcLengthPublic && frame[addrLen] > 0)
+            {
+                var n = Math.Min(frame[addrLen], frame.Length - markerIndex - radio.CrcLengthPublic);
+                LastPayloadHex = BitConverter.ToString(frame, markerIndex, n).Replace("-", "");
+            }
+.
+101a
+
+        // ScouterKit: the payload of the master's last ESB frame other than an announcement (hex), and an
+        // acknowledgement payload that replaces the response marker while it is set (hex, the arm-to-arm link
+        // tests of g1v0).
+        public string LastPayloadHex { get; private set; } = "";
+        public string ResponsePayloadHex { get; set; } = "";
+.

@@ -1,0 +1,23 @@
+Departure Mono Nerd Font Mono
+
+DepartureMonoNerdFontMono-Regular.otf, LICENSE and README.md are unmodified files of the Nerd Fonts release
+v3.5.1 (https://github.com/ryanoasis/nerd-fonts/releases/tag/v3.5.1, DepartureMono.tar.xz, SHA-256
+7d2d86db20730e26ee4fc926e3c64429d6f9da6fce91e74c325fe1c5ee74d9ee; the font's SHA-256
+534cb9e9f8292ceec427f8524a92b94f15d798a9d96139f890d63ba4a5284a1d).
+
+- The font: Departure Mono 1.500, Copyright 2022-2024 Helena Zhang, SIL Open Font License 1.1 without
+  Reserved Font Names (LICENSE), patched by Nerd Fonts with icons (README.md lists the sets and versions).
+- The icons keep their own licences (licenses/, and licenses/license-audit.md, Nerd Fonts' audit):
+  Codicons and Font Awesome: CC BY 4.0 (Microsoft; Fonticons, Inc.); Material Design Icons: Apache 2.0
+  (Pictogrammers; LICENSE-2.0.txt is the licence text); Pomicons and Weather Icons: SIL OFL 1.1; Devicons,
+  Font Awesome Extension, Octicons, Seti UI, Powerline Extra Symbols, IEC Power Symbols and Hack's extra
+  glyphs: MIT; Powerline Symbols: its own free licence; Font Logos: The Unlicense. The licence files in
+  licenses/ come from the Nerd Fonts repository at v3.5.1 (src/glyphs/) and, for the sets it has none for,
+  from their upstream repositories (devicons/devicon v2.17.0, lukas-w/font-logos v1.3.0,
+  AndreLZGava/font-awesome-extension 09d8024, jesseweed/seti-ui 2d6c5e6, jloughry/Unicode 805536f,
+  source-foundry/Hack a737c12). nerd-fonts/LICENSE covers Nerd Fonts' own scripts.
+
+ScouterKit converts the font with font_converter.py --cell (go/examples/term/font.go has the command) into
+go/examples/term/fonts/departure_mono_nerd.skf: 1-bpp glyphs at 11 px (a 7 x 14 cell), each cut to its cell
+(--cell would also draw braille patterns and block elements a font lacks; this one has them all). That file
+is a modified version of the font under the same licences.

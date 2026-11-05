@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The emulated arms: for the Android emulator only (T2), never installed on the phone. -->
+    <string name="app_name">SSH Scouter (emulated)</string>
+</resources>

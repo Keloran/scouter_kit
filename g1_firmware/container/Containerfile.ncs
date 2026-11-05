@@ -1,0 +1,7 @@
+FROM docker.io/library/debian:bookworm-slim@sha256:7ff6ba31527b9e336162fa061746c366c4b2032f4d2cff2078bea43f78efe3f8
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ca-certificates git cmake ninja-build gperf ccache device-tree-compiler \
+        wget xz-utils file make gcc g++ python3 python3-dev python3-pip python3-venv \
+        python3-setuptools python3-wheel libmagic1 curl \
+    && rm -rf /var/lib/apt/lists/*
+ENV HOME=/tmp PIP_DISABLE_PIP_VERSION_CHECK=1

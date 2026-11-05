@@ -1,0 +1,10 @@
+# Host tests (T1): cmake -S native -B BUILD -DTHIRD_PARTY_DIR=OUT && cmake --build BUILD && ctest --test-dir BUILD
+add_executable(mosh_client_test mosh_client_test.cpp)
+target_link_libraries(mosh_client_test PRIVATE ssh_core mosh)
+add_test(NAME mosh_client COMMAND mosh_client_test)
+add_executable(keys_test keys_test.cpp ../keys.cpp)
+add_test(NAME keys COMMAND keys_test)
+add_executable(terminal_test terminal_test.cpp)
+target_link_libraries(terminal_test PRIVATE ssh_core mosh)
+target_compile_definitions(terminal_test PRIVATE TERM_FONT="${SCOUTER_KIT}/go/examples/term/fonts/departure_mono_nerd.skf")
+add_test(NAME terminal COMMAND terminal_test)

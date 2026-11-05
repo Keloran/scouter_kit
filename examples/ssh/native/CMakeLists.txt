@@ -1,0 +1,50 @@
+cmake_minimum_required(VERSION 3.22)
+project(scouter_ssh C CXX)
+
+set(THIRD_PARTY_DIR ${CMAKE_CURRENT_SOURCE_DIR}/third_party/out CACHE PATH "native/third_party/build.sh's output")
+set(ARMS glasses CACHE STRING "glasses: the arms over Android's Bluetooth; emulated: two emulated arms")
+set(SCOUTER_KIT ${CMAKE_CURRENT_SOURCE_DIR}/../../..)
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+
+if(ANDROID)
+  set(platform ${THIRD_PARTY_DIR}/android-arm64)
+  add_library(crypto STATIC IMPORTED)
+  set_target_properties(crypto PROPERTIES IMPORTED_LOCATION ${platform}/lib/libcrypto.a
+    INTERFACE_INCLUDE_DIRECTORIES ${platform}/include)
+else()
+  set(platform ${THIRD_PARTY_DIR}/host)
+  find_package(OpenSSL REQUIRED)
+  add_library(crypto INTERFACE)
+  target_link_libraries(crypto INTERFACE OpenSSL::Crypto)
+endif()
+add_library(protobuf-lite STATIC IMPORTED)
+set_target_properties(protobuf-lite PROPERTIES IMPORTED_LOCATION ${platform}/lib/libprotobuf-lite.a
+  INTERFACE_INCLUDE_DIRECTORIES ${platform}/include)
+set(MOSH_SRC ${THIRD_PARTY_DIR}/src/mosh-1.4.0)
+set(PROTOC ${THIRD_PARTY_DIR}/host/bin/protoc)
+include(third_party/mosh.cmake)
+
+add_library(scouter_kit STATIC ${SCOUTER_KIT}/src/base/scouter_kit.cpp ${SCOUTER_KIT}/src/g1/scouter_kit_g1.cpp
+  ${SCOUTER_KIT}/src/vm/vm.c ${SCOUTER_KIT}/src/vm/vm_gfx.c)
+target_include_directories(scouter_kit PUBLIC ${SCOUTER_KIT}/src)
+if(ANDROID AND ARMS STREQUAL glasses)
+  target_compile_definitions(scouter_kit PUBLIC SCOUTER_G1_NO_BLUEZ)
+else()
+  target_compile_definitions(scouter_kit PUBLIC SCOUTER_G1_EMULATOR)
+endif()
+find_package(Threads REQUIRED)
+target_link_libraries(scouter_kit PUBLIC Threads::Threads)
+
+# Object libraries link whole, so mosh's static registrations stay.
+add_library(ssh_core OBJECT mosh_client.cpp glasses.cpp keys.cpp terminal.cpp)
+target_link_libraries(ssh_core PUBLIC mosh scouter_kit)
+
+if(ANDROID)
+  add_library(scouter_ssh SHARED jni.cpp android_transport.cpp)
+  target_link_libraries(scouter_ssh PRIVATE ssh_core mosh log)
+  target_link_options(scouter_ssh PRIVATE -Wl,--gc-sections)
+else()
+  enable_testing()
+  add_subdirectory(tests)
+endif()

@@ -1,0 +1,40 @@
+# The models of the G1 arm board (g1-fw's, commit b8ec262, fetched into the work directory by scripts/fetch_g1fw.sh;
+# seven with this project's changes, work/models/), compiled once per emulation. Paths are relative to the work directory.
+using sysbus
+
+i @g1-fw/models/NRF5340_TrapStub.cs
+i @g1-fw/models/NRF5340_CC3xx_RNG.cs
+i @g1-fw/models/NRF5340_ClockPowerReset.cs
+i @g1-fw/models/NRF5340_DPPIC.cs
+i @g1-fw/models/NRF5340_IPC.cs
+i @g1-fw/models/NRF5340_RADIO.cs
+i @g1-fw/models/BLE_VirtualCentral.cs
+# changed: the master's last payload readable, a settable acknowledgement payload
+i @models/ESB_VirtualSlave.cs
+i @g1-fw/models/NRF5340_AAR.cs
+i @g1-fw/models/NRF5340_CCM.cs
+i @g1-fw/models/NRF5340_TEMP.cs
+i @g1-fw/models/NRF5340_VREQCTRL.cs
+i @g1-fw/models/NRF5340_EGU.cs
+i @g1-fw/models/NRF5340_Timer.cs
+i @g1-fw/models/NRF5340_RTC.cs
+i @g1-fw/models/NRF5340_SPIM.cs
+# changed: the JBD013 cache write/read as the real panel (pixel addresses, final 4 dummy clocks)
+i @models/JBD_Display.cs
+i @models/Macronix_MX25U.cs
+i @g1-fw/models/NRF5340_NVMC.cs
+i @g1-fw/models/NRF5340_QSPI.cs
+i @g1-fw/models/NRF5340_SAADC.cs
+i @g1-fw/models/NRF5340_PDM.cs
+i @g1-fw/models/GPIO_Pin_Driver.cs
+i @g1-fw/models/NRF5340_TWIM.cs
+# changed: ODR sampling, FIFO continuous mode, wake-up, INT1/INT2 pins
+i @models/ST_LSM6DSO.cs
+i @g1-fw/models/TI_OPT3001.cs
+# changed: KeepTimerOnSocReset
+i @models/Nordic_NPM1300.cs
+# changed: IT_STS RF_PUT_MSG/RF_GET_MSG, RF-side mailbox enable, the reader's field (RfField, FIELD_ON)
+i @models/ST_ST25DV.cs
+# changed: the interrupt line, wear events, the sleep modes
+i @models/G1_TouchController.cs
+

@@ -1,0 +1,13 @@
+TinyCrypt (SHA-256 only)
+
+sha256.c, sha256.h, utils.c, utils.h, constants.h and LICENSE come from TinyCrypt 0.2.8
+(https://github.com/intel/tinycrypt at commit 484f51f481483b999b22249055cb8bb7734149f6, the revision that
+Zephyr's module zephyrproject-rtos/tinycrypt, used by NCS v2.5.1, is based on). LICENSE is unmodified; the
+source files are unmodified except that their includes are relative ("sha256.h" in place of
+<tinycrypt/sha256.h>), so they compile without include paths.
+
+Copyright (c) 2017, Intel Corporation. BSD 3-Clause License (LICENSE; its second part, micro-ecc's licence,
+covers code that is not included here).
+
+ScouterKit's C++ library includes sha256.c and utils.c in src/g1/scouter_kit_g1.cpp (the asset IDs); the
+g1v0 firmware uses the copy in NCS instead.

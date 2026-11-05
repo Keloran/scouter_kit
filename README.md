@@ -1,4 +1,4 @@
-<img src="examples/ssh/icon.png" style="float:right; max-width: 50%; margin: 0 0 .1em .5em">
+<img src="examples/ssh/icon.png" align="right"></td>
 
 # ScouterKit
 
@@ -8,8 +8,8 @@ ScouterKit is exactly this - a set of tools for taking control of your smart gla
 
 <table>
   <tr>
-    <td><video src="VID_20261105_BAD_APPLE.mp4" controls muted width="100%"></video></td>
-    <td><video src="VID_20261105_SSH.mp4" controls muted width="100%"></video></td>
+    <td>https://github.com/user-attachments/assets/c225d056-7273-4665-a01f-19cca16ab79c</td>
+    <td>https://github.com/user-attachments/assets/92ab84d8-569f-4fc6-a7e3-f50f166fc316</td>
   </tr>
   <tr>
     <td align="center">Real-time video playback</td>
@@ -65,15 +65,17 @@ The libraries are provided for the following languages:
 * Python (wrapper around C/C++)
 * Java (only as part of the SSH example)
 
-# ScouterKit + Keyer
-
-<video src="VID_20261105_KEYER.mp4" controls muted width="40%" style="float:right"></video>
-
-ScouterKit works well with a one-handed keyboard called *Keyer*. This is the basis for my mobile SSH terminal.
-
-I'd like to show it as an example of the stuff that you can build with ScouterKit.
-
-You can find its sources at `examples/ssh` - but it really needs the custom hardware (which you can make yourself - check [this link](https://github.com/mafik/keyer)!) to unlock its true potential!
+<table>
+  <tr>
+    <td>
+      <h2>ScouterKit + Keyer</h2>
+      <p>ScouterKit works well with a one-handed keyboard called <strong>Keyer</strong>. This is the basis for my mobile SSH terminal.</p>
+      <p>I'd like to show it as an example of the stuff that you can build with ScouterKit.</p>
+      <p>You can find its sources at <code>examples/ssh</code> - but it really needs the custom hardware (which you can make yourself - check <a href="https://github.com/mafik/keyer">this link</a>!) to unlock its true potential!</p>
+    </td>
+    <td>https://github.com/user-attachments/assets/894d7f81-07c4-449a-bea0-0fd35f4f18ce</td>
+  </tr>
+</table>
 
 # Project structure
 
@@ -86,7 +88,7 @@ You can find its sources at `examples/ssh` - but it really needs the custom hard
 
 # Editing
 
-Most of the sources in this directory have been auto-generated using LLMs. LLMs tend to generate verbose & poorly engineered solutions. While I've tried to compensate for the latter with some common sense design direction, you should consider your own mental wellbeing and instead of trying to read/modify these sources directly - you should use another LLM to do that instead.
+Most of the sources in this directory have been auto-generated using LLMs. LLMs tend to generate verbose & poorly engineered solutions. While I've tried to compensate for the latter with some common sense design direction, you should consider your own mental wellbeing and instead of trying to read/modify these sources directly - use an LLM to do that instead.
 
 Pull requests are welcome.
 

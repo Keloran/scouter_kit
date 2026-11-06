@@ -198,6 +198,23 @@ func sitePage(row record, id, status string, data snapshot, width, rows int, mea
 	}
 	lines = append(lines, recordLines(row, []string{"health_score"})...)
 	for _, r := range data {
+		if r.key == "enquiries" && slug != "" {
+			if r.err != "" {
+				if !strings.HasPrefix(status, "STALE") {
+					status = "STALE enquiries / " + status
+				}
+				lines = append(lines, "Enquiries: "+r.err)
+				continue
+			}
+			count := 0
+			for _, enquiry := range r.rows {
+				if enquiry["product_slug"] == slug {
+					count++
+				}
+			}
+			lines = append(lines, fmt.Sprintf("Enquiries: %d", count))
+			continue
+		}
 		if slug == "" || !strings.HasPrefix(r.key, slug+"/") {
 			continue
 		}
@@ -243,8 +260,9 @@ func makePages(data snapshot, width, rows int, measure func(string) int) []page 
 	for _, r := range data {
 		if r.key == "projects" {
 			if len(r.rows) > 0 {
-				// Customer totals are included in each site's priority fields.
+				// Per-product records are summarized on their site's page.
 				details["customers"] = true
+				details["enquiries"] = true
 			}
 			for _, row := range r.rows {
 				if slug := value(row["slug"]); slug != "" {

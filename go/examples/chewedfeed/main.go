@@ -1,4 +1,4 @@
-// Command chewedfeed is a read-only, paginated Chewedfeed dashboard for g1v0.
+// Command chewedfeed is a read-only Chewedfeed dashboard for g1v0, one page per site.
 //
 //	go run ./examples/chewedfeed -preview
 //	go run ./examples/chewedfeed [-token-file SESSION_FILE] [-project SLUG]
@@ -7,6 +7,7 @@
 // the cookie name. Without it, public statistics, projects and uptime work.
 // Keep the host running for refreshes and navigation. Right tap: next page;
 // left tap: previous; double tap: pause rotation; long press: hide/show.
+// Desktop notifications temporarily replace the page for five seconds.
 // -preview prints one snapshot without initializing Bluetooth or the glasses.
 package main
 
@@ -31,6 +32,8 @@ type options struct {
 	api, tokenFile, project string
 	refresh, rotate, stay   time.Duration
 	preview, details        bool
+	notifications           bool
+	notificationBus         string
 }
 
 var stages = log.New(os.Stderr, "chewedfeed: ", log.Ltime|log.Lmicroseconds)
@@ -48,7 +51,9 @@ func main() {
 	flag.DurationVar(&o.rotate, "rotate", 12*time.Second, "time per page; 0 disables automatic rotation")
 	flag.DurationVar(&o.stay, "for", 0, "stop after this duration; 0 runs until interrupted")
 	flag.BoolVar(&o.preview, "preview", false, "print all pages once without connecting to glasses")
-	flag.BoolVar(&o.details, "details", true, "include uptime and authenticated tickets, services and repos")
+	flag.BoolVar(&o.details, "details", true, "include uptime and authenticated ticket, service and repo summaries")
+	flag.BoolVar(&o.notifications, "notifications", true, "show laptop notifications for five seconds, then restore the dashboard")
+	flag.StringVar(&o.notificationBus, "notification-bus", "", "notification D-Bus address (empty: the laptop user session)")
 	demo.Usage("chewedfeed [flags]")
 	flag.Parse()
 	if flag.NArg() != 0 {
@@ -96,7 +101,7 @@ func run(f demo.Flags, o options) error {
 	if o.preview {
 		progress("Preview mode: glasses connection skipped")
 		data := c.fetch(ctx, nil)
-		pages := makePages(data, 44, 12, utf8.RuneCountInString)
+		pages := makePages(data, 43, 10, utf8.RuneCountInString)
 		progress("Preview ready: %d pages", len(pages))
 		for i, p := range pages {
 			fmt.Printf("\n[%d] %s\n%s\n%s\n", i+1, p.title, strings.Join(p.lines, "\n"), p.status)
@@ -117,6 +122,7 @@ type screen struct {
 	x, y   int
 	w, h   int
 	rows   int
+	now    func() time.Time
 }
 
 const (
@@ -137,7 +143,8 @@ func newScreen(cfg scouterkit.Config) (*screen, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &screen{f, b, max(cfg.DX, -cfg.DX) + 8, 20, w, h, (h / f.LineSpacing) - 4 - footerRaiseRows}, nil
+	return &screen{font: f, bitmap: b, x: max(cfg.DX, -cfg.DX) + 8, y: 20, w: w, h: h,
+		rows: (h / f.LineSpacing) - 4 - footerRaiseRows, now: time.Now}, nil
 }
 
 func (s *screen) measure(text string) int { return s.font.Measure(text).Width }
@@ -152,21 +159,36 @@ func (s *screen) hide(arms []scouterkit.Arm) {
 }
 
 func (s *screen) draw(p page, index, total int, paused bool) {
+	s.render(p, index, total, paused, nil)
+}
+
+func (s *screen) render(p page, index, total int, paused bool, popup *notification) {
 	s.bitmap.Fill(s.bitmap.Bounds(), 0)
 	line := func(text string, n int, gray uint8) {
 		text = fitLine(text, s.w-textInset, s.measure)
 		s.font.DrawLine(s.bitmap, text, textInset, s.font.Ascent+n*s.font.LineSpacing, scouterkit.AlignLeft, gray)
 	}
-	line(p.title, 0, 255)
-	for i, text := range p.lines {
-		line(text, i+2, 255)
+	if popup == nil {
+		line(p.title, 0, 255)
+		for i, text := range p.lines {
+			line(text, i+2, 255)
+		}
+	} else {
+		app := popup.App
+		if app == "" {
+			app = "Notification"
+		}
+		line(app, 0, 255)
+		for i, text := range notificationLines(*popup, s.w-textInset, s.rows+1, s.measure) {
+			line(text, i+1, 255)
+		}
 	}
 	line(p.status, s.rows+2, 153)
 	mode := "auto"
 	if paused {
 		mode = "paused"
 	}
-	line(fmt.Sprintf("%d/%d  %s  %s", index+1, total, mode, time.Now().Format("15:04")), s.rows+3, 153)
+	line(fmt.Sprintf("%d/%d  %s  %s", index+1, total, mode, s.now().Format("15:04")), s.rows+3, 153)
 	scouterkit.Draw(s.bitmap, s.x, s.y)
 	scouterkit.Flush()
 }
@@ -219,6 +241,17 @@ func display(ctx context.Context, f demo.Flags, o options, c *client) error {
 	updates := make(chan snapshot, 1)
 	workerCtx, stopWorker := context.WithCancel(ctx)
 	defer stopWorker()
+	var notes <-chan notification
+	var noteErrors <-chan error
+	var popup notificationPopup
+	if o.notifications {
+		notes, noteErrors, err = startNotifications(workerCtx, o.notificationBus)
+		if err != nil {
+			progress("Desktop notifications unavailable: %v", err)
+		} else {
+			progress("Desktop notification listener started (5-second popups)")
+		}
+	}
 	go func() {
 		var previous snapshot
 		for {
@@ -248,6 +281,22 @@ func display(ctx context.Context, f demo.Flags, o options, c *client) error {
 		case <-ctx.Done():
 			progress("Shutdown requested: %v", ctx.Err())
 			return nil
+		case n, ok := <-notes:
+			if !ok {
+				notes = nil
+				continue
+			}
+			if !hidden {
+				popup.show(n, time.Now())
+				progress("Desktop notification popup (5s)")
+				redraw = true
+			}
+		case err, ok := <-noteErrors:
+			if !ok {
+				noteErrors = nil
+				continue
+			}
+			progress("Desktop notifications unavailable: %v", err)
 		case data := <-updates:
 			id := pages[index].id
 			pages = makePages(data, s.w-textInset, s.rows, s.measure)
@@ -303,14 +352,24 @@ func display(ctx context.Context, f demo.Flags, o options, c *client) error {
 					redraw = true
 				}
 			}
-			if !paused && !hidden && time.Now().After(next) {
+			now := time.Now()
+			if popup.expire(now) {
+				next = now.Add(rotation)
+				redraw = true
+				progress("Notification popup ended; dashboard restored")
+			}
+			if !paused && !hidden && !popup.active() && now.After(next) {
 				index = (index + 1) % len(pages)
 				next = time.Now().Add(rotation)
 				redraw = true
 			}
 		}
 		if redraw && !hidden {
-			s.draw(pages[index], index, len(pages), paused)
+			var note *notification
+			if popup.active() {
+				note = &popup.note
+			}
+			s.render(pages[index], index, len(pages), paused, note)
 		}
 	}
 }

@@ -648,7 +648,14 @@ def build_font_blob(path, size, chars=None, kerning=True):
     offsets from the left end of the baseline, advances rounded, kerning = the pair's advance minus
     the two single advances, rounded (pairs of `chars`, default printable ASCII)."""
     from PIL import ImageFont
-    font = ImageFont.truetype(path, size)
+    try:
+        font = ImageFont.truetype(path, size)
+    except OSError:
+        if path not in (FONT_PATH, BOLD_PATH):
+            raise
+        # The bundled font keeps the default tools usable without system DejaVu fonts.
+        fallback = Path(__file__).resolve().parent.parent / "third_party/departure_mono/DepartureMono-Regular.otf"
+        font = ImageFont.truetype(str(fallback), size)
     chars = sorted(set(chars or "".join(chr(c) for c in range(32, 127))))
     ascent, descent = font.getmetrics()
     glyphs = []
@@ -1206,9 +1213,17 @@ class Arm:
         return rep["body"]
 
     def hello(self):
+        old_epoch = self.epoch
         rep = self.ctrl("HELLO")
         self.stats["hellos"] += 1
-        return self._apply_hello(rep["body"], rep["epoch"])
+        info = self._apply_hello(rep["body"], rep["epoch"])
+        if old_epoch is not None and info["epoch"] != old_epoch:
+            # Old writes can reach the new link before HELLO. Discard its queued packets
+            # before reusing sequence numbers and uploading the new arena, as the C++ host does.
+            dropped = self.reset_session(clear_arena=True)
+            self.log(f"[{self.name}] new boot: reset session, dropped {dropped} stale packets")
+            return self.info
+        return info
 
     def panel_guard(self, on=None):
         """PANEL_GUARD (0.5.52+, VM.md §6.6): False switches the panel guard off (BRIGHTNESS_CAP 42, no NOTICE 7)
@@ -2250,6 +2265,8 @@ def emu_check(arm, draw_idx, out_dir, label):
     want = arm.draws[draw_idx]["panel"]
     bad = sum(1 for a, b in zip(got, want) if a != b)
     save_png(got, PANEL_W, PANEL_H, out_dir / f"{label}_panel.png")
+    if bad:
+        save_png(want, PANEL_W, PANEL_H, out_dir / f"{label}_expected.png")
     ppm.unlink()
     return bad
 

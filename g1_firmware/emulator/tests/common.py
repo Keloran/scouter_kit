@@ -16,6 +16,9 @@ SK = FW.parent
 WORK = Path(os.environ.get("G1_WORK", FW / "work")).resolve()
 RUNS = WORK / "runs"
 BUILD = Path(os.environ.get("G1_BUILD", WORK / "build")).resolve()
+BOXENGINE = os.environ.get("BOXENGINE", "podman")
+if BOXENGINE not in ("podman", "docker"):
+    raise ValueError("BOXENGINE must be podman or docker")
 sys.path.insert(0, str(SK / "tools"))
 import g1host as g  # noqa: E402
 
@@ -47,7 +50,7 @@ class Emu:
             self.arm.tr.close()
         except Exception:
             pass
-        subprocess.run(["podman", "kill", self.name], capture_output=True)
+        subprocess.run([BOXENGINE, "kill", self.name], capture_output=True)
 
     def now(self):
         return self.arm.tr.now()
@@ -85,7 +88,7 @@ class Pair:
                 arm.tr.close()
             except Exception:
                 pass
-        subprocess.run(["podman", "kill", self.name], capture_output=True)
+        subprocess.run([BOXENGINE, "kill", self.name], capture_output=True)
 
     def _side(self, side, fn):
         arm = None
@@ -96,7 +99,7 @@ class Pair:
             fn(arm)
         except Exception:
             self.errors.append(f"{side}: {traceback.format_exc()[-1500:]}")
-            subprocess.run(["podman", "kill", self.name], capture_output=True)
+            subprocess.run([BOXENGINE, "kill", self.name], capture_output=True)
             return
         finally:
             self.done.add(side)

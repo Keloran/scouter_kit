@@ -155,6 +155,11 @@ def install(args, img, stock_after):
     up = g.smp_upload_verified(arm, img, progress=lambda off, n: print(f"\r  upload {off}/{n}", end="", flush=True))
     print(f"\n  slot 1 holds {label} ({up['kBps']} KB/s, {time.monotonic() - t0:.0f} s)")
     ask(args, f"Install {label} on this arm now? MCUboot overwrites the running firmware for good (no revert).")
+    if not args.emu and not args.yes:
+        # input() does not pump the stock heartbeat; the arm may have disconnected meanwhile.
+        print("  refreshing the Bluetooth link before confirmation")
+        arm.tr.close()
+        arm = connect(args, stock=args.stock)
     before = arm.losses()
     g.smp_commit(arm, img)
     print("  confirmed, the arm resets: MCUboot copies the image (about 20 s), keep the arm powered")

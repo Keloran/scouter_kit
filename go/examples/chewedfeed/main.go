@@ -171,6 +171,8 @@ func run(f demo.Flags, o options) error {
 		for i, p := range system {
 			fmt.Printf("\n[Stats %d/%d] %s\n%s\n%s\n", i+1, len(system), p.title, strings.Join(p.lines, "\n"), p.status)
 		}
+		title := currentMusicTitle(ctx)
+		fmt.Printf("\n[Status] %s\n", musicStatusLine(title, title != "", time.Now()))
 		for _, r := range data {
 			if !r.at.IsZero() {
 				return nil
@@ -182,23 +184,25 @@ func run(f demo.Flags, o options) error {
 }
 
 type screen struct {
-	font            *scouterkit.Font
-	footerFont      *scouterkit.Font
-	footerBaseline  int
-	batteryBaseline int
-	batteries       batteryStatus
-	bodyStart       int
-	bitmap          *scouterkit.Bitmap
-	x, y            int
-	w, h            int
-	rows            int
-	now             func() time.Time
-	viewName        string
+	font           *scouterkit.Font
+	footerFont     *scouterkit.Font
+	footerBaseline int
+	batteries      batteryStatus
+	bodyStart      int
+	bitmap         *scouterkit.Bitmap
+	x, y           int
+	w, h           int
+	contentW       int
+	statusX        int
+	statusW        int
+	rows           int
+	status         musicStatus
 }
 
 const (
 	textInset       = 4
 	footerRaiseRows = 2
+	footerLift      = 80
 )
 
 func newScreen(cfg scouterkit.Config) (*screen, error) {
@@ -213,23 +217,27 @@ func newScreenScale(cfg scouterkit.Config, scale float64) (*screen, error) {
 	}
 	footer := f
 	vw, vh := scouterkit.Size()
-	w, h := vw-2*max(cfg.DX, -cfg.DX)-16, vh-40
+	w := min(600, vw-2*max(cfg.DX, -cfg.DX)-16)
+	h := min(400, vh-40)
+	statusW := max(90, w/7)
+	contentW := w - statusW - 1
 	progress("Allocating dashboard display (%dx%d)", w, h)
 	b, err := scouterkit.CreateBitmap(w, h)
 	if err != nil {
 		return nil, err
 	}
-	batteryBaseline := footer.Ascent + ((h/footer.LineSpacing)-1-footerRaiseRows)*footer.LineSpacing
-	footerBaseline := batteryBaseline - footer.LineSpacing
-	rows, bodyStart := (h/f.LineSpacing)-5-footerRaiseRows, 2
+	footerBaseline := footer.Ascent + ((h/footer.LineSpacing)-1-footerRaiseRows)*footer.LineSpacing - footerLift
+	// The old battery row is now a right-side status panel, so reserve one
+	// footer row and let the page content use the space above it.
+	bodyStart := 2
 	if scale != 2 {
 		bodyStart = 1
-		rows = (footerBaseline-footer.Ascent-8-f.Ascent-f.Descent)/f.LineSpacing - bodyStart + 1
 	}
+	rows := (footerBaseline-footer.Ascent-8-f.Ascent-f.Descent)/f.LineSpacing - bodyStart + 1
 	return &screen{font: f, footerFont: footer, footerBaseline: footerBaseline, bodyStart: bodyStart,
-		batteryBaseline: batteryBaseline,
-		bitmap:          b, x: max(cfg.DX, -cfg.DX) + 8, y: 20, w: w, h: h,
-		rows: max(1, rows), now: time.Now, viewName: "Sites"}, nil
+		bitmap: b, x: max(max(cfg.DX, -cfg.DX)+8, (vw-w)/2), y: (vh - h) / 2, w: w, h: h,
+		contentW: contentW, statusX: contentW + 1, statusW: statusW,
+		rows: max(1, rows)}, nil
 }
 
 func (s *screen) measure(text string) int { return s.font.Measure(text).Width }
@@ -249,7 +257,6 @@ func (s *screen) draw(p page, index, total int, paused bool) {
 
 func (s *screen) renderView(nav *navigation, popup *notification) {
 	v := nav.current()
-	s.viewName = v.name
 	s.render(v.pages[v.index], v.index, len(v.pages), nav.paused, popup)
 }
 
@@ -268,7 +275,7 @@ func footerStatus(status string) string {
 func (s *screen) render(p page, index, total int, paused bool, popup *notification) {
 	s.bitmap.Fill(s.bitmap.Bounds(), 0)
 	line := func(text string, n int, gray uint8) {
-		text = fitLine(text, s.w-textInset, s.measure)
+		text = fitLine(text, s.contentW-textInset, s.measure)
 		s.font.DrawLine(s.bitmap, text, textInset, s.font.Ascent+n*s.font.LineSpacing, scouterkit.AlignLeft, gray)
 	}
 	if popup == nil {
@@ -285,12 +292,12 @@ func (s *screen) render(p page, index, total int, paused bool, popup *notificati
 			app = "Notification"
 		}
 		line(app, 0, 255)
-		for i, text := range notificationLines(*popup, s.w-textInset, s.rows+s.bodyStart-1, s.measure) {
+		for i, text := range notificationLines(*popup, s.contentW-textInset, s.rows+s.bodyStart-1, s.measure) {
 			line(text, i+1, 255)
 		}
 	}
-	s.drawNavigationRow(p, index, total, paused)
-	s.drawBatteryRow()
+	s.drawStatusPanel(paused)
+	s.drawNavigationRow(index, total)
 	scouterkit.Draw(s.bitmap, s.x, s.y)
 	scouterkit.Flush()
 }
@@ -340,9 +347,10 @@ func display(ctx context.Context, f demo.Flags, o options, c *client) error {
 	loading := []page{{id: "loading", title: "Chewedfeed", lines: []string{"Loading dashboard..."}, status: "Connecting to API"}}
 	ai := aiUsagePages(o.aiUsageDir, nil, time.Now())
 	system := []page{{id: "system/cpu", title: "System monitor", lines: []string{"Sampling laptop activity..."}, status: "Starting"}}
+	s.status.setTitle(currentMusicTitle(ctx), time.Now())
 	nav := newNavigation(loading, ai, system, o.rotate == 0)
 	var history notificationHistory
-	nav.replace(viewNotifications, history.pages(s.w-textInset, s.rows, s.measure))
+	nav.replace(viewNotifications, history.pages(s.contentW-textInset, s.rows, s.measure))
 	cases, err := initialCaseState(arms)
 	if err != nil {
 		return err
@@ -362,6 +370,24 @@ func display(ctx context.Context, f demo.Flags, o options, c *client) error {
 	updates := make(chan snapshot, 1)
 	workerCtx, stopWorker := context.WithCancel(ctx)
 	defer stopWorker()
+	musicUpdates := make(chan string, 1)
+	go func() {
+		ticker := time.NewTicker(musicRefresh)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-workerCtx.Done():
+				return
+			case <-ticker.C:
+				title := currentMusicTitle(workerCtx)
+				select {
+				case musicUpdates <- title:
+				case <-workerCtx.Done():
+					return
+				}
+			}
+		}
+	}()
 	batteryUpdates, stopBatteries := monitorBatteries(workerCtx, arms)
 	defer stopBatteries()
 	statusPath := glassesStatusPath()
@@ -426,7 +452,7 @@ func display(ctx context.Context, f demo.Flags, o options, c *client) error {
 	defer tick.Stop()
 	next := time.Now().Add(rotation)
 	lastWarnings := ""
-	lastClockMinute := time.Now().Format("15:04")
+	lastClockMinute := time.Now().Format(musicStatusFormat)
 	for {
 		redraw := false
 		select {
@@ -439,7 +465,7 @@ func display(ctx context.Context, f demo.Flags, o options, c *client) error {
 				continue
 			}
 			history.add(n, time.Now())
-			nav.replace(viewNotifications, history.pages(s.w-textInset, s.rows, s.measure))
+			nav.replace(viewNotifications, history.pages(s.contentW-textInset, s.rows, s.measure))
 			if nav.selected == viewNotifications {
 				redraw = true
 			}
@@ -459,6 +485,8 @@ func display(ctx context.Context, f demo.Flags, o options, c *client) error {
 			if nav.selected == viewAI {
 				redraw = true
 			}
+		case title := <-musicUpdates:
+			redraw = s.status.setTitle(title, time.Now())
 		case batteries, ok := <-batteryUpdates:
 			if !ok {
 				batteryUpdates = nil
@@ -493,7 +521,7 @@ func display(ctx context.Context, f demo.Flags, o options, c *client) error {
 				lastSystemError = message
 			}
 		case data := <-updates:
-			nav.replace(viewSites, makePages(data, s.w-textInset, s.rows, s.measure))
+			nav.replace(viewSites, makePages(data, s.contentW-textInset, s.rows, s.measure))
 			progress("Sites ready: %d pages; page %d selected", len(nav.views[0].pages), nav.views[0].index+1)
 			if nav.selected == viewSites {
 				redraw = true
@@ -567,8 +595,12 @@ func display(ctx context.Context, f demo.Flags, o options, c *client) error {
 				}
 			}
 			now := time.Now()
-			if minute := now.Format("15:04"); minute != lastClockMinute {
+			if minute := now.Format(musicStatusFormat); minute != lastClockMinute {
 				lastClockMinute = minute
+				redraw = true
+			}
+			statusWidth := s.w - s.w/3 - 2*textInset
+			if s.status.advance(now, statusWidth, func(text string) int { return s.footerFont.Measure(text).Width }) {
 				redraw = true
 			}
 			if popup.expire(now) {

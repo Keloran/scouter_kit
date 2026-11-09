@@ -5,6 +5,7 @@ import (
 	"image"
 	"math"
 	"strings"
+	"time"
 
 	"scouterkit"
 )
@@ -66,6 +67,25 @@ func (s *screen) iconSize(name string) (int, int) {
 	return int(math.Round(float64(len(icon[0])) * scale)), int(math.Round(float64(len(icon)) * scale))
 }
 
+func (s *screen) drawIconAt(name string, x, baseline int, gray uint8) int {
+	f := s.footerFont
+	icon := statusIcons[name]
+	w, h := s.iconSize(name)
+	scale := math.Max(0.1, float64(f.Ascent+f.Descent)/11)
+	top := baseline + min(f.Descent, f.LineSpacing-f.Ascent) - h
+	for row, line := range icon {
+		for col, pixel := range line {
+			if pixel != '#' {
+				continue
+			}
+			x0, x1 := int(math.Round(float64(col)*scale)), int(math.Round(float64(col+1)*scale))
+			y0, y1 := int(math.Round(float64(row)*scale)), int(math.Round(float64(row+1)*scale))
+			s.bitmap.Fill(image.Rect(x+x0, top+y0, x+x1, top+y1), gray)
+		}
+	}
+	return w
+}
+
 type footerRow struct {
 	screen             *screen
 	x, baseline, limit int
@@ -80,25 +100,12 @@ func (r *footerRow) text(text string) {
 }
 
 func (r *footerRow) icon(name string) {
-	s, f := r.screen, r.screen.footerFont
-	w, h := s.iconSize(name)
+	s := r.screen
+	w, _ := s.iconSize(name)
 	if r.x+w > r.limit {
 		return
 	}
-	scale := math.Max(0.1, float64(f.Ascent+f.Descent)/11)
-	// Fractional rounding can make ascent+descent one pixel taller than a row.
-	// Keep icons inside their row so mode changes cannot touch the battery row.
-	top := r.baseline + min(f.Descent, f.LineSpacing-f.Ascent) - h
-	for row, line := range statusIcons[name] {
-		for col, pixel := range line {
-			if pixel != '#' {
-				continue
-			}
-			x0, x1 := int(math.Round(float64(col)*scale)), int(math.Round(float64(col+1)*scale))
-			y0, y1 := int(math.Round(float64(row)*scale)), int(math.Round(float64(row+1)*scale))
-			s.bitmap.Fill(image.Rect(r.x+x0, top+y0, r.x+x1, top+y1), 153)
-		}
-	}
+	s.drawIconAt(name, r.x, r.baseline, 153)
 	r.x += w
 	r.gap()
 }
@@ -125,55 +132,78 @@ func sourceIndicator(status string) footerSource {
 	return footerSource{icon: "unknown", text: status, stale: stale}
 }
 
-func (s *screen) drawNavigationRow(p page, index, total int, paused bool) {
-	r := footerRow{screen: s, x: textInset, baseline: s.footerBaseline, limit: s.w - textInset}
-	if s.viewName == "Sites" {
-		r.icon("book")
-	} else if s.viewName == "Notifications" {
-		r.icon("bell")
-	} else {
-		r.text(s.viewName)
-		r.gap()
+func (s *screen) drawNavigationRow(index, total int) {
+	baseline := s.footerBaseline
+	footerTop := baseline - s.footerFont.Ascent - 5
+	footerBottom := baseline + s.footerFont.Descent
+	s.bitmap.Fill(image.Rect(s.w/3, footerTop, s.w/3+1, footerBottom), 153)
+	left := footerRow{screen: s, x: textInset, baseline: baseline, limit: s.w / 3}
+	left.text(fmt.Sprintf("Page %d/%d", index+1, total))
+	middle := footerRow{screen: s, x: s.w/3 + textInset, baseline: baseline, limit: s.w - textInset}
+	statusWidth := middle.limit - middle.x
+	label := s.status.line(time.Now(), statusWidth, func(text string) int { return s.footerFont.Measure(text).Width })
+	middleWidth := s.footerFont.Measure(label).Width
+	if middleWidth < middle.limit-middle.x {
+		middle.x += (middle.limit - middle.x - middleWidth) / 2
 	}
-	r.text(fmt.Sprintf("%d/%d", index+1, total))
-	r.gap()
-	if paused {
-		r.icon("hand")
-	} else {
-		r.icon("refresh")
-	}
-	r.gap()
-	source := sourceIndicator(p.status)
-	if source.stale {
-		r.icon("warning")
-	}
-	r.icon(source.icon)
-	r.text(source.text)
+	middle.text(label)
 }
 
-func (s *screen) drawBatteryRow() {
-	f := s.footerFont
-	space := f.Measure(" ").Width
-	clockText := s.now().Format("15:04")
-	clockIconWidth, _ := s.iconSize("clock")
-	clockWidth := clockIconWidth + space + f.Measure(clockText).Width
-	preferredClockX := s.w - textInset - clockWidth - f.Measure(strings.Repeat(" ", 30)).Width
-	// Keep both batteries before the clock, reserving enough room for the time.
-	r := footerRow{screen: s, x: textInset, baseline: s.batteryBaseline, limit: s.w - textInset - clockWidth - space}
-	r.icon("computer")
-	r.text(batteryPercent(s.batteries.host))
-	r.gap()
-	r.icon("glasses")
-	text := s.batteries.glassesText()
-	if f.Measure(text).Width > r.limit-r.x {
-		// Preserve both arm percentages before shortening the battery text.
-		text = strings.ReplaceAll(strings.ReplaceAll(text, "L ", "L"), "R ", "R")
-		text = strings.ReplaceAll(text, "  ", " ")
+func (s *screen) drawStatusPanel(paused bool) {
+	divider := s.statusX - 1
+	footerTop := s.footerBaseline - s.footerFont.Ascent - 5
+	s.bitmap.Fill(image.Rect(divider, 0, divider+1, footerTop), 153)
+	s.bitmap.Fill(image.Rect(0, footerTop, s.w, footerTop+1), 153)
+	iconW, iconH := s.iconSize("glasses")
+	iconX := s.statusX + (s.statusW-iconW)/2
+	iconBaseline := s.footerFont.Ascent + iconH + 2
+	rightBaseline := iconBaseline + 2*s.footerFont.LineSpacing
+	panelMid := rightBaseline + s.footerFont.Descent + 5
+	panelLower := (panelMid + footerTop) / 2
+	s.bitmap.Fill(image.Rect(s.statusX, panelMid, s.w, panelMid+1), 153)
+	s.bitmap.Fill(image.Rect(s.statusX, panelLower, s.w, panelLower+1), 153)
+
+	s.drawIconAt("glasses", iconX, iconBaseline, 255)
+	line := func(text string, baseline int) {
+		text = fitLine(text, s.statusW-2*textInset, func(v string) int { return s.footerFont.Measure(v).Width })
+		s.footerFont.DrawLine(s.bitmap, text, s.statusX+textInset, baseline, scouterkit.AlignLeft, 255)
 	}
-	r.text(text)
-	r.gap()
-	clockX := max(r.x, preferredClockX)
-	clock := footerRow{screen: s, x: clockX, baseline: s.batteryBaseline, limit: s.w - textInset}
-	clock.icon("clock")
-	clock.text(clockText)
+	line(s.batteryFor(scouterkit.Left), iconBaseline+s.footerFont.LineSpacing)
+	line(s.batteryFor(scouterkit.Right), rightBaseline)
+
+	computerW, computerH := s.iconSize("computer")
+	middleHeight := panelLower - panelMid
+	middleContentHeight := computerH + s.footerFont.LineSpacing
+	middleTop := panelMid + (middleHeight-middleContentHeight)/2
+	computerBaseline := middleTop + computerH + 2
+	computerX := s.statusX + (s.statusW-computerW)/2
+	s.drawIconAt("computer", computerX, computerBaseline, 255)
+	line(batteryPercent(s.batteries.host), computerBaseline+s.footerFont.LineSpacing)
+
+	modeIcon := "refresh"
+	if paused {
+		modeIcon = "hand"
+	}
+	bottomHeight := footerTop - panelLower
+	modeW, modeH := s.iconSize(modeIcon)
+	modeX := s.statusX + (s.statusW-modeW)/2
+	modeTop := panelLower + (bottomHeight-modeH)/2
+	modeBaseline := modeTop + modeH - min(s.footerFont.Descent, s.footerFont.LineSpacing-s.footerFont.Ascent)
+	s.drawIconAt(modeIcon, modeX, modeBaseline, 255)
+}
+
+func (s *screen) batteryFor(arm scouterkit.Arm) string {
+	for _, reading := range s.batteries.arms {
+		if reading.arm == arm {
+			label := "L"
+			if arm == scouterkit.Right {
+				label = "R"
+			}
+			return label + " " + batteryPercent(reading.percent)
+		}
+	}
+	if arm == scouterkit.Right {
+		return "R --%"
+	}
+	return "L --%"
 }

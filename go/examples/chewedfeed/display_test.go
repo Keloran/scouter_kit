@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"strings"
 	"testing"
-	"time"
 
 	"scouterkit"
 )
@@ -22,8 +21,6 @@ func TestLargeTextPreservesFooterAndNotificationArea(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	now := func() time.Time { return time.Unix(100, 0) }
-	normal.now = now
 	p := page{title: "Large numbers 0123456789", status: "Fetched 12:00"}
 	for i := 0; i < 30; i++ {
 		p.lines = append(p.lines, "Content 0123456789 gjpqy")
@@ -35,7 +32,6 @@ func TestLargeTextPreservesFooterAndNotificationArea(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	large.now = now
 	if large.measure("0123456789") != width*3/2 {
 		t.Fatal("large text is not 50% bigger")
 	}
@@ -48,7 +44,7 @@ func TestLargeTextPreservesFooterAndNotificationArea(t *testing.T) {
 	if large.footerFont.Measure("0123456789").Width != width*3/2 {
 		t.Fatal("status line did not scale with the content")
 	}
-	footerEnd := large.batteryBaseline + large.footerFont.Descent
+	footerEnd := large.footerBaseline + large.footerFont.Descent
 	if footerEnd > large.h-2*large.font.LineSpacing {
 		t.Fatal("scaled footer does not leave two clear rows below it")
 	}
@@ -78,7 +74,6 @@ func TestFractionalStatusLineScalesAndStaysClearOfNotifications(t *testing.T) {
 	if s.footerFont.LineSpacing != s.font.LineSpacing || s.footerFont.Measure("12:34").Width != s.measure("12:34") {
 		t.Fatal("fractional status text does not match the main text scale")
 	}
-	s.now = func() time.Time { return time.Unix(100, 0) }
 	p := page{title: "Site", status: "Fetched 12:00"}
 	for i := 0; i < 100; i++ {
 		p.lines = append(p.lines, "Content gjpqy")
@@ -114,7 +109,7 @@ func TestDisplayReadbackAndWake(t *testing.T) {
 				}
 			}
 		}
-		footerEnd := s.batteryBaseline + s.font.Descent
+		footerEnd := s.footerBaseline + s.font.Descent
 		if footerEnd > s.h-2*s.font.LineSpacing {
 			t.Fatal("footer does not leave two text rows clear below it")
 		}
@@ -147,7 +142,6 @@ func TestNotificationOverlayPreservesFooterAndRestoresDashboard(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.now = func() time.Time { return time.Unix(100, 0) }
 	p := page{title: "Site", lines: []string{"Progress: 75%", "Stage: launched"}, status: "Updated 12:00"}
 	s.draw(p, 2, 13, false)
 	before := s.bitmap.Image()

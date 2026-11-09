@@ -6,7 +6,10 @@
 // The token file contains the JWT from Chewedfeed's session cookie, without
 // the cookie name. Without it, public statistics, projects and uptime work.
 // Keep the host running for refreshes and navigation. Right tap: next page;
-// left tap: previous; double tap: pause rotation; long press: hide/show.
+// left tap: previous; double taps cycle Sites/AI/Notifications/Stats forward
+// on the right and backward on the left; left triple tap: hide/show;
+// right triple tap: pause rotation;
+// AI usage reads the existing local ai-usagebar cache.
 // Desktop notifications temporarily replace the page for five seconds.
 // -preview prints one snapshot without initializing Bluetooth or the glasses.
 package main
@@ -16,9 +19,11 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -34,6 +39,13 @@ type options struct {
 	preview, details        bool
 	notifications           bool
 	notificationBus         string
+	aiUsageDir              string
+	aiRefresh               time.Duration
+	calibrate               bool
+	dx, dy                  int
+	fontScale               float64
+	configFile              string
+	saveConfig              bool
 }
 
 var stages = log.New(os.Stderr, "chewedfeed: ", log.Ltime|log.Lmicroseconds)
@@ -47,28 +59,69 @@ func main() {
 	flag.StringVar(&o.api, "api", "https://api.chewedfeed.com", "Chewedfeed API base URL")
 	flag.StringVar(&o.tokenFile, "token-file", "", "file containing the session-cookie JWT for private views")
 	flag.StringVar(&o.project, "project", "", "only this project slug (summary remains portfolio-wide)")
-	flag.DurationVar(&o.refresh, "refresh", 2*time.Minute, "refresh interval (at least 30s)")
+	flag.DurationVar(&o.refresh, "refresh", 5*time.Minute, "Chewedfeed API refresh interval (at least 30s)")
 	flag.DurationVar(&o.rotate, "rotate", 12*time.Second, "time per page; 0 disables automatic rotation")
 	flag.DurationVar(&o.stay, "for", 0, "stop after this duration; 0 runs until interrupted")
 	flag.BoolVar(&o.preview, "preview", false, "print all pages once without connecting to glasses")
-	flag.BoolVar(&o.details, "details", true, "include uptime and authenticated ticket, service and repo summaries")
+	flag.BoolVar(&o.details, "details", true, "include per-project uptime")
 	flag.BoolVar(&o.notifications, "notifications", true, "show laptop notifications for five seconds, then restore the dashboard")
 	flag.StringVar(&o.notificationBus, "notification-bus", "", "notification D-Bus address (empty: the laptop user session)")
+	cacheDir, _ := os.UserCacheDir()
+	if cacheDir != "" {
+		cacheDir = filepath.Join(cacheDir, "ai-usagebar")
+	}
+	flag.StringVar(&o.aiUsageDir, "ai-usage-dir", cacheDir, "local ai-usagebar cache directory for Codex and Claude usage")
+	flag.DurationVar(&o.aiRefresh, "ai-refresh", 30*time.Second, "local AI usage refresh interval (at least 1s)")
+	geometry := scouterkit.DefaultConfig()
+	flag.IntVar(&o.dx, "dx", geometry.DX, "horizontal separation of the eyes in pixels")
+	flag.IntVar(&o.dy, "dy", geometry.DY, "vertical separation of the eyes in pixels")
+	flag.BoolVar(&o.calibrate, "calibrate", false, "show a left-eye pixel ruler and right-eye crosshair instead of the dashboard")
+	flag.StringVar(&o.configFile, "config", "chewedfeed.local.json", "local display settings file; overrides user config/config.json, then flags override both")
+	flag.BoolVar(&o.saveConfig, "save-config", false, "save alignment and font scale, then exit without connecting")
+	flag.Float64Var(&o.fontScale, "font-scale", 2, "text scale from 0.1 to 3, including fractional sizes such as 1.5")
 	demo.Usage("chewedfeed [flags]")
 	flag.Parse()
+	if !f.Log {
+		stages.SetOutput(io.Discard)
+	}
 	if flag.NArg() != 0 {
 		flag.Usage()
 		os.Exit(2)
 	}
+	explicit := make(map[string]bool)
+	flag.Visit(func(f *flag.Flag) { explicit[f.Name] = true })
+	var err error
+	o, err = configureDisplay(o, explicit)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "chewedfeed: %v\n", err)
+		os.Exit(1)
+	}
+	if o.saveConfig {
+		if err := saveDisplaySettings(o); err != nil {
+			fmt.Fprintf(os.Stderr, "chewedfeed: saving display settings: %v\n", err)
+			os.Exit(1)
+		}
+		progress("Saved display settings: dx=%d, dy=%d, font scale=%g", o.dx, o.dy, o.fontScale)
+		return
+	}
 	if err := run(f, o); err != nil {
-		progress("Failed: %v", err)
+		fmt.Fprintf(os.Stderr, "chewedfeed: %v\n", err)
 		os.Exit(1)
 	}
 }
 
 func run(f demo.Flags, o options) error {
+	if o.dx < -240 || o.dx > 240 || o.dy < -120 || o.dy > 120 {
+		return errors.New("use -dx between -240 and 240, and -dy between -120 and 120")
+	}
+	if o.calibrate {
+		return calibrate(f, o)
+	}
 	if o.refresh < 30*time.Second || o.rotate < 0 || (o.rotate > 0 && o.rotate < time.Second) || o.stay < 0 {
 		return errors.New("use -refresh >= 30s, -rotate 0 or >= 1s, and -for >= 0")
+	}
+	if o.aiRefresh < time.Second {
+		return errors.New("use -ai-refresh >= 1s")
 	}
 	var token string
 	if o.tokenFile != "" {
@@ -104,7 +157,19 @@ func run(f demo.Flags, o options) error {
 		pages := makePages(data, 43, 10, utf8.RuneCountInString)
 		progress("Preview ready: %d pages", len(pages))
 		for i, p := range pages {
-			fmt.Printf("\n[%d] %s\n%s\n%s\n", i+1, p.title, strings.Join(p.lines, "\n"), p.status)
+			fmt.Printf("\n[Sites %d/%d] %s\n%s\n%s\n", i+1, len(pages), p.title, strings.Join(p.lines, "\n"), p.status)
+		}
+		ai := aiUsagePages(o.aiUsageDir, nil, time.Now())
+		for i, p := range ai {
+			fmt.Printf("\n[AI %d/%d] %s\n%s\n%s\n", i+1, len(ai), p.title, strings.Join(p.lines, "\n"), p.status)
+		}
+		for i, p := range emptyNotificationHistory() {
+			fmt.Printf("\n[Notifications %d/1] %s\n%s\n%s\n", i+1, p.title, strings.Join(p.lines, "\n"), p.status)
+		}
+		sample, sampleErr := readSystemSample("/proc", nil, time.Now())
+		system := systemPages(systemUpdate{sample: sample, err: sampleErr}, 10)
+		for i, p := range system {
+			fmt.Printf("\n[Stats %d/%d] %s\n%s\n%s\n", i+1, len(system), p.title, strings.Join(p.lines, "\n"), p.status)
 		}
 		for _, r := range data {
 			if !r.at.IsZero() {
@@ -117,12 +182,18 @@ func run(f demo.Flags, o options) error {
 }
 
 type screen struct {
-	font   *scouterkit.Font
-	bitmap *scouterkit.Bitmap
-	x, y   int
-	w, h   int
-	rows   int
-	now    func() time.Time
+	font            *scouterkit.Font
+	footerFont      *scouterkit.Font
+	footerBaseline  int
+	batteryBaseline int
+	batteries       batteryStatus
+	bodyStart       int
+	bitmap          *scouterkit.Bitmap
+	x, y            int
+	w, h            int
+	rows            int
+	now             func() time.Time
+	viewName        string
 }
 
 const (
@@ -131,11 +202,16 @@ const (
 )
 
 func newScreen(cfg scouterkit.Config) (*screen, error) {
+	return newScreenScale(cfg, 2)
+}
+
+func newScreenScale(cfg scouterkit.Config, scale float64) (*screen, error) {
 	progress("Loading display font onto glasses")
-	f, err := scouterkit.LoadFont(scouterkit.DepartureMono(), "", 2)
+	f, err := loadDisplayFont("", scale)
 	if err != nil {
 		return nil, err
 	}
+	footer := f
 	vw, vh := scouterkit.Size()
 	w, h := vw-2*max(cfg.DX, -cfg.DX)-16, vh-40
 	progress("Allocating dashboard display (%dx%d)", w, h)
@@ -143,8 +219,17 @@ func newScreen(cfg scouterkit.Config) (*screen, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &screen{font: f, bitmap: b, x: max(cfg.DX, -cfg.DX) + 8, y: 20, w: w, h: h,
-		rows: (h / f.LineSpacing) - 4 - footerRaiseRows, now: time.Now}, nil
+	batteryBaseline := footer.Ascent + ((h/footer.LineSpacing)-1-footerRaiseRows)*footer.LineSpacing
+	footerBaseline := batteryBaseline - footer.LineSpacing
+	rows, bodyStart := (h/f.LineSpacing)-5-footerRaiseRows, 2
+	if scale != 2 {
+		bodyStart = 1
+		rows = (footerBaseline-footer.Ascent-8-f.Ascent-f.Descent)/f.LineSpacing - bodyStart + 1
+	}
+	return &screen{font: f, footerFont: footer, footerBaseline: footerBaseline, bodyStart: bodyStart,
+		batteryBaseline: batteryBaseline,
+		bitmap:          b, x: max(cfg.DX, -cfg.DX) + 8, y: 20, w: w, h: h,
+		rows: max(1, rows), now: time.Now, viewName: "Sites"}, nil
 }
 
 func (s *screen) measure(text string) int { return s.font.Measure(text).Width }
@@ -162,6 +247,24 @@ func (s *screen) draw(p page, index, total int, paused bool) {
 	s.render(p, index, total, paused, nil)
 }
 
+func (s *screen) renderView(nav *navigation, popup *notification) {
+	v := nav.current()
+	s.viewName = v.name
+	s.render(v.pages[v.index], v.index, len(v.pages), nav.paused, popup)
+}
+
+func footerStatus(status string) string {
+	if strings.HasPrefix(status, "STALE") {
+		for _, marker := range []string{"Fetched ", "Cached ", "Sampled ", "Received "} {
+			if i := strings.LastIndex(status, marker); i >= 0 {
+				return "STALE " + status[i:]
+			}
+		}
+		return "STALE"
+	}
+	return status
+}
+
 func (s *screen) render(p page, index, total int, paused bool, popup *notification) {
 	s.bitmap.Fill(s.bitmap.Bounds(), 0)
 	line := func(text string, n int, gray uint8) {
@@ -171,7 +274,10 @@ func (s *screen) render(p page, index, total int, paused bool, popup *notificati
 	if popup == nil {
 		line(p.title, 0, 255)
 		for i, text := range p.lines {
-			line(text, i+2, 255)
+			if i >= s.rows {
+				break
+			}
+			line(text, i+s.bodyStart, 255)
 		}
 	} else {
 		app := popup.App
@@ -179,16 +285,12 @@ func (s *screen) render(p page, index, total int, paused bool, popup *notificati
 			app = "Notification"
 		}
 		line(app, 0, 255)
-		for i, text := range notificationLines(*popup, s.w-textInset, s.rows+1, s.measure) {
+		for i, text := range notificationLines(*popup, s.w-textInset, s.rows+s.bodyStart-1, s.measure) {
 			line(text, i+1, 255)
 		}
 	}
-	line(p.status, s.rows+2, 153)
-	mode := "auto"
-	if paused {
-		mode = "paused"
-	}
-	line(fmt.Sprintf("%d/%d  %s  %s", index+1, total, mode, s.now().Format("15:04")), s.rows+3, 153)
+	s.drawNavigationRow(p, index, total, paused)
+	s.drawBatteryRow()
 	scouterkit.Draw(s.bitmap, s.x, s.y)
 	scouterkit.Flush()
 }
@@ -196,7 +298,7 @@ func (s *screen) render(p page, index, total int, paused bool, popup *notificati
 func display(ctx context.Context, f demo.Flags, o options, c *client) error {
 	started := time.Now()
 	progress("Looking for glasses and connecting over Bluetooth")
-	cfg, arms, err := demo.Connect(f)
+	cfg, arms, err := connectDisplay(f, o)
 	if err != nil {
 		return fmt.Errorf("connecting to glasses: %w", err)
 	}
@@ -206,21 +308,27 @@ func display(ctx context.Context, f demo.Flags, o options, c *client) error {
 		scouterkit.Deinit()
 		progress("Stopped")
 	}()
+	if ctx.Err() != nil {
+		return nil
+	}
 	progress("Glasses connected: %d arms (%s)", len(arms), time.Since(started).Round(time.Millisecond))
 	for _, arm := range arms {
 		progress("%s arm ready: firmware %s", arm, arm.State().Firmware)
 	}
-	s, err := newScreen(cfg)
+	if err := installCaseGuard(arms); err != nil {
+		return err
+	}
+	s, err := newScreenScale(cfg, o.fontScale)
 	if err != nil {
 		return err
 	}
 	for _, arm := range arms {
 		progress("Enabling touch controls on %s arm", arm)
-		mask, err := arm.ReportInputs(1 << scouterkit.TriggerTouch)
+		mask, err := arm.ReportInputs(1<<scouterkit.TriggerTouch | 1<<scouterkit.TriggerCase)
 		if err != nil {
 			return err
 		}
-		if mask == 0 {
+		if mask&(1<<scouterkit.TriggerTouch) == 0 {
 			progress("%s arm: touch unavailable; use automatic rotation", arm)
 		}
 	}
@@ -229,18 +337,54 @@ func display(ctx context.Context, f demo.Flags, o options, c *client) error {
 			arm.ReportInputs(0)
 		}
 	}()
-	pages := []page{{id: "loading", title: "Chewedfeed", lines: []string{"Loading dashboard..."}, status: "Connecting to API"}}
-	index, paused, hidden := 0, o.rotate == 0, false
+	loading := []page{{id: "loading", title: "Chewedfeed", lines: []string{"Loading dashboard..."}, status: "Connecting to API"}}
+	ai := aiUsagePages(o.aiUsageDir, nil, time.Now())
+	system := []page{{id: "system/cpu", title: "System monitor", lines: []string{"Sampling laptop activity..."}, status: "Starting"}}
+	nav := newNavigation(loading, ai, system, o.rotate == 0)
+	var history notificationHistory
+	nav.replace(viewNotifications, history.pages(s.w-textInset, s.rows, s.measure))
+	cases, err := initialCaseState(arms)
+	if err != nil {
+		return err
+	}
+	nav.inCase = cases.any()
 	rotation := o.rotate
 	if rotation == 0 {
 		rotation = 12 * time.Second
 	}
 	progress("Sending loading screen to glasses")
-	s.draw(pages[0], 0, 1, paused)
-	progress("Started: display queued; API refresh every %s, page rotation every %s (paused: %t)", o.refresh, rotation, paused)
+	if nav.visible() {
+		s.renderView(&nav, nil)
+	} else {
+		s.hide(arms)
+	}
+	progress("Started: Sites, AI, Notifications and Stats screens; system refresh every 2s, API refresh every %s, page rotation every %s (paused: %t)", o.refresh, rotation, nav.paused)
 	updates := make(chan snapshot, 1)
 	workerCtx, stopWorker := context.WithCancel(ctx)
 	defer stopWorker()
+	batteryUpdates, stopBatteries := monitorBatteries(workerCtx, arms)
+	defer stopBatteries()
+	systemUpdates := monitorSystem(workerCtx, "/proc")
+	lastSystemError := ""
+	aiUpdates := make(chan []page, 1)
+	go func() {
+		previous := ai
+		ticker := time.NewTicker(o.aiRefresh)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-workerCtx.Done():
+				return
+			case <-ticker.C:
+				previous = aiUsagePages(o.aiUsageDir, previous, time.Now())
+				select {
+				case aiUpdates <- previous:
+				case <-workerCtx.Done():
+					return
+				}
+			}
+		}
+	}()
 	var notes <-chan notification
 	var noteErrors <-chan error
 	var popup notificationPopup
@@ -248,9 +392,12 @@ func display(ctx context.Context, f demo.Flags, o options, c *client) error {
 		notes, noteErrors, err = startNotifications(workerCtx, o.notificationBus)
 		if err != nil {
 			progress("Desktop notifications unavailable: %v", err)
+			nav.replace(viewNotifications, []page{{id: "notifications/empty", title: "Notifications", lines: []string{"Notification listener unavailable"}, status: "Unavailable"}})
 		} else {
 			progress("Desktop notification listener started (5-second popups)")
 		}
+	} else {
+		nav.replace(viewNotifications, []page{{id: "notifications/empty", title: "Notifications", lines: []string{"Notification listening disabled"}, status: "Disabled"}})
 	}
 	go func() {
 		var previous snapshot
@@ -270,11 +417,12 @@ func display(ctx context.Context, f demo.Flags, o options, c *client) error {
 			}
 		}
 	}()
-	fmt.Println("Right tap: next; left tap: previous; double tap: pause; long press: hide/show. Ctrl-C exits.")
+	progress("Single right/left: next/previous page. Double right/left: next/previous screen (Sites, AI, Notifications, Stats). Triple left: display on/off; triple right: pause. Ctrl-C exits.")
 	tick := time.NewTicker(100 * time.Millisecond)
 	defer tick.Stop()
 	next := time.Now().Add(rotation)
 	lastWarnings := ""
+	lastClockMinute := time.Now().Format("15:04")
 	for {
 		redraw := false
 		select {
@@ -286,7 +434,12 @@ func display(ctx context.Context, f demo.Flags, o options, c *client) error {
 				notes = nil
 				continue
 			}
-			if !hidden {
+			history.add(n, time.Now())
+			nav.replace(viewNotifications, history.pages(s.w-textInset, s.rows, s.measure))
+			if nav.selected == viewNotifications {
+				redraw = true
+			}
+			if nav.visible() {
 				popup.show(n, time.Now())
 				progress("Desktop notification popup (5s)")
 				redraw = true
@@ -297,12 +450,45 @@ func display(ctx context.Context, f demo.Flags, o options, c *client) error {
 				continue
 			}
 			progress("Desktop notifications unavailable: %v", err)
-		case data := <-updates:
-			id := pages[index].id
-			pages = makePages(data, s.w-textInset, s.rows, s.measure)
-			index = preservePage(pages, id)
-			progress("Dashboard ready: %d pages; page %d selected", len(pages), index+1)
+		case ai := <-aiUpdates:
+			nav.replace(viewAI, ai)
+			if nav.selected == viewAI {
+				redraw = true
+			}
+		case batteries, ok := <-batteryUpdates:
+			if !ok {
+				batteryUpdates = nil
+				continue
+			}
+			s.batteries = batteries
 			redraw = true
+		case data, ok := <-systemUpdates:
+			if !ok {
+				systemUpdates = nil
+				continue
+			}
+			nav.replace(viewSystem, systemPages(data, s.rows))
+			if nav.selected == viewSystem {
+				redraw = true
+			}
+			message := ""
+			if data.err != nil {
+				message = data.err.Error()
+			}
+			if message != lastSystemError {
+				if message != "" {
+					progress("System monitor unavailable: %s", message)
+				} else {
+					progress("System monitor recovered")
+				}
+				lastSystemError = message
+			}
+		case data := <-updates:
+			nav.replace(viewSites, makePages(data, s.w-textInset, s.rows, s.measure))
+			progress("Sites ready: %d pages; page %d selected", len(nav.views[0].pages), nav.views[0].index+1)
+			if nav.selected == viewSites {
+				redraw = true
+			}
 			if w := warnings(data); w != lastWarnings {
 				if w != "" {
 					progress("API warnings:\n%s", w)
@@ -325,51 +511,74 @@ func display(ctx context.Context, f demo.Flags, o options, c *client) error {
 						progress("%s arm session reset; redrawing dashboard", arm)
 						redraw = true
 					}
+					if inCase, ok := caseEvent(e); ok {
+						if cases[arm] == inCase {
+							continue
+						}
+						wasVisible := nav.visible()
+						cases[arm] = inCase
+						nav.inCase = cases.any()
+						progress("%s arm in case: %t", arm, inCase)
+						if !nav.visible() && wasVisible {
+							s.hide(arms)
+							popup = notificationPopup{}
+						}
+						next = time.Now().Add(rotation)
+						redraw = true
+						continue
+					}
 					if e.Type != scouterkit.EventInput || e.Trigger != int(scouterkit.TriggerTouch) {
 						continue
 					}
+					wasHidden := nav.hidden
+					if !nav.touch(e.A, arm == scouterkit.Left) {
+						continue
+					}
+					v := nav.current()
+					if e.A == 1 || e.A == 2 {
+						popup = notificationPopup{}
+					}
 					switch e.A {
 					case 1:
-						step := 1
-						if arm == scouterkit.Left {
-							step = -1
-						}
-						index = (index + step + len(pages)) % len(pages)
-						progress("%s arm tap: page %d/%d", arm, index+1, len(pages))
+						progress("%s arm tap: %s page %d/%d", arm, v.name, v.index+1, len(v.pages))
 					case 2:
-						paused = !paused
-						progress("Page rotation paused: %t", paused)
-					case 4:
-						hidden = !hidden
-						progress("Display hidden: %t", hidden)
-						if hidden {
-							s.hide(arms)
+						progress("Screen switched to %s, page %d/%d", v.name, v.index+1, len(v.pages))
+					case 3:
+						if arm == scouterkit.Left {
+							progress("Display hidden: %t", nav.hidden)
+						} else {
+							progress("Page rotation paused: %t", nav.paused)
 						}
-					default:
-						continue
+					}
+					if nav.hidden && !wasHidden {
+						s.hide(arms)
 					}
 					next = time.Now().Add(rotation)
 					redraw = true
 				}
 			}
 			now := time.Now()
+			if minute := now.Format("15:04"); minute != lastClockMinute {
+				lastClockMinute = minute
+				redraw = true
+			}
 			if popup.expire(now) {
 				next = now.Add(rotation)
 				redraw = true
 				progress("Notification popup ended; dashboard restored")
 			}
-			if !paused && !hidden && !popup.active() && now.After(next) {
-				index = (index + 1) % len(pages)
+			if !nav.paused && nav.visible() && !popup.active() && now.After(next) {
+				nav.move(1)
 				next = time.Now().Add(rotation)
 				redraw = true
 			}
 		}
-		if redraw && !hidden {
+		if redraw && nav.visible() {
 			var note *notification
 			if popup.active() {
 				note = &popup.note
 			}
-			s.render(pages[index], index, len(pages), paused, note)
+			s.renderView(&nav, note)
 		}
 	}
 }

@@ -37,6 +37,9 @@ func value(v any) string {
 
 func fieldValue(key string, v any) string {
 	if n, ok := v.(float64); ok {
+		if key == "uptime_24h" || key == "uptime_30d" {
+			return fmt.Sprintf("%.2f%%", n*100)
+		}
 		if n == float64(int64(n)) {
 			return fmt.Sprintf("%.0f", n)
 		}
@@ -48,50 +51,6 @@ func fieldValue(key string, v any) string {
 		}
 	}
 	return value(v)
-}
-
-var labels = map[string]string{
-	"health_score": "Health", "attention_mode": "Action", "github_open_prs": "Open PRs",
-	"linear_progress_score": "Progress score", "deploy_recency_score": "Deploy score",
-	"github_activity_score": "GitHub score", "task_velocity_score": "Velocity score",
-	"paid_customers": "Paid customers", "pull_requests": "Open PRs", "deploys": "Deploys (7d)",
-	"needs_attention_count": "Needs attention", "uptime_24h": "Uptime 24h %", "uptime_30d": "Uptime 30d %",
-}
-
-func label(k string) string {
-	if s := labels[k]; s != "" {
-		return s
-	}
-	return strings.ReplaceAll(k, "_", " ")
-}
-
-func recordLines(row record, fields []string) []string {
-	var lines []string
-	for _, k := range fields {
-		v := row[k]
-		if entries, ok := v.([]any); ok {
-			for _, item := range entries {
-				if m, ok := item.(map[string]any); ok {
-					var keys []string
-					switch k {
-					case "links":
-						keys = []string{"label", "url"}
-					case "monitors":
-						keys = []string{"name", "status", "uptime_24h", "uptime_30d"}
-					case "services":
-						keys = []string{"name", "deploy_status", "last_deploy_at"}
-					}
-					lines = append(lines, recordLines(m, keys)...)
-					lines = append(lines, "")
-				}
-			}
-			continue
-		}
-		if s := fieldValue(k, v); s != "" {
-			lines = append(lines, label(k)+": "+s)
-		}
-	}
-	return lines
 }
 
 // wrap also splits long URLs and words. measure is the actual font advance on
@@ -140,181 +99,129 @@ func fitLine(s string, width int, measure func(string) int) string {
 	return strings.TrimSpace(string(runes)) + dots
 }
 
+func sourceStatus(r result) string {
+	status := "Fetched " + r.at.Local().Format("15:04")
+	if r.at.IsZero() {
+		status = "Unavailable"
+	}
+	if r.err != "" {
+		status = "STALE " + status
+	}
+	return status
+}
+
 func sitePage(row record, id, status string, data snapshot, width, rows int, measure func(string) int) page {
 	title := value(row["name"])
 	if title == "" {
 		title = value(row["slug"])
 	}
 	if title == "" {
-		title = "Unnamed site"
+		title = "Unnamed project"
 	}
-	field := func(key, missing string) string {
-		if s := fieldValue(key, row[key]); s != "" {
-			return s
+	field := func(row record, key string) string {
+		if v := fieldValue(key, row[key]); v != "" {
+			return v
 		}
-		return missing
+		return "unknown"
 	}
-	score := func(key, suffix string) string {
+	score := func(key string) string {
 		if row[key] == nil {
 			return "unknown"
 		}
-		return field(key, "unknown") + suffix
-	}
-	lines := []string{
-		"Progress: " + score("linear_progress_score", "%"),
-		"GitHub: " + score("github_activity_score", "/100") + "  PRs: " + field("github_open_prs", "unknown"),
-		"Action: " + field("attention_mode", "unknown"),
-		"Last sync: " + field("last_synced_at", "never"),
-		"Stage: " + field("stage", "unknown"),
+		return field(row, key) + "/100"
 	}
 	slug := value(row["slug"])
+	var uptime record
+	var customerCount *int
 	for _, r := range data {
-		if r.key != "customers" || slug == "" {
+		relevant := r.key == slug+"/uptime" || r.key == "customers"
+		if slug == "" || !relevant {
 			continue
 		}
-		if r.err != "" {
-			if !strings.HasPrefix(status, "STALE") {
-				status = "STALE customers / " + status
-			}
-			if r.at.IsZero() {
-				lines = append(lines, "Customers: unavailable")
-				continue
-			}
+		if r.err != "" && !strings.HasPrefix(status, "STALE") {
+			status = "STALE " + status
 		}
-		count, paid := 0, 0
-		for _, customer := range r.rows {
-			if customer["product_slug"] != slug {
-				continue
-			}
-			count++
-			if plan := value(customer["plan"]); plan != "" && plan != "free" {
-				switch customer["billing_status"] {
-				case "active", "trialing", "past_due":
-					paid++
-				}
-			}
+		if r.at.IsZero() && r.err != "" {
+			continue
 		}
-		lines = append(lines, fmt.Sprintf("Customers: %d (%d paid)", count, paid))
-	}
-	lines = append(lines, recordLines(row, []string{"health_score"})...)
-	for _, r := range data {
-		if r.key == "enquiries" && slug != "" {
-			if r.err != "" {
-				if !strings.HasPrefix(status, "STALE") {
-					status = "STALE enquiries / " + status
-				}
-				lines = append(lines, "Enquiries: "+r.err)
-				continue
-			}
+		if r.key == slug+"/uptime" && len(r.rows) > 0 {
+			uptime = r.rows[0]
+		}
+		if r.key == "customers" {
 			count := 0
-			for _, enquiry := range r.rows {
-				if enquiry["product_slug"] == slug {
+			for _, customer := range r.rows {
+				if customer["product_slug"] == slug {
 					count++
 				}
 			}
-			lines = append(lines, fmt.Sprintf("Enquiries: %d", count))
-			continue
-		}
-		if slug == "" || !strings.HasPrefix(r.key, slug+"/") {
-			continue
-		}
-		kind := strings.TrimPrefix(r.key, slug+"/")
-		if r.err != "" {
-			if !strings.HasPrefix(status, "STALE") {
-				status = "STALE details / " + status
-			}
-			lines = append(lines, kind+": "+r.err)
-			continue
-		}
-		switch kind {
-		case "uptime":
-			for _, uptime := range r.rows {
-				lines = append(lines, recordLines(uptime, []string{"overall_status", "uptime_24h", "uptime_30d"})...)
-			}
-		case "tickets", "repos":
-			lines = append(lines, fmt.Sprintf("%s: %d", label(kind), len(r.rows)))
-		case "services":
-			count := 0
-			for _, env := range r.rows {
-				if services, ok := env["services"].([]any); ok {
-					count += len(services)
-				}
-			}
-			lines = append(lines, fmt.Sprintf("Services: %d", count))
+			customerCount = &count
 		}
 	}
-	lines = append(lines, recordLines(row, []string{"deploy_recency_score", "task_velocity_score", "description",
-		"sync_error_message", "linear_sync_status", "tracklines_sync_status", "github_sync_status",
-		"railway_sync_status", "uptime_kuma_sync_status", "links"})...)
-	lines = lines[:min(rows, len(lines))]
-	for i, line := range lines {
-		lines[i] = fitLine(line, width, measure)
+	uptimeText := "unknown"
+	if uptime["uptime_24h"] != nil || uptime["uptime_30d"] != nil {
+		uptimeText = "24h " + field(uptime, "uptime_24h") + " / 30d " + field(uptime, "uptime_30d")
+	}
+	lines := []string{
+		"PRs: " + field(row, "github_open_prs"),
+		"Action: " + field(row, "attention_mode"),
+		"Stage: " + field(row, "stage"),
+		"Overall status: " + field(uptime, "overall_status"),
+		"Health: " + score("health_score"),
+		"Uptime: " + uptimeText,
+		"Velocity: " + score("task_velocity_score"),
+	}
+	if customerCount != nil {
+		lines = append(lines, fmt.Sprintf("Customers: %d", *customerCount))
+	}
+	lines = lines[:min(max(1, rows), len(lines))]
+	for i := range lines {
+		lines[i] = fitLine(lines[i], width, measure)
 	}
 	return page{"projects/" + id + "/0", title, lines, status}
 }
 
 func makePages(data snapshot, width, rows int, measure func(string) int) []page {
 	var pages []page
-	// Per-site integration responses enrich its card instead of adding more pages.
-	details := map[string]bool{}
 	for _, r := range data {
-		if r.key == "projects" {
+		switch r.key {
+		case "summary":
+			var row record
 			if len(r.rows) > 0 {
-				// Per-product records are summarized on their site's page.
-				details["customers"] = true
-				details["enquiries"] = true
+				row = r.rows[0]
 			}
-			for _, row := range r.rows {
-				if slug := value(row["slug"]); slug != "" {
-					for _, kind := range []string{"uptime", "tickets", "repos", "services"} {
-						details[slug+"/"+kind] = true
-					}
+			lines := make([]string, 0, 3)
+			for _, item := range []struct{ key, label string }{
+				{"projects", "Projects"}, {"customers", "Customers"}, {"paid_customers", "Paid customers"},
+			} {
+				text := fieldValue(item.key, row[item.key])
+				if text == "" {
+					text = "unknown"
 				}
+				lines = append(lines, fitLine(item.label+": "+text, width, measure))
+			}
+			pages = append(pages, page{id: "summary", title: "Chewedfeed", lines: lines[:min(max(1, rows), len(lines))], status: sourceStatus(r)})
+		case "projects":
+			if len(r.rows) == 0 {
+				text := "No projects"
+				if r.err != "" {
+					text = "Projects unavailable"
+				}
+				pages = append(pages, page{id: "projects", title: "Projects", lines: []string{text}, status: sourceStatus(r)})
+			}
+			for i, row := range r.rows {
+				id := value(row["id"])
+				if id == "" {
+					id = value(row["slug"])
+				}
+				if id == "" {
+					id = fmt.Sprint(i)
+				}
+				pages = append(pages, sitePage(row, id, sourceStatus(r), data, width, rows, measure))
 			}
 		}
 	}
-	for _, r := range data {
-		if details[r.key] {
-			continue
-		}
-		status := "Updated " + r.at.Local().Format("15:04")
-		if r.at.IsZero() {
-			status = "Unavailable"
-		}
-		if r.err != "" {
-			status = "STALE " + status + " / " + r.err
-		}
-		if len(r.rows) == 0 {
-			lines := []string{"No entries"}
-			if r.err != "" {
-				lines = wrap(r.err, width, measure)
-			}
-			pages = append(pages, page{r.key, r.title, lines, status})
-		}
-		for i, row := range r.rows {
-			id := value(row["id"])
-			if id == "" {
-				id = value(row["slug"])
-			}
-			if id == "" {
-				id = fmt.Sprint(i)
-			}
-			if r.key == "projects" {
-				pages = append(pages, sitePage(row, id, status, data, width, rows, measure))
-				continue
-			}
-			var lines []string
-			for _, line := range recordLines(row, r.fields) {
-				lines = append(lines, wrap(line, width, measure)...)
-			}
-			if len(lines) == 0 {
-				lines = []string{"No data"}
-			}
-			for n := 0; n < len(lines); n += rows {
-				pages = append(pages, page{fmt.Sprintf("%s/%s/%d", r.key, id, n), r.title,
-					lines[n:min(n+rows, len(lines))], status})
-			}
-		}
+	if len(pages) == 0 {
+		return []page{{id: "summary", title: "Chewedfeed", lines: []string{"No data available"}, status: "Unavailable"}}
 	}
 	return pages
 }

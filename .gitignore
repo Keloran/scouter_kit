@@ -36,6 +36,7 @@ logs/
 *.pcapng
 # local machine settings and secrets
 local.properties
+chewedfeed.local.json
 keystore.properties
 *.jks
 *.keystore

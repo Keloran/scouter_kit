@@ -106,10 +106,7 @@ func (c *client) get(ctx context.Context, s source) result {
 	return r
 }
 
-var projectFields = []string{"name", "stage", "health_score", "attention_mode", "github_open_prs", "description",
-	"linear_progress_score", "deploy_recency_score", "github_activity_score", "task_velocity_score",
-	"last_synced_at", "linear_sync_status", "tracklines_sync_status", "github_sync_status", "railway_sync_status",
-	"uptime_kuma_sync_status", "sync_error_message", "links"}
+var projectFields = []string{"name", "github_open_prs", "attention_mode", "stage", "health_score", "task_velocity_score"}
 
 // fetch bounds integration fan-out to four requests at a time. Failed sources keep their last
 // successful rows with an explicit stale marker; a successful empty response clears old rows.
@@ -150,12 +147,10 @@ func (c *client) fetch(ctx context.Context, previous snapshot) snapshot {
 		return priority(projects.rows[i]) < priority(projects.rows[j])
 	})
 	sources := []source{{"summary", "Chewedfeed", "/stats",
-		[]string{"projects", "score", "deploys", "pull_requests", "customers", "paid_customers"}, false}}
+		[]string{"projects", "customers", "paid_customers"}, false}}
 	if c.token != "" {
 		sources = append(sources,
-			source{"health", "Portfolio health", "/api/health/stats", []string{"needs_attention_count", "average_health_score", "last_synced_at", "deploys_this_week", "open_pull_requests"}, false},
-			source{"customers", "Customers", "/api/product-customers", []string{"product_slug", "name", "plan", "billing_status", "signed_up_at"}, true},
-			source{"enquiries", "Enquiries", "/api/customer-enquiries", []string{"product_slug", "status", "name", "company", "message", "created_at"}, true})
+			source{"customers", "Customers", "/api/product-customers", []string{"product_slug"}, true})
 	}
 	if c.details {
 		for _, p := range projects.rows {
@@ -169,19 +164,7 @@ func (c *client) fetch(ctx context.Context, previous snapshot) snapshot {
 					"/api/projects/" + url.PathEscape(slug) + "/" + kind, fields, list})
 			}
 			if value(p["uptime_kuma_slug"]) != "" {
-				add("uptime", []string{"overall_status", "uptime_24h", "uptime_30d", "monitors"}, false)
-			}
-			if c.token == "" {
-				continue
-			}
-			if value(p["linear_project_id"]) != "" || value(p["tracklines_project_id"]) != "" {
-				add("tickets", []string{"identifier", "title", "state_name", "priority", "assignee_name", "created_at"}, true)
-			}
-			if value(p["railway_project_id"]) != "" {
-				add("services", []string{"label", "is_primary", "services"}, true)
-			}
-			if value(p["github_owner"]) != "" {
-				add("repos", []string{"name", "description", "language", "open_pull_requests", "open_issues", "stars", "updated_at"}, true)
+				add("uptime", []string{"overall_status", "uptime_24h", "uptime_30d"}, false)
 			}
 		}
 	}
@@ -196,7 +179,7 @@ func (c *client) fetch(ctx context.Context, previous snapshot) snapshot {
 			defer wg.Done()
 			for i := range jobs {
 				r := retain(c.get(ctx, sources[i]), previous)
-				if c.project != "" && (r.key == "customers" || r.key == "enquiries") {
+				if c.project != "" && r.key == "customers" {
 					var filtered []record
 					for _, row := range r.rows {
 						if row["product_slug"] == c.project {

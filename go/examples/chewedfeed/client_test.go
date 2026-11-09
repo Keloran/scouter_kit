@@ -70,14 +70,14 @@ func TestPrivateViewsUseSessionCookieAndProjectFilter(t *testing.T) {
 			t.Error("expected read-only session authentication")
 		}
 		switch r.URL.Path {
-		case "/stats", "/api/health/stats":
+		case "/stats":
 			fmt.Fprint(w, `{}`)
 		case "/api/projects":
-			fmt.Fprint(w, `[{"slug":"one","name":"One","linear_project_id":"l","github_owner":"org","railway_project_id":"r"},{"slug":"two","name":"Two"}]`)
-		case "/api/product-customers", "/api/customer-enquiries":
+			fmt.Fprint(w, `[{"slug":"one","name":"One","linear_project_id":"l","github_owner":"org","railway_project_id":"r","uptime_kuma_slug":"one"},{"slug":"two","name":"Two"}]`)
+		case "/api/product-customers":
 			fmt.Fprint(w, `[{"product_slug":"two"},{"product_slug":"one"}]`)
-		case "/api/projects/one/tickets", "/api/projects/one/repos", "/api/projects/one/services":
-			fmt.Fprint(w, `[]`)
+		case "/api/projects/one/uptime":
+			fmt.Fprint(w, `{"overall_status":"up","uptime_24h":1}`)
 		default:
 			t.Errorf("unexpected endpoint: %s", r.URL.Path)
 			w.WriteHeader(http.StatusNotFound)
@@ -89,14 +89,14 @@ func TestPrivateViewsUseSessionCookieAndProjectFilter(t *testing.T) {
 		t.Fatal(err)
 	}
 	data := c.fetch(context.Background(), nil)
-	if calls.Load() != 8 || len(data) != 8 {
+	if calls.Load() != 4 || len(data) != 4 {
 		t.Fatalf("missing private views: %d calls, %d results", calls.Load(), len(data))
 	}
 	for _, r := range data {
 		if r.err != "" {
 			t.Error(r.err)
 		}
-		if r.key == "customers" || r.key == "enquiries" {
+		if r.key == "customers" {
 			if len(r.rows) != 1 || r.rows[0]["product_slug"] != "one" {
 				t.Errorf("project filter failed: %#v", r.rows)
 			}

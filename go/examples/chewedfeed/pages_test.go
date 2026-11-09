@@ -7,33 +7,22 @@ import (
 	"unicode/utf8"
 )
 
-func TestPaginationPreservesLongContentAndHidesInternalFields(t *testing.T) {
-	message := strings.Repeat("longword", 30)
-	data := snapshot{{source: source{key: "test", title: "Test", fields: []string{"message", "links"}},
-		rows: []record{{"id": "entry", "message": message, "enquiry_key": "must-never-display",
-			"links": []any{map[string]any{"label": "Site", "url": "https://example.com/a/long/path", "id": "internal"}}}},
-		at: time.Now(), err: "HTTP 503"}}
-	pages := makePages(data, 20, 3, utf8.RuneCountInString)
-	var all strings.Builder
-	for _, p := range pages {
-		if len(p.lines) > 3 || !strings.HasPrefix(p.status, "STALE") {
-			t.Fatal("page overflow or missing stale marker")
-		}
-		for _, line := range p.lines {
-			if utf8.RuneCountInString(line) > 20 {
-				t.Fatalf("line overflow: %q", line)
-			}
-			all.WriteString(line)
-		}
+func TestOnlyRequestedChewedfeedDataIsDisplayed(t *testing.T) {
+	data := snapshot{
+		{source: source{key: "summary"}, rows: []record{{"projects": float64(2), "customers": float64(10), "paid_customers": float64(3), "score": float64(99), "deploys": "excluded-deploys"}}, at: time.Now()},
+		{source: source{key: "health", title: "excluded-health"}, rows: []record{{"message": "excluded-health"}}},
+		{source: source{key: "customers"}, rows: []record{{"name": "excluded-customer", "email": "excluded-email"}}},
+		{source: source{key: "enquiries"}, rows: []record{{"message": "excluded-enquiry"}}},
 	}
-	if !strings.Contains(all.String(), message) || !strings.Contains(all.String(), "https://example.com/a/long/path") {
-		t.Fatal("pagination lost long content")
+	pages := makePages(data, 44, 10, utf8.RuneCountInString)
+	if len(pages) != 1 || pages[0].title != "Chewedfeed" {
+		t.Fatalf("unexpected pages: %#v", pages)
 	}
-	if strings.Contains(all.String(), "must-never-display") || strings.Contains(all.String(), "internal") {
-		t.Fatal("internal fields leaked")
+	if got := strings.Join(pages[0].lines, " / "); got != "Projects: 2 / Customers: 10 / Paid customers: 3" {
+		t.Fatalf("summary fields: %s", got)
 	}
-	if got := preservePage(pages, pages[1].id); got != 1 {
-		t.Fatalf("lost reading position: %d", got)
+	if preservePage(pages, "summary") != 0 {
+		t.Fatal("lost overview identity")
 	}
 }
 
@@ -55,14 +44,14 @@ func TestSitesStayOnOnePageWithPriorityFields(t *testing.T) {
 			{"id": "one", "slug": "one", "name": "First site", "stage": "launched",
 				"linear_progress_score": float64(0), "github_activity_score": float64(75),
 				"github_open_prs": float64(3), "attention_mode": "fix", "last_synced_at": "2026-11-06T10:00:00Z",
-				"description": strings.Repeat("Long description ", 100), "health_score": float64(80),
+				"description": strings.Repeat("Long description ", 100), "health_score": float64(80), "task_velocity_score": float64(42),
 				"links": []any{map[string]any{"label": "Site", "url": strings.Repeat("long-url", 100)}}},
 			{"id": "two", "slug": "two", "name": "Second site", "stage": "building"},
 		}, at: time.Now()}
 	data := snapshot{
 		{source: source{key: "summary", title: "Chewedfeed", fields: []string{"projects"}}, rows: []record{{"projects": float64(2)}}},
 		projects,
-		{source: source{key: "one/uptime"}, rows: []record{{"overall_status": "up", "uptime_24h": float64(100)}}},
+		{source: source{key: "one/uptime"}, rows: []record{{"overall_status": "up", "uptime_24h": float64(1), "uptime_30d": float64(.999)}}},
 		{source: source{key: "one/tickets", list: true}, rows: []record{{"title": "Ticket A"}, {"title": "Ticket B"}}},
 		{source: source{key: "customers", list: true}, rows: []record{
 			{"product_slug": "one", "plan": "pro", "billing_status": "active"},
@@ -71,7 +60,7 @@ func TestSitesStayOnOnePageWithPriorityFields(t *testing.T) {
 		}},
 		{source: source{key: "enquiries", list: true}, rows: []record{{"product_slug": "one", "message": strings.Repeat("message", 100)}}},
 	}
-	pages := makePages(data, 44, 6, utf8.RuneCountInString)
+	pages := makePages(data, 60, 8, utf8.RuneCountInString)
 	if len(pages) != 3 {
 		t.Fatalf("expected overview and exactly one page per site, got %d", len(pages))
 	}
@@ -79,23 +68,23 @@ func TestSitesStayOnOnePageWithPriorityFields(t *testing.T) {
 	if first.title != "First site" {
 		t.Fatalf("site name missing: %q", first.title)
 	}
-	for _, want := range []string{"Progress: 0%", "GitHub: 75/100  PRs: 3", "Action: fix", "Last sync:", "Stage: launched", "Customers: 2 (1 paid)"} {
+	for _, want := range []string{"PRs: 3", "Action: fix", "Stage: launched", "Overall status: up", "Health: 80/100", "Uptime: 24h 100.00% / 30d 99.90%", "Velocity: 42/100", "Customers: 2"} {
 		if !strings.Contains(strings.Join(first.lines, "\n"), want) {
 			t.Errorf("priority field missing: %q from %#v", want, first.lines)
 		}
 	}
 	for _, p := range pages {
-		if len(p.lines) > 6 {
+		if len(p.lines) > 8 {
 			t.Fatalf("page overflow: %#v", p)
 		}
 		for _, line := range p.lines {
-			if utf8.RuneCountInString(line) > 44 {
+			if utf8.RuneCountInString(line) > 60 {
 				t.Fatalf("line overflow: %q", line)
 			}
 		}
 	}
 	second := strings.Join(pages[2].lines, "\n")
-	for _, want := range []string{"Progress: unknown", "GitHub: unknown", "Action: unknown", "Last sync: never", "Stage: building", "Customers: 1 (0 paid)"} {
+	for _, want := range []string{"PRs: unknown", "Action: unknown", "Stage: building", "Overall status: unknown", "Health: unknown", "Uptime: unknown", "Velocity: unknown", "Customers: 1"} {
 		if !strings.Contains(second, want) {
 			t.Errorf("missing-data handling or customer grouping failed: %q", second)
 		}
@@ -110,5 +99,34 @@ func TestSiteDetailFailuresRemainVisibleWhenContentIsFull(t *testing.T) {
 	pages := makePages(data, 44, 6, utf8.RuneCountInString)
 	if len(pages) != 1 || !strings.HasPrefix(pages[0].status, "STALE") {
 		t.Fatalf("detail error hidden or added extra pages: %#v", pages)
+	}
+}
+
+func TestUptimeFractionsAreDisplayedAsPercentages(t *testing.T) {
+	for _, key := range []string{"uptime_24h", "uptime_30d"} {
+		for _, tc := range []struct {
+			fraction float64
+			want     string
+		}{{1, "100.00%"}, {0.999, "99.90%"}, {0.01, "1.00%"}, {0, "0.00%"}} {
+			if got := fieldValue(key, tc.fraction); got != tc.want {
+				t.Errorf("%s = %g: got %q, want %q", key, tc.fraction, got, tc.want)
+			}
+		}
+	}
+	if got := fieldValue("github_activity_score", float64(1)); got != "1" {
+		t.Fatal("uptime scaling leaked into other metrics")
+	}
+}
+
+func TestFooterStatusKeepsFetchTimeAndStaleWarning(t *testing.T) {
+	for _, tc := range []struct{ status, want string }{
+		{"Fetched 12:30", "Fetched 12:30"},
+		{"STALE details / Fetched 12:30 / HTTP 503", "STALE Fetched 12:30 / HTTP 503"},
+		{"STALE Cached 11:55", "STALE Cached 11:55"},
+		{"STALE / cache unavailable", "STALE"},
+	} {
+		if got := footerStatus(tc.status); got != tc.want {
+			t.Errorf("footerStatus(%q) = %q, want %q", tc.status, got, tc.want)
+		}
 	}
 }

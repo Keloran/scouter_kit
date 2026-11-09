@@ -4,6 +4,9 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
+
+	"scouterkit"
 )
 
 func TestHostBatteryFilteringAndMultipleBatteries(t *testing.T) {
@@ -44,5 +47,21 @@ func TestHostBatteryFilteringAndMultipleBatteries(t *testing.T) {
 	}
 	if batteryPercent(nil) != "--%" {
 		t.Fatal("unknown battery should be explicit")
+	}
+}
+
+func TestWriteGlassesStatus(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "sub", "glasses.json")
+	n := 57
+	s := batteryStatus{arms: []armBattery{{arm: scouterkit.Left, percent: &n}, {arm: scouterkit.Right}}}
+	if err := writeGlassesStatus(path, s, time.Unix(1700000000, 0)); err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := string(b), `{"left":57,"right":null,"updated":1700000000}`+"\n"; got != want {
+		t.Fatalf("got %q, want %q", got, want)
 	}
 }

@@ -364,6 +364,10 @@ func display(ctx context.Context, f demo.Flags, o options, c *client) error {
 	defer stopWorker()
 	batteryUpdates, stopBatteries := monitorBatteries(workerCtx, arms)
 	defer stopBatteries()
+	statusPath := glassesStatusPath()
+	if statusPath != "" {
+		defer os.Remove(statusPath)
+	}
 	systemUpdates := monitorSystem(workerCtx, "/proc")
 	lastSystemError := ""
 	aiUpdates := make(chan []page, 1)
@@ -462,6 +466,11 @@ func display(ctx context.Context, f demo.Flags, o options, c *client) error {
 			}
 			s.batteries = batteries
 			redraw = true
+			if statusPath != "" {
+				if err := writeGlassesStatus(statusPath, batteries, time.Now()); err != nil {
+					progress("Glasses status file not written: %v", err)
+				}
+			}
 		case data, ok := <-systemUpdates:
 			if !ok {
 				systemUpdates = nil

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"math"
 	"os"
@@ -127,4 +128,47 @@ func (s batteryStatus) glassesText() string {
 		parts = append(parts, name+" "+batteryPercent(b.percent))
 	}
 	return strings.Join(parts, "  ")
+}
+
+// Published for the Omarchy bar plugin, which cannot reach the glasses itself.
+// Arms without a reading are null; the plugin treats an old "updated" as stale.
+func writeGlassesStatus(path string, s batteryStatus, now time.Time) error {
+	out := map[string]any{"left": nil, "right": nil, "updated": now.Unix()}
+	for _, b := range s.arms {
+		name := "left"
+		if b.arm == scouterkit.Right {
+			name = "right"
+		}
+		if b.percent != nil {
+			out[name] = *b.percent
+		}
+	}
+	data, err := json.Marshal(out)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+		return err
+	}
+	f, err := os.CreateTemp(filepath.Dir(path), ".glasses-*.tmp")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(f.Name())
+	if _, err := f.Write(append(data, '\n')); err != nil {
+		f.Close()
+		return err
+	}
+	if err := f.Close(); err != nil {
+		return err
+	}
+	return os.Rename(f.Name(), path)
+}
+
+func glassesStatusPath() string {
+	dir, err := os.UserCacheDir()
+	if err != nil {
+		return ""
+	}
+	return filepath.Join(dir, "chewedfeed", "glasses.json")
 }

@@ -18,6 +18,7 @@ type navigation struct {
 	selected       int
 	paused, hidden bool
 	inCase         bool
+	level          bool // head between the show angles: dashboard off, popups still shown
 }
 
 func newNavigation(sites, ai, system []page, paused bool) navigation {
@@ -28,7 +29,9 @@ func newNavigation(sites, ai, system []page, paused bool) navigation {
 
 func (n *navigation) current() *viewPages { return &n.views[n.selected] }
 
-func (n *navigation) visible() bool { return !n.hidden && !n.inCase }
+func (n *navigation) visible() bool { return n.popupVisible() && !n.level }
+
+func (n *navigation) popupVisible() bool { return !n.hidden && !n.inCase }
 
 func (n *navigation) replace(view int, pages []page) {
 	if len(pages) == 0 {

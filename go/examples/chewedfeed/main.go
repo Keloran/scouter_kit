@@ -48,6 +48,8 @@ type options struct {
 	fontScale               float64
 	configFile              string
 	saveConfig              bool
+	showAbove, showBelow    int
+	alwaysNotes             bool
 }
 
 var stages = log.New(os.Stderr, "chewedfeed: ", log.Ltime|log.Lmicroseconds)
@@ -79,6 +81,9 @@ func main() {
 	flag.IntVar(&o.dy, "dy", geometry.DY, "vertical separation of the eyes in pixels")
 	flag.BoolVar(&o.calibrate, "calibrate", false, "show a left-eye pixel ruler and right-eye crosshair instead of the dashboard")
 	flag.StringVar(&o.configFile, "config", "chewedfeed.local.json", "local display settings file; overrides user config/config.json, then flags override both")
+	flag.IntVar(&o.showAbove, "show-above", 9, "show the dashboard while head pitch is above this (degrees, + looking up)")
+	flag.IntVar(&o.showBelow, "show-below", -30, "show the dashboard while head pitch is below this (degrees); between the two only notifications show")
+	flag.BoolVar(&o.alwaysNotes, "always-show-notifications", true, "show notification popups whatever the head angle")
 	flag.BoolVar(&o.saveConfig, "save-config", false, "save alignment and font scale, then exit without connecting")
 	flag.Float64Var(&o.fontScale, "font-scale", 2, "text scale from 0.1 to 3, including fractional sizes such as 1.5")
 	demo.Usage("chewedfeed [flags]")
@@ -461,9 +466,51 @@ func display(ctx context.Context, f demo.Flags, o options, c *client) error {
 	linkCheck := time.NewTicker(10 * time.Second)
 	defer linkCheck.Stop()
 	missed := make(map[scouterkit.Arm]int)
+	var angleTick <-chan time.Time
+	if len(arms) > 0 {
+		t := time.NewTicker(500 * time.Millisecond)
+		defer t.Stop()
+		angleTick = t.C
+		// A TILT range narrower than ±90 makes the firmware stream every sample; without it,
+		// PITCH read on demand stayed at its first value. Restored on exit (sensor settings
+		// outlive the session).
+		lo := int32(-89)
+		arms[0].SysWrite(scouterkit.PropPitchLo, uint32(lo))
+		defer arms[0].SysWrite(scouterkit.PropPitchLo, uint32(lo-1))
+	}
+	lastAngle := ""
 	for {
 		redraw := false
 		select {
+		case <-angleTick:
+			// Both arms report the same head angles (VM.md §2).
+			v, err := arms[0].Props(scouterkit.PropPitch, scouterkit.PropRoll)
+			line := ""
+			switch {
+			case err != nil:
+				line = fmt.Sprintf("Head angle unavailable: %v", err)
+			case v[0] == scouterkit.Unknown || v[1] == scouterkit.Unknown:
+				line = "Head angle unavailable: arm reports no accelerometer reading"
+			default:
+				line = fmt.Sprintf("Head angle: pitch %d° (+ looking up), roll %d° (+ right ear down)", int32(v[0]), int32(v[1]))
+			}
+			if line != lastAngle {
+				lastAngle = line
+				progress("%s", line)
+			}
+			// No reading: keep the dashboard on.
+			level := err == nil && v[0] != scouterkit.Unknown && int32(v[0]) <= int32(o.showAbove) && int32(v[0]) >= int32(o.showBelow)
+			if level == nav.level {
+				continue
+			}
+			wasVisible := nav.visible()
+			nav.level = level
+			progress("Head level: %t (dashboard shown: %t)", level, nav.visible())
+			if wasVisible && !nav.visible() && !popup.active() {
+				s.hide(arms)
+			}
+			next = time.Now().Add(rotation)
+			redraw = true
 		case <-ctx.Done():
 			progress("Shutdown requested: %v", ctx.Err())
 			return nil
@@ -477,7 +524,7 @@ func display(ctx context.Context, f demo.Flags, o options, c *client) error {
 			if nav.selected == viewNotifications {
 				redraw = true
 			}
-			if nav.visible() {
+			if nav.visible() || o.alwaysNotes && nav.popupVisible() {
 				popup.show(n, time.Now())
 				progress("Desktop notification popup (5s)")
 				redraw = true
@@ -638,6 +685,9 @@ func display(ctx context.Context, f demo.Flags, o options, c *client) error {
 			if popup.expire(now) {
 				next = now.Add(rotation)
 				redraw = true
+				if !nav.visible() && nav.popupVisible() {
+					s.hide(arms) // head level: back to off
+				}
 				progress("Notification popup ended; dashboard restored")
 			}
 			if !nav.paused && nav.visible() && !popup.active() && now.After(next) {
@@ -646,7 +696,7 @@ func display(ctx context.Context, f demo.Flags, o options, c *client) error {
 				redraw = true
 			}
 		}
-		if redraw && nav.visible() {
+		if redraw && (nav.visible() || popup.active() && nav.popupVisible()) {
 			var note *notification
 			if popup.active() {
 				note = &popup.note

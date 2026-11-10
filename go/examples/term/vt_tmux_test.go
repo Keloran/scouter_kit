@@ -55,6 +55,14 @@ func record(t *testing.T, cols, rows int, keys []string, name string, args ...st
 			}
 		}
 	}
+	// btop samples for about 1.5 s before its first frame, then redraws every second.
+	for settle := time.After(2 * time.Second); settle != nil; {
+		select {
+		case <-got:
+		case <-settle:
+			settle = nil
+		}
+	}
 	quiet()
 	for _, k := range keys {
 		master.Write([]byte(k))

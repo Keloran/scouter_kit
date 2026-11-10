@@ -70,3 +70,29 @@ func TestStatusPanelAndFooterUseSeparateRegions(t *testing.T) {
 		t.Fatal("battery changes did not appear in the right status panel")
 	}
 }
+
+func TestSitesFooterShowsFetchTimeBesidePage(t *testing.T) {
+	cfg := scouterkit.DefaultConfig()
+	if err := scouterkit.Init(cfg); err != nil {
+		t.Fatal(err)
+	}
+	defer scouterkit.Deinit()
+	s, err := newScreenScale(cfg, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	iconW, _ := s.iconSize("download")
+	need := textInset + s.footerFont.Measure("Page 10/13").Width + 2*s.footerFont.Measure(" ").Width + iconW +
+		s.footerFont.Measure(" ").Width + s.footerFont.Measure("13:55").Width
+	if need > s.footerSplit() {
+		t.Fatalf("page and fetch time need %d px, footer cell is %d", need, s.footerSplit())
+	}
+	p := page{title: "Site", status: "Fetched 13:55"}
+	s.draw(p, 9, 13, false)
+	with := append([]uint8(nil), s.bitmap.Image().Pix...)
+	p.status = "Sampled 13:55"
+	s.draw(p, 9, 13, false)
+	if bytes.Equal(with, s.bitmap.Image().Pix) {
+		t.Fatal("fetch time missing from the Sites footer, or shown for other sources")
+	}
+}

@@ -11,6 +11,8 @@
 // right triple tap: pause rotation;
 // AI usage reads the existing local ai-usagebar cache.
 // Desktop notifications temporarily replace the page for five seconds.
+// Without the host (link lost, or after it exits) the arms show "Not connected"
+// with their batteries and the time, kept up to date by a program on each arm.
 // -preview prints one snapshot without initializing Bluetooth or the glasses.
 package main
 
@@ -298,7 +300,7 @@ func (s *screen) render(p page, index, total int, paused bool, popup *notificati
 		}
 	}
 	s.drawStatusPanel(paused)
-	s.drawNavigationRow(index, total)
+	s.drawNavigationRow(index, total, p.status)
 	scouterkit.Draw(s.bitmap, s.x, s.y)
 	scouterkit.Flush()
 }
@@ -311,8 +313,8 @@ func display(ctx context.Context, f demo.Flags, o options, c *client) error {
 		return fmt.Errorf("connecting to glasses: %w", err)
 	}
 	defer func() {
-		progress("Stopping dashboard and switching panels off")
-		demo.Stop(arms)
+		// The standby program runs on: it shows "Not connected" and the battery once the link is gone.
+		progress("Stopping dashboard; the glasses keep their standby screen")
 		scouterkit.Deinit()
 		progress("Stopped")
 	}()
@@ -323,12 +325,13 @@ func display(ctx context.Context, f demo.Flags, o options, c *client) error {
 	for _, arm := range arms {
 		progress("%s arm ready: firmware %s", arm, arm.State().Firmware)
 	}
-	if err := installCaseGuard(arms); err != nil {
-		return err
-	}
 	s, err := newScreenScale(cfg, o.fontScale)
 	if err != nil {
 		return err
+	}
+	standbyState, err := installStandby(cfg, s, o.fontScale, arms)
+	if err != nil {
+		return fmt.Errorf("standby program: %w", err)
 	}
 	for _, arm := range arms {
 		progress("Enabling touch controls on %s arm", arm)
@@ -565,6 +568,14 @@ func display(ctx context.Context, f demo.Flags, o options, c *client) error {
 					if e.Type == scouterkit.EventError || e.Type == scouterkit.EventHalt {
 						return fmt.Errorf("%s arm: event %d, code %d", arm, e.Type, e.Code)
 					}
+					if e.Type == scouterkit.EventNotify && e.A == linkNotice {
+						// The program drew its offline face, which the library's mirror does not know.
+						progress("%s arm link back; repainting", arm)
+						syncStandbyClock(arm, standbyState)
+						s.hide(arms) // flushes black, so the next render sends every pixel again
+						redraw = true
+						continue
+					}
 					if e.Type == scouterkit.EventReset {
 						progress("%s arm session reset; redrawing dashboard", arm)
 						redraw = true
@@ -620,7 +631,7 @@ func display(ctx context.Context, f demo.Flags, o options, c *client) error {
 				lastClockMinute = minute
 				redraw = true
 			}
-			statusWidth := s.w - s.w/3 - 2*textInset
+			statusWidth := s.w - s.footerSplit() - 2*textInset
 			if s.status.advance(now, statusWidth, func(text string) int { return s.footerFont.Measure(text).Width }) {
 				redraw = true
 			}

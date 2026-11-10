@@ -132,14 +132,31 @@ func sourceIndicator(status string) footerSource {
 	return footerSource{icon: "unknown", text: status, stale: stale}
 }
 
-func (s *screen) drawNavigationRow(index, total int) {
+// footerSplit is the divider after "Page N/M  <download> HH:MM": a third of the
+// width, or wider when the font needs it.
+func (s *screen) footerSplit() int {
+	f := s.footerFont
+	space := f.Measure(" ").Width
+	iconW, _ := s.iconSize("download")
+	need := textInset + f.Measure("Page 99/99").Width + 3*space + iconW + f.Measure("00:00").Width + textInset
+	return min(max(s.w/3, need), s.w*2/3)
+}
+
+func (s *screen) drawNavigationRow(index, total int, status string) {
 	baseline := s.footerBaseline
 	footerTop := baseline - s.footerFont.Ascent - 5
 	footerBottom := baseline + s.footerFont.Descent
-	s.bitmap.Fill(image.Rect(s.w/3, footerTop, s.w/3+1, footerBottom), 153)
-	left := footerRow{screen: s, x: textInset, baseline: baseline, limit: s.w / 3}
+	split := s.footerSplit()
+	s.bitmap.Fill(image.Rect(split, footerTop, split+1, footerBottom), 153)
+	left := footerRow{screen: s, x: textInset, baseline: baseline, limit: split}
 	left.text(fmt.Sprintf("Page %d/%d", index+1, total))
-	middle := footerRow{screen: s, x: s.w/3 + textInset, baseline: baseline, limit: s.w - textInset}
+	if src := sourceIndicator(status); src.icon == "download" {
+		left.gap()
+		left.gap()
+		left.icon(src.icon)
+		left.text(src.text)
+	}
+	middle := footerRow{screen: s, x: split + textInset, baseline: baseline, limit: s.w - textInset}
 	statusWidth := middle.limit - middle.x
 	label := s.status.line(time.Now(), statusWidth, func(text string) int { return s.footerFont.Measure(text).Width })
 	middleWidth := s.footerFont.Measure(label).Width

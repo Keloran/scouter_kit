@@ -166,6 +166,9 @@ func (c *client) fetch(ctx context.Context, previous snapshot) snapshot {
 			if value(p["uptime_kuma_slug"]) != "" {
 				add("uptime", []string{"overall_status", "uptime_24h", "uptime_30d"}, false)
 			}
+			// Public project rows hide tracklines_project_id, so ask for every project;
+			// a 404 means the project is not on TrackLines.
+			add("ticket-counts", []string{"backlog", "columns"}, false)
 		}
 	}
 	out := make(snapshot, len(sources)+1)
@@ -178,7 +181,11 @@ func (c *client) fetch(ctx context.Context, previous snapshot) snapshot {
 		go func() {
 			defer wg.Done()
 			for i := range jobs {
-				r := retain(c.get(ctx, sources[i]), previous)
+				r := c.get(ctx, sources[i])
+				if r.err == "HTTP 404" && strings.HasSuffix(r.key, "/ticket-counts") {
+					r = result{source: r.source, at: time.Now()}
+				}
+				r = retain(r, previous)
 				if c.project != "" && r.key == "customers" {
 					var filtered []record
 					for _, row := range r.rows {

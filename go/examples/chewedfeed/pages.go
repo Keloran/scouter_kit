@@ -131,10 +131,10 @@ func sitePage(row record, id, status string, data snapshot, width, rows int, mea
 		return field(row, key) + "/100"
 	}
 	slug := value(row["slug"])
-	var uptime record
+	var uptime, tickets record
 	var customerCount *int
 	for _, r := range data {
-		relevant := r.key == slug+"/uptime" || r.key == "customers"
+		relevant := r.key == slug+"/uptime" || r.key == slug+"/ticket-counts" || r.key == "customers"
 		if slug == "" || !relevant {
 			continue
 		}
@@ -146,6 +146,9 @@ func sitePage(row record, id, status string, data snapshot, width, rows int, mea
 		}
 		if r.key == slug+"/uptime" && len(r.rows) > 0 {
 			uptime = r.rows[0]
+		}
+		if r.key == slug+"/ticket-counts" && len(r.rows) > 0 {
+			tickets = r.rows[0]
 		}
 		if r.key == "customers" {
 			count := 0
@@ -173,11 +176,41 @@ func sitePage(row record, id, status string, data snapshot, width, rows int, mea
 	if customerCount != nil {
 		lines = append(lines, fmt.Sprintf("Customers: %d", *customerCount))
 	}
+	// Whole columns per row, so "In progress 0" never splits.
+	for i, part := range ticketCounts(tickets) {
+		if last := len(lines) - 1; i > 0 && measure(lines[last]+" | "+part) <= width {
+			lines[last] += " | " + part
+		} else {
+			lines = append(lines, part)
+		}
+	}
 	lines = lines[:min(max(1, rows), len(lines))]
 	for i := range lines {
 		lines[i] = fitLine(lines[i], width, measure)
 	}
 	return page{"projects/" + id + "/0", title, lines, status}
+}
+
+// ticketCounts formats {"backlog": 2, "columns": [{"name": "To do", "count": 1}, ...]}
+// as ["Backlog 2", "To do 1", ...]; it is empty when the project has no TrackLines board.
+func ticketCounts(row record) []string {
+	count := func(v any) string {
+		if n, ok := v.(float64); ok {
+			return fmt.Sprintf("%.0f", n)
+		}
+		return "?"
+	}
+	columns, _ := row["columns"].([]any)
+	if row["backlog"] == nil && len(columns) == 0 {
+		return nil
+	}
+	parts := []string{"Backlog " + count(row["backlog"])}
+	for _, c := range columns {
+		if c, ok := c.(map[string]any); ok {
+			parts = append(parts, value(c["name"])+" "+count(c["count"]))
+		}
+	}
+	return parts
 }
 
 func makePages(data snapshot, width, rows int, measure func(string) int) []page {

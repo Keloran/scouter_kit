@@ -229,20 +229,11 @@ func systemPages(update systemUpdate, rows int) []page {
 		return fmt.Sprintf("%.1f%%", *n)
 	}
 	gib := func(n uint64) float64 { return float64(n) / (1024 * 1024 * 1024) }
-	running := 0
-	for _, p := range s.processes {
-		if p.state == "R" {
-			running++
-		}
-	}
 	id, title := "system/cpu", "System / top 5 CPU"
 	lines := []string{
 		fmt.Sprintf("CPU: %s (%d cores)", percent(s.cpu), s.cores),
-		fmt.Sprintf("RAM: %.1f/%.1f GiB", gib(s.memoryUsed), gib(s.memoryTotal)),
-		fmt.Sprintf("Swap: %.1f/%.1f GiB", gib(s.swapUsed), gib(s.swapTotal)),
+		fmt.Sprintf("RAM: %.1f/%.1fG  Swap: %.1f/%.1fG", gib(s.memoryUsed), gib(s.memoryTotal), gib(s.swapUsed), gib(s.swapTotal)),
 		"Load: " + s.load,
-		"Uptime: " + shortDuration(s.uptime),
-		fmt.Sprintf("Tasks: %d / %d running", len(s.processes), running),
 	}
 	lines = append(lines, "CPU%   RAM    PID NAME")
 	processes := append([]processUsage(nil), s.processes...)

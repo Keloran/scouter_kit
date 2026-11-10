@@ -454,6 +454,10 @@ func display(ctx context.Context, f demo.Flags, o options, c *client) error {
 	next := time.Now().Add(rotation)
 	lastWarnings := ""
 	lastClockMinute := time.Now().Format(musicStatusFormat)
+	// ponytail: fixed 10s x 5 checks per arm; exits only when every arm has missed 5 in a row.
+	linkCheck := time.NewTicker(10 * time.Second)
+	defer linkCheck.Stop()
+	missed := make(map[scouterkit.Arm]int)
 	for {
 		redraw := false
 		select {
@@ -535,6 +539,22 @@ func display(ctx context.Context, f demo.Flags, o options, c *client) error {
 				}
 				lastWarnings = w
 			}
+		case <-linkCheck.C:
+			allDown := true
+			for _, arm := range arms {
+				if arm.State().Connected {
+					missed[arm] = 0
+					allDown = false
+					continue
+				}
+				missed[arm]++
+				progress("%s arm not connected (%d/5)", arm, missed[arm])
+				allDown = allDown && missed[arm] >= 5
+			}
+			if allDown && len(arms) > 0 {
+				return errors.New("all arms not connected for 5 checks; exiting")
+			}
+			continue
 		case <-tick.C:
 			for _, arm := range arms {
 				for {

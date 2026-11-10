@@ -60,7 +60,7 @@ func TestSystemUsageDeltasPagesAndStaleData(t *testing.T) {
 		t.Fatalf("per-core process CPU percentage: %+v", second.processes)
 	}
 	pages := systemPages(systemUpdate{sample: second}, 10)
-	if len(pages) != 1 || !strings.Contains(pages[0].lines[7], "worker (alpha)") || !strings.Contains(pages[0].lines[8], "memory") {
+	if len(pages) != 1 || !strings.Contains(pages[0].lines[4], "worker (alpha)") || !strings.Contains(pages[0].lines[5], "memory") {
 		t.Fatalf("CPU ordering: %+v", pages)
 	}
 	for _, p := range systemPages(systemUpdate{sample: second}, 4) {
@@ -112,7 +112,7 @@ func TestSystemShowsOnlyTopFiveProcessesByCPU(t *testing.T) {
 	if len(pages) != 1 {
 		t.Fatalf("expected one system page, got %d", len(pages))
 	}
-	processes := pages[0].lines[7:]
+	processes := pages[0].lines[4:]
 	if len(processes) != 5 {
 		t.Fatalf("expected five processes, got %d", len(processes))
 	}

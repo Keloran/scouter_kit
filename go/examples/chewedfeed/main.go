@@ -203,6 +203,7 @@ const (
 	textInset       = 4
 	footerRaiseRows = 2
 	footerLift      = 80
+	lowBatteryAt    = 20
 )
 
 func newScreen(cfg scouterkit.Config) (*screen, error) {

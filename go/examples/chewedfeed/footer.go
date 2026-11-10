@@ -164,12 +164,8 @@ func (s *screen) drawStatusPanel(paused bool) {
 	s.bitmap.Fill(image.Rect(s.statusX, panelLower, s.w, panelLower+1), 153)
 
 	s.drawIconAt("glasses", iconX, iconBaseline, 255)
-	line := func(text string, baseline int) {
-		text = fitLine(text, s.statusW-2*textInset, func(v string) int { return s.footerFont.Measure(v).Width })
-		s.footerFont.DrawLine(s.bitmap, text, s.statusX+textInset, baseline, scouterkit.AlignLeft, 255)
-	}
-	line(s.batteryFor(scouterkit.Left), iconBaseline+s.footerFont.LineSpacing)
-	line(s.batteryFor(scouterkit.Right), rightBaseline)
+	s.drawBatteryValue("L", s.batteryValue(scouterkit.Left), iconBaseline+s.footerFont.LineSpacing, false)
+	s.drawBatteryValue("R", s.batteryValue(scouterkit.Right), rightBaseline, false)
 
 	computerW, computerH := s.iconSize("computer")
 	middleHeight := panelLower - panelMid
@@ -178,7 +174,7 @@ func (s *screen) drawStatusPanel(paused bool) {
 	computerBaseline := middleTop + computerH + 2
 	computerX := s.statusX + (s.statusW-computerW)/2
 	s.drawIconAt("computer", computerX, computerBaseline, 255)
-	line(batteryPercent(s.batteries.host), computerBaseline+s.footerFont.LineSpacing)
+	s.drawBatteryValue("", s.batteries.host, computerBaseline+s.footerFont.LineSpacing, true)
 
 	modeIcon := "refresh"
 	if paused {
@@ -193,17 +189,44 @@ func (s *screen) drawStatusPanel(paused bool) {
 }
 
 func (s *screen) batteryFor(arm scouterkit.Arm) string {
+	return batteryLabel(arm) + " " + batteryPercent(s.batteryValue(arm))
+}
+
+func batteryLabel(arm scouterkit.Arm) string {
+	if arm == scouterkit.Right {
+		return "R"
+	}
+	return "L"
+}
+
+func (s *screen) batteryValue(arm scouterkit.Arm) *int {
 	for _, reading := range s.batteries.arms {
 		if reading.arm == arm {
-			label := "L"
-			if arm == scouterkit.Right {
-				label = "R"
-			}
-			return label + " " + batteryPercent(reading.percent)
+			return reading.percent
 		}
 	}
-	if arm == scouterkit.Right {
-		return "R --%"
+	return nil
+}
+
+func (s *screen) drawBatteryValue(label string, percent *int, baseline int, centered bool) {
+	text := batteryPercent(percent)
+	if label != "" {
+		text = label + " " + text
 	}
-	return "L --%"
+	textWidth := s.footerFont.Measure(text).Width
+	warning := percent != nil && *percent <= lowBatteryAt
+	warningWidth := 0
+	gap := 0
+	if warning {
+		warningWidth, _ = s.iconSize("warning")
+		gap = s.footerFont.Measure(" ").Width
+	}
+	x := s.statusX + textInset
+	if centered {
+		x = s.statusX + (s.statusW-textWidth-warningWidth-gap)/2
+	}
+	s.footerFont.DrawLine(s.bitmap, text, x, baseline, scouterkit.AlignLeft, 255)
+	if warning {
+		s.drawIconAt("warning", x+textWidth+gap, baseline, 255)
+	}
 }

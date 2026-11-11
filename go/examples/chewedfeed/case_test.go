@@ -24,11 +24,11 @@ func TestCaseInputsDecodeBitfieldsAndGuardNotifications(t *testing.T) {
 	}
 }
 
-func TestCaseVisibilityPreservesManualOffAndNeedsBothArmsOut(t *testing.T) {
+func TestCaseVisibilityNeedsBothArmsOut(t *testing.T) {
 	n := newNavigation([]page{{id: "site"}}, []page{{id: "ai"}}, []page{{id: "cpu"}}, false)
 	cases := caseState{scouterkit.Left: true, scouterkit.Right: false}
 	n.inCase = cases.any()
-	if n.visible() || n.touch(3, true) || n.hidden {
+	if n.visible() || n.touch(3, false) || n.paused {
 		t.Fatal("case should suppress visibility and accidental taps")
 	}
 	cases[scouterkit.Right] = true
@@ -41,11 +41,5 @@ func TestCaseVisibilityPreservesManualOffAndNeedsBothArmsOut(t *testing.T) {
 	n.inCase = cases.any()
 	if !n.visible() {
 		t.Fatal("removing both arms did not restore visibility")
-	}
-	n.touch(3, true)
-	n.inCase = true
-	n.inCase = false
-	if n.visible() || !n.hidden {
-		t.Fatal("case removal overrode manual display-off")
 	}
 }

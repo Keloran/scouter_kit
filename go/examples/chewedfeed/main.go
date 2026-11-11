@@ -7,8 +7,7 @@
 // the cookie name. Without it, public statistics, projects and uptime work.
 // Keep the host running for refreshes and navigation. Right tap: next page;
 // left tap: previous; double taps cycle Sites/AI/Notifications/Stats forward
-// on the right and backward on the left; left triple tap: hide/show;
-// right triple tap: pause rotation;
+// on the right and backward on the left; right triple tap: pause rotation;
 // AI usage reads the existing local ai-usagebar cache.
 // Desktop notifications temporarily replace the page for five seconds.
 // Without the host (link lost, or after it exits) the arms show "Not connected"
@@ -456,7 +455,7 @@ func display(ctx context.Context, f demo.Flags, o options, c *client) error {
 			}
 		}
 	}()
-	progress("Single right/left: next/previous page. Double right/left: next/previous screen (Sites, AI, Notifications, Stats). Triple left: display on/off; triple right: pause. Ctrl-C exits.")
+	progress("Single right/left: next/previous page. Double right/left: next/previous screen (Sites, AI, Notifications, Stats). Triple right: pause. Ctrl-C exits.")
 	tick := time.NewTicker(100 * time.Millisecond)
 	defer tick.Stop()
 	next := time.Now().Add(rotation)
@@ -646,7 +645,6 @@ func display(ctx context.Context, f demo.Flags, o options, c *client) error {
 					if e.Type != scouterkit.EventInput || e.Trigger != int(scouterkit.TriggerTouch) {
 						continue
 					}
-					wasHidden := nav.hidden
 					if !nav.touch(e.A, arm == scouterkit.Left) {
 						continue
 					}
@@ -660,14 +658,7 @@ func display(ctx context.Context, f demo.Flags, o options, c *client) error {
 					case 2:
 						progress("Screen switched to %s, page %d/%d", v.name, v.index+1, len(v.pages))
 					case 3:
-						if arm == scouterkit.Left {
-							progress("Display hidden: %t", nav.hidden)
-						} else {
-							progress("Page rotation paused: %t", nav.paused)
-						}
-					}
-					if nav.hidden && !wasHidden {
-						s.hide(arms)
+						progress("Page rotation paused: %t", nav.paused)
 					}
 					next = time.Now().Add(rotation)
 					redraw = true

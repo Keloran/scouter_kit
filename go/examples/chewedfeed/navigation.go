@@ -14,11 +14,11 @@ type viewPages struct {
 }
 
 type navigation struct {
-	views          []viewPages
-	selected       int
-	paused, hidden bool
-	inCase         bool
-	level          bool // head between the show angles: dashboard off, popups still shown
+	views    []viewPages
+	selected int
+	paused   bool
+	inCase   bool
+	level    bool // head between the show angles: dashboard off, popups still shown
 }
 
 func newNavigation(sites, ai, system []page, paused bool) navigation {
@@ -31,7 +31,7 @@ func (n *navigation) current() *viewPages { return &n.views[n.selected] }
 
 func (n *navigation) visible() bool { return n.popupVisible() && !n.level }
 
-func (n *navigation) popupVisible() bool { return !n.hidden && !n.inCase }
+func (n *navigation) popupVisible() bool { return !n.inCase }
 
 func (n *navigation) replace(view int, pages []page) {
 	if len(pages) == 0 {
@@ -67,10 +67,9 @@ func (n *navigation) touch(gesture uint32, left bool) bool {
 		n.selected = (n.selected + step + len(n.views)) % len(n.views)
 	case 3:
 		if left {
-			n.hidden = !n.hidden
-		} else {
-			n.paused = !n.paused
+			return false // the head angle hides the display
 		}
+		n.paused = !n.paused
 	default:
 		return false
 	}

@@ -71,7 +71,7 @@ func TestStatusPanelAndFooterUseSeparateRegions(t *testing.T) {
 	}
 }
 
-func TestSitesFooterShowsFetchTimeBesidePage(t *testing.T) {
+func TestFetchTimeInModeBox(t *testing.T) {
 	cfg := scouterkit.DefaultConfig()
 	if err := scouterkit.Init(cfg); err != nil {
 		t.Fatal(err)
@@ -82,17 +82,22 @@ func TestSitesFooterShowsFetchTimeBesidePage(t *testing.T) {
 		t.Fatal(err)
 	}
 	iconW, _ := s.iconSize("download")
-	need := textInset + s.footerFont.Measure("Page 10/13").Width + 2*s.footerFont.Measure(" ").Width + iconW +
-		s.footerFont.Measure(" ").Width + s.footerFont.Measure("13:55").Width
-	if need > s.footerSplit() {
-		t.Fatalf("page and fetch time need %d px, footer cell is %d", need, s.footerSplit())
+	if need := iconW + s.footerFont.Measure(" 13:55").Width + 2*textInset; need > s.statusW {
+		t.Fatalf("fetch time needs %d px, status panel is %d", need, s.statusW)
 	}
-	p := page{title: "Site", status: "Fetched 13:55"}
-	s.draw(p, 9, 13, false)
-	with := append([]uint8(nil), s.bitmap.Image().Pix...)
-	p.status = "Sampled 13:55"
-	s.draw(p, 9, 13, false)
-	if bytes.Equal(with, s.bitmap.Image().Pix) {
-		t.Fatal("fetch time missing from the Sites footer, or shown for other sources")
+	footerStart := (s.footerBaseline - s.footerFont.Ascent - 5) * s.bitmap.Image().Stride
+	draw := func(status string) []uint8 {
+		s.draw(page{title: "Site", status: status}, 9, 13, false)
+		return append([]uint8(nil), s.bitmap.Image().Pix...)
+	}
+	without := draw("Sampled 13:55")
+	for _, status := range []string{"Fetched 13:55", "Cached 13:55"} {
+		with := draw(status)
+		if bytes.Equal(with, without) {
+			t.Fatalf("%q: time missing from the status panel", status)
+		}
+		if !bytes.Equal(with[footerStart:], without[footerStart:]) {
+			t.Fatalf("%q: time drawn in the footer", status)
+		}
 	}
 }

@@ -226,7 +226,9 @@ func newScreenScale(cfg scouterkit.Config, scale float64) (*screen, error) {
 	vw, vh := scouterkit.Size()
 	w := min(600, vw-2*max(cfg.DX, -cfg.DX)-16)
 	h := min(400, vh-40)
-	statusW := max(90, w/7)
+	fetchW, _ := (&screen{footerFont: footer}).iconSize("download")
+	fetchW += footer.Measure(" 00:00").Width + 2*textInset // the Sites fetch time under the mode icon
+	statusW := max(90, w/7, fetchW)
 	contentW := w - statusW - 1
 	progress("Allocating dashboard display (%dx%d)", w, h)
 	b, err := scouterkit.CreateBitmap(w, h)
@@ -303,8 +305,8 @@ func (s *screen) render(p page, index, total int, paused bool, popup *notificati
 			line(text, i+1, 255)
 		}
 	}
-	s.drawStatusPanel(paused)
-	s.drawNavigationRow(index, total, p.status)
+	s.drawStatusPanel(paused, p.status)
+	s.drawNavigationRow(index, total)
 	scouterkit.Draw(s.bitmap, s.x, s.y)
 	scouterkit.Flush()
 }

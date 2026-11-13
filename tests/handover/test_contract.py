@@ -1,6 +1,9 @@
 """Run: python3 -I -m unittest discover -s tests/handover -v"""
 
+import base64
 from copy import deepcopy
+import hashlib
+import hmac
 import json
 import struct
 import unittest
@@ -252,6 +255,22 @@ class OwnershipContractTests(unittest.TestCase):
         self.assertGreater(timers["peer_suspect"], 2 * timers["heartbeat"])
         self.assertEqual(set(POLICY["snapshot"]["allow"]),
                          set(PROTOCOL["$defs"]["snapshot"]["properties"]))
+
+    def test_enrollment_vectors(self):
+        vectors = json.loads((ROOT / "enrollment.json").read_text())
+        secret = bytes.fromhex(vectors["secret_hex"])
+        host, guest, role = vectors["host_id"], vectors["guest_id"], vectors["guest_role"]
+
+        def mac(label, *parts):
+            text = "chewedfeed-enroll-v1/" + label + "".join("\n" + part for part in parts)
+            return hmac.new(secret, text.encode(), hashlib.sha256).digest()
+        self.assertEqual(mac("request", host, guest, role).hex(), vectors["proof_hex"])
+        self.assertEqual(mac("confirm", host, guest, role).hex(), vectors["confirm_hex"])
+        code = int.from_bytes(mac("code", host, guest)[:4], "big") % 1000000
+        self.assertEqual("%06d" % code, vectors["code"])
+        encoded = base64.urlsafe_b64encode(json.dumps(vectors["invitation"], separators=(",", ":")).encode())
+        self.assertEqual("CFE1." + encoded.rstrip(b"=").decode(), vectors["invitation_text"])
+        self.assertEqual(len(secret), 32)
 
 
 if __name__ == "__main__":

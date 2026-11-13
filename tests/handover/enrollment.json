@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "synthetic": true,
+  "description": "Enrollment vectors: HMAC-SHA256 keyed by the invitation secret over 'chewedfeed-enroll-v1/<label>' then each part prefixed by a newline; code = first 4 MAC bytes big-endian mod 1000000, zero-padded to 6 digits; invitation_text = 'CFE1.' + unpadded base64url of the compact JSON.",
+  "secret_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+  "host_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "guest_id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "guest_role": "phone",
+  "proof_hex": "dfaad37a5b38a5884b1b15eddfe81d046bdb4051ed7cb17a6692aabeb162cf32",
+  "confirm_hex": "dfb21c736af4d85610b4fffa5b286c1745756503c5f729ce31bead0301458a00",
+  "code": "483821",
+  "invitation": {
+    "v": 1,
+    "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "role": "laptop",
+    "secret": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    "exp": 1767225600000,
+    "ep": [
+      "192.0.2.10:47613"
+    ]
+  },
+  "invitation_text": "CFE1.eyJ2IjoxLCJpZCI6ImFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWEiLCJyb2xlIjoibGFwdG9wIiwic2VjcmV0IjoiMDAwMTAyMDMwNDA1MDYwNzA4MDkwYTBiMGMwZDBlMGYxMDExMTIxMzE0MTUxNjE3MTgxOTFhMWIxYzFkMWUxZiIsImV4cCI6MTc2NzIyNTYwMDAwMCwiZXAiOlsiMTkyLjAuMi4xMDo0NzYxMyJdfQ",
+  "invalid_invitations": [
+    {
+      "name": "wrong_prefix",
+      "text": "CFE2.eyJ2IjoxLCJpZCI6ImFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWEiLCJyb2xlIjoibGFwdG9wIiwic2VjcmV0IjoiMDAwMTAyMDMwNDA1MDYwNzA4MDkwYTBiMGMwZDBlMGYxMDExMTIxMzE0MTUxNjE3MTgxOTFhMWIxYzFkMWUxZiIsImV4cCI6MTc2NzIyNTYwMDAwMCwiZXAiOlsiMTkyLjAuMi4xMDo0NzYxMyJdfQ"
+    },
+    {
+      "name": "unknown_field",
+      "text": "CFE1.eyJ2IjoxLCJpZCI6ImFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWEiLCJyb2xlIjoibGFwdG9wIiwic2VjcmV0IjoiMDAwMTAyMDMwNDA1MDYwNzA4MDkwYTBiMGMwZDBlMGYxMDExMTIxMzE0MTUxNjE3MTgxOTFhMWIxYzFkMWUxZiIsImV4cCI6MTc2NzIyNTYwMDAwMCwiZXAiOlsiMTkyLjAuMi4xMDo0NzYxMyJdLCJleHRyYSI6MX0"
+    },
+    {
+      "name": "short_secret",
+      "text": "CFE1.eyJ2IjoxLCJpZCI6ImFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWEiLCJyb2xlIjoibGFwdG9wIiwic2VjcmV0IjoiMDAwMTAyMDMwNDA1MDYwNzA4MDkwYTBiMGMwZDBlMGYxMDExMTIxMzE0MTUxNjE3MTgxOTFhMWIxYzFkMWUiLCJleHAiOjE3NjcyMjU2MDAwMDAsImVwIjpbIjE5Mi4wLjIuMTA6NDc2MTMiXX0"
+    },
+    {
+      "name": "uppercase_id",
+      "text": "CFE1.eyJ2IjoxLCJpZCI6IkFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUEiLCJyb2xlIjoibGFwdG9wIiwic2VjcmV0IjoiMDAwMTAyMDMwNDA1MDYwNzA4MDkwYTBiMGMwZDBlMGYxMDExMTIxMzE0MTUxNjE3MTgxOTFhMWIxYzFkMWUxZiIsImV4cCI6MTc2NzIyNTYwMDAwMCwiZXAiOlsiMTkyLjAuMi4xMDo0NzYxMyJdfQ"
+    },
+    {
+      "name": "version_2",
+      "text": "CFE1.eyJ2IjoyLCJpZCI6ImFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWEiLCJyb2xlIjoibGFwdG9wIiwic2VjcmV0IjoiMDAwMTAyMDMwNDA1MDYwNzA4MDkwYTBiMGMwZDBlMGYxMDExMTIxMzE0MTUxNjE3MTgxOTFhMWIxYzFkMWUxZiIsImV4cCI6MTc2NzIyNTYwMDAwMCwiZXAiOlsiMTkyLjAuMi4xMDo0NzYxMyJdfQ"
+    },
+    {
+      "name": "unknown_role",
+      "text": "CFE1.eyJ2IjoxLCJpZCI6ImFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWEiLCJyb2xlIjoidGFibGV0Iiwic2VjcmV0IjoiMDAwMTAyMDMwNDA1MDYwNzA4MDkwYTBiMGMwZDBlMGYxMDExMTIxMzE0MTUxNjE3MTgxOTFhMWIxYzFkMWUxZiIsImV4cCI6MTc2NzIyNTYwMDAwMCwiZXAiOlsiMTkyLjAuMi4xMDo0NzYxMyJdfQ"
+    },
+    {
+      "name": "not_base64",
+      "text": "CFE1.!!!"
+    }
+  ]
+}

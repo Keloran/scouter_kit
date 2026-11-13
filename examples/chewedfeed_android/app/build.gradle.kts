@@ -135,3 +135,9 @@ android.applicationVariants.all {
     }
     tasks.named("assemble$variant") { dependsOn(check) }
 }
+
+// HandoverInteropTest runs against the Go peer (go/examples/internal/handover/peertest) when it is given:
+// ./gradlew test -Ppeertest=/path/to/peertest. Without it that test is skipped.
+tasks.withType<Test>().configureEach {
+    providers.gradleProperty("peertest").orNull?.let { systemProperty("handover.peertest", it) }
+}

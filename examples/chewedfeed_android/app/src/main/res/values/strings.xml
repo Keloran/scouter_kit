@@ -80,6 +80,13 @@
     <string name="source_details">Include per-project uptime and tickets</string>
     <string name="source_ai">Show AI usage</string>
     <string name="source_stats">Show stats</string>
+    <string name="companion_on">Background start: on (Android starts the connection when the glasses are near)</string>
+    <string name="companion_off">Background start: off (start the connection from the app)</string>
+    <string name="companion_cancelled">cancelled</string>
+    <string name="companion_set_up">Let Android start the connection when the glasses are near</string>
+    <string name="companion_waiting">Confirm in Android\'s dialog (the glasses must be out of their case and not connected)…</string>
+    <string name="companion_done">Done: Android will start the connection when the glasses are near</string>
+    <string name="companion_failed">Not set up: %1$s</string>
     <string name="save">Save</string>
     <string name="saved">Saved: used the next time the glasses connect</string>
 </resources>

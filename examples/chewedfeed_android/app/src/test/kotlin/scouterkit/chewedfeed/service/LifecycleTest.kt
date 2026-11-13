@@ -151,4 +151,24 @@ class LifecycleTest {
         l.conditions(bluetooth = true, permission = true, paired = true) // paired again
         assertEquals(Phase.CONNECTING, l.phase)
     }
+
+    @Test
+    fun glassesInRangeRetryAtOnce() {
+        ready()
+        l.failed(f.attempt)
+        assertEquals(Phase.RETRY_WAIT, l.phase)
+        l.present()
+        assertEquals(Phase.CONNECTING, l.phase)
+        assertEquals(null, f.retryAt)
+        repeat(3) { l.failed(f.attempt); f.retryAt?.let { l.retryDue(it.second) } }
+        assertEquals(Phase.FAILED, l.phase)
+        l.present()
+        assertEquals(Phase.CONNECTING, l.phase)
+        l.connected(f.attempt)
+        l.present() // connected: nothing to do
+        assertEquals(Phase.ACTIVE, l.phase)
+        l.ownership(false)
+        l.present() // standby stays standby
+        assertEquals(Phase.STANDBY, l.phase)
+    }
 }

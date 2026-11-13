@@ -3,7 +3,7 @@ package scouterkit.chewedfeed
 // libchewedfeed.so (native/jni.cpp). Use it through GlassesSession, which keeps every call off the UI thread.
 object Native {
     // native/boundary.hpp kAbiVersion: checked at start so a stale library fails loudly.
-    const val ABI_VERSION = 3
+    const val ABI_VERSION = 4
 
     init {
         System.loadLibrary("chewedfeed")
@@ -36,6 +36,9 @@ object Native {
     @JvmStatic external fun text(generation: Long, font: Int, utf8: ByteArray, x: Int, baseline: Int, align: Int, gray: Int): Boolean
     @JvmStatic external fun present(generation: Long, x: Int, y: Int): Boolean
     @JvmStatic external fun blank(generation: Long): Boolean
+    // Calibration: ruler left, crosshair right (blob null: the built-in font at scale), then moves of the right.
+    @JvmStatic external fun calibrationShow(generation: Long, blob: ByteArray?, scale: Int, major: Int): Boolean
+    @JvmStatic external fun calibrationMove(generation: Long, dx: Int, dy: Int): Boolean
     @JvmStatic external fun status(generation: Long): IntArray?
     @JvmStatic external fun events(generation: Long): IntArray
 

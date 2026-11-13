@@ -33,6 +33,8 @@
         </activity>
         <activity android:name=".SettingsActivity" android:exported="false" />
         <activity android:name=".GlassesCheckActivity" android:exported="false" />
+        <activity android:name=".SetupActivity" android:exported="false" />
+        <activity android:name=".CalibrationActivity" android:exported="false" />
         <service
             android:name=".service.GlassesService"
             android:exported="false"

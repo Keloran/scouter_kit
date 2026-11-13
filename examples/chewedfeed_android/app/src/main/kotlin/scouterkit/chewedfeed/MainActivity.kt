@@ -10,8 +10,17 @@ import android.os.PowerManager
 import android.util.Log
 import android.widget.Button
 import android.widget.LinearLayout
+import android.widget.RadioButton
+import android.widget.RadioGroup
+import android.widget.ScrollView
 import android.widget.TextView
 import scouterkit.chewedfeed.service.GlassesService
+import scouterkit.chewedfeed.service.Holder
+import scouterkit.chewedfeed.service.Progress
+import scouterkit.chewedfeed.service.ownershipView
+import scouterkit.chewedfeed.settings.AppSettings
+import scouterkit.chewedfeed.settings.OwnerMode
+import scouterkit.chewedfeed.settings.Prefs
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.LinkedBlockingQueue
 
@@ -30,21 +39,49 @@ class MainActivity : Activity() {
             setText(R.string.settings)
             setOnClickListener { startActivity(Intent(this@MainActivity, SettingsActivity::class.java)) }
         }
-        setContentView(LinearLayout(this).apply {
+        setContentView(ScrollView(this).apply { addView(LinearLayout(this@MainActivity).apply {
             orientation = LinearLayout.VERTICAL
+            setPadding(32, 32, 32, 32)
             addView(status)
+            if (BuildConfig.FLAVOR == "glasses") addView(Button(this@MainActivity).apply {
+                setText(R.string.setup)
+                setOnClickListener { startActivity(Intent(this@MainActivity, SetupActivity::class.java)) }
+            })
             addView(settings)
             if (BuildConfig.FLAVOR == "glasses") {
-                // The glasses connection in the background (GlassesService), its state and the battery setting.
+                // Ownership: who holds the glasses, the connection's progress, Connect / Disconnect, the owner mode;
+                // then the battery setting.
+                addView(holder)
                 addView(service)
                 addView(Button(this@MainActivity).apply {
                     setText(R.string.start_glasses)
-                    setOnClickListener { if (permissions()) GlassesService.start(this@MainActivity) }
+                    setOnClickListener {
+                        if (permissions()) {
+                            requested = true
+                            showService()
+                            GlassesService.start(this@MainActivity)
+                        }
+                    }
                 })
                 addView(Button(this@MainActivity).apply {
                     setText(R.string.stop_glasses)
-                    setOnClickListener { GlassesService.stop(this@MainActivity) }
+                    setOnClickListener { requested = false; GlassesService.stop(this@MainActivity) }
                 })
+                val app = AppSettings.load(Prefs(this@MainActivity, "app"))
+                addView(RadioGroup(this@MainActivity).apply {
+                    for ((mode, label) in listOf(OwnerMode.PREFER_LAPTOP to R.string.owner_prefer_laptop, OwnerMode.KEEP_ON_PHONE to R.string.owner_keep_phone)) {
+                        addView(RadioButton(this@MainActivity).apply {
+                            id = mode.ordinal + 1
+                            setText(label)
+                            isChecked = app.owner == mode
+                        })
+                    }
+                    setOnCheckedChangeListener { _, id ->
+                        val kv = Prefs(this@MainActivity, "app")
+                        AppSettings.load(kv).copy(owner = OwnerMode.entries[id - 1]).save(kv)
+                    }
+                })
+                addView(TextView(this@MainActivity).apply { setText(R.string.laptop_handover_unset) })
                 addView(battery)
                 addView(Button(this@MainActivity).apply {
                     setText(R.string.battery_settings)
@@ -55,7 +92,7 @@ class MainActivity : Activity() {
                     setOnClickListener { startActivity(Intent(this@MainActivity, GlassesCheckActivity::class.java)) }
                 })
             }
-        })
+        }) })
         if (BuildConfig.FLAVOR == "emulated") {
             val s = GlassesSession(callbacks = { it.run() }, onEvents = { _, _ -> })
             session = s
@@ -68,6 +105,8 @@ class MainActivity : Activity() {
     }
 
     private val service by lazy { TextView(this) }
+    private val holder by lazy { TextView(this).apply { textSize = 18f } }
+    private var requested = false
     private val battery by lazy { TextView(this) }
 
     override fun onResume() {
@@ -85,8 +124,22 @@ class MainActivity : Activity() {
 
     private fun showService() {
         val st = GlassesService.State
+        val view = ownershipView(st.phase, requested)
+        if (view.progress != Progress.REQUESTED) requested = false
+        holder.setText(when (view.holder) {
+            Holder.THIS_PHONE -> R.string.holder_phone
+            Holder.OTHER_DEVICE -> R.string.holder_other
+            Holder.NOBODY -> R.string.holder_nobody
+        })
+        if (view.progress == Progress.REQUESTED) return service.setText(R.string.progress_requested)
         val detail = if (st.detail.isEmpty()) "" else getString(R.string.glasses_detail, st.detail)
-        service.text = getString(R.string.glasses_state, st.phase.text, detail, if (st.online) "" else getString(R.string.offline))
+        val label = getString(when (view.progress) {
+            Progress.READY -> R.string.progress_ready
+            Progress.PENDING -> R.string.progress_pending
+            Progress.FAILED -> R.string.progress_failed
+            else -> R.string.progress_idle
+        })
+        service.text = getString(R.string.glasses_state, label, st.phase.text, detail, if (st.online) "" else getString(R.string.offline))
     }
 
     // Nearby devices (the connection itself) and notifications (its status notification; optional).

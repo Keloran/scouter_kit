@@ -5,7 +5,6 @@
 #include <cstdio>
 #include <thread>
 
-namespace g1 = scouter_kit::g1;
 namespace sk = scouter_kit;
 namespace gray = scouter_kit::gray;
 
@@ -66,6 +65,7 @@ StartResult Session::Start(const StartConfig &config, g1::Transport *transport, 
     starting_ = true;
   }
   g1::GrayConfig gray{config.dx, config.dy};
+  dx_ = config.dx, dy_ = config.dy;
   g1::Connection connection;
   connection.left = config.left;
   connection.right = config.right;
@@ -168,6 +168,7 @@ void Session::Close() {
       ArmAt(i).ReportInputs(0);
       ArmAt(i).SetPanel(false);
     }
+  calibration_ = {};
   g1::Deinit();
   fonts_.clear();
   canvas_ = nullptr;
@@ -308,6 +309,124 @@ std::vector<InputEvent> Session::Events(uint64_t gen, size_t max) {
     while (out.size() < max && ArmAt(i).NextEvent(&e, 0)) out.push_back({i, int(e.type), e.trigger, e.a, e.b});
   }
   return out;
+}
+
+namespace {
+constexpr int kCalW = 560, kCalH = 360;
+constexpr g1::Address kCalPosition = 3840; // the program's x, y words, after its code
+
+// demo.PanelAt: where an image at virtual (x, y) lands on one arm's panel.
+void PanelAt(int dx, int dy, int arm, int *x, int *y) {
+  if (arm == 0) *x -= std::max(0, -dx), *y += std::max(0, -dy);
+  else *x -= std::max(0, dx), *y += std::max(0, dy);
+}
+
+void Words(g1::Arm &arm, g1::Address at, int x, int y) {
+  uint8_t b[8];
+  for (int i = 0; i < 4; i++) b[i] = uint8_t(uint32_t(x) >> (8 * i)), b[4 + i] = uint8_t(uint32_t(y) >> (8 * i));
+  arm.WriteArena(at, b);
+}
+
+void Paint(gray::Bitmap &b, sk::Font &font, sk::Font &numbers, int arm, int major) {
+  const int cx = kCalW / 2, cy = kCalH / 2;
+  auto line = [&](int x, int y, int w, int h, uint8_t g) { gray::Fill(b, x, y, w, h, g); };
+  auto text = [&](const std::string &t, int x, int y, sk::TextAlign a) { font.DrawLine(b, t, x, y, a, nullptr, 204); };
+  auto number = [&](const std::string &t, int x, int y, sk::TextAlign a) { numbers.DrawLine(b, t, x, y, a, nullptr, 255); };
+  auto signed_ = [](int v) { char s[16]; std::snprintf(s, sizeof s, "%+d", v); return std::string(s); };
+  line(0, 0, kCalW, kCalH, 0);
+  if (arm == 0) {
+    text("LEFT: pixel ruler", cx, 18, sk::ALIGN_CENTER);
+    text("X: right + / left -    Y: down + / up -", cx, 34, sk::ALIGN_CENTER);
+    for (int y = -120; y <= 120; y += 10)
+      for (int x = -240; x <= 240; x += 10) line(cx + x, cy + y, 1, 1, 102);
+    line(cx - 240, cy, 481, 1, 153);
+    line(cx, cy - 120, 1, 241, 153);
+    for (int x = -240; x <= 240; x += 10) {
+      int n = x % major == 0 ? 7 : 3;
+      if (x % major == 0 && x != 0) number(signed_(x), cx + x, cy + 12 + numbers.ascent, sk::ALIGN_CENTER);
+      line(cx + x, cy - n, 1, 2 * n + 1, 204);
+    }
+    for (int y = -120; y <= 120; y += 10) {
+      int n = y % major == 0 ? 7 : 3;
+      if (y % major == 0 && y != 0) number(signed_(y), cx + 12, cy + y + numbers.ascent / 2, sk::ALIGN_LEFT);
+      line(cx - n, cy + y, 2 * n + 1, 1, 204);
+    }
+    // A hollow square at the left eye's origin: the right plus should sit inside it.
+    line(cx - 5, cy - 5, 11, 1, 255);
+    line(cx - 5, cy + 5, 11, 1, 255);
+    line(cx - 5, cy - 5, 1, 11, 255);
+    line(cx + 5, cy - 5, 1, 11, 255);
+    text("L 0,0", cx - 12, cy - 13, sk::ALIGN_RIGHT);
+    text("Small marks: 10 px / numbers: " + std::to_string(major) + " px", cx, kCalH - 8, sk::ALIGN_CENTER);
+  } else {
+    text("RIGHT: crosshair", cx, 18, sk::ALIGN_CENTER);
+    line(cx - 18, cy, 37, 1, 255);
+    line(cx, cy - 18, 1, 37, 255);
+    text("R", cx + 24, cy - 13, sk::ALIGN_LEFT);
+  }
+  number("0123456789", cx, kCalH - 30, sk::ALIGN_CENTER);
+}
+} // namespace
+
+bool Session::CalibrationShow(uint64_t gen, const std::vector<uint8_t> &numbers_blob, int scale, int major) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  if (!Live(gen) || calibration_.on || scale < 1 || scale > 4 || major < 10) return false;
+  if (!present_[0] || !present_[1]) return false; // two eyes to compare
+  // Labels at scale 1 and only the ruler's digits at the dashboard size: two 560 x 360 patterns take most of the
+  // arena (desktop calibration.go does the same).
+  std::span<const uint8_t> builtin(kDepartureMonoBlob, sizeof kDepartureMonoBlob);
+  sk::Font &font = sk::LoadFont(builtin, "", nullptr, 1);
+  if (!font.pimpl) return false;
+  fonts_.push_back(&font);
+  sk::Font &numbers = numbers_blob.empty() ? sk::LoadFont(builtin, "+-0123456789", nullptr, scale)
+                                           : sk::LoadFont(std::span<const uint8_t>(numbers_blob), "+-0123456789", nullptr, scale);
+  if (!numbers.pimpl) return false;
+  fonts_.push_back(&numbers);
+  int64_t base = g1::Alloc(4096);
+  if (base < 0) return false;
+  gray::Bitmap *bitmaps[2];
+  for (int i = 0; i < 2; i++) {
+    bitmaps[i] = &gray::CreateBitmap(kCalW, kCalH);
+    if (!bitmaps[i]->contents.data) return false;
+    Paint(*bitmaps[i], font, numbers, i, major);
+  }
+  gray::Clear();
+  sk::Flush(); // uploads both patterns; the programs draw them
+  const int vw = gray::display.width, vh = gray::display.height;
+  for (int i = 0; i < 2; i++) {
+    int x = (vw - kCalW) / 2, y = (vh - kCalH) / 2;
+    PanelAt(dx_, dy_, i, &x, &y);
+    g1::Program p(g1::Address(base), 32);
+    auto show = p.NewLabel();
+    p.PanelPolicy(show);
+    p.Bind(show);
+    int stride = 0;
+    g1::Address addr = g1::AddressOf(*bitmaps[i], &stride);
+    g1::ArenaWord pos = g1::ArenaWord((base + kCalPosition) / 4);
+    p.Draw(p.Const(addr), p.Const(uint32_t(stride)), p.Const(0), p.Const(0), pos, g1::ArenaWord(pos + 1), p.Const(kCalW),
+           p.Const(kCalH));
+    p.Notify(p.Const(1), p.Const(0));
+    p.End();
+    p.On(g1::TRIGGER_START, show);
+    p.On(g1::TRIGGER_USER0, show);
+    if (p.Here() > base + kCalPosition) return false; // the program would overlap its position words
+    Words(ArmAt(i), g1::Address(base + kCalPosition), x, y);
+    if (!ArmAt(i).Load(p) || !ArmAt(i).Start(g1::Address(base))) return false;
+    if (i == 1) calibration_ = {true, g1::Address(base), dx_, dy_, x, y};
+  }
+  return true;
+}
+
+bool Session::CalibrationMove(uint64_t gen, int dx, int dy) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  if (!Live(gen) || !calibration_.on || dx < -240 || dx > 240 || dy < -120 || dy > 120) return false;
+  // The left ruler holds still; dx moves the right image left, dy down (as the offsets would).
+  Calibration &c = calibration_;
+  int x = c.x + c.dx - dx, y = c.y + dy - c.dy;
+  Words(g1::right, c.base + kCalPosition, x, y);
+  g1::right.Raise(g1::TRIGGER_USER0);
+  c.dx = dx, c.dy = dy, c.x = x, c.y = y;
+  return true;
 }
 
 } // namespace chewedfeed

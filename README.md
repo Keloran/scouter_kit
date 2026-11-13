@@ -77,13 +77,38 @@ The libraries are provided for the following languages:
   </tr>
 </table>
 
+## Chewedfeed dashboard: laptop, phone and handover
+
+This fork adds a heads-up dashboard for [Chewedfeed](https://chewedfeed.com) that runs from the laptop or from an Android phone, and hands the glasses between them automatically.
+
+**On the laptop** (`go/examples/chewedfeed`):
+
+* pages for each Chewedfeed site (stage, health, uptime, velocity, open PRs, customers, ticket counts), AI usage (Codex, Claude Code) and laptop stats
+* desktop notifications as short popups, with a history view
+* a footer with the playing track or the clock, and a status panel with the glasses, case and laptop batteries
+* tilt to show: the dashboard appears when you look up or down and hides when you look ahead; it also hides in the case
+* touch navigation (tap for pages, double tap for views, triple tap to pause rotation), fractional text scale, eye-alignment calibration (`-calibrate`)
+* settings in the user config (`chewedfeed/config`): `dx`, `dy`, `font_scale`, `show_above`, `show_below`, and `peer_endpoint` for the phone
+
+**On the phone** (`examples/chewedfeed_android`, sideloaded APK):
+
+* the same dashboard without a laptop: Sites from the Chewedfeed API, phone notifications, the playing track, phone and glasses batteries, tilt and case hiding, touch navigation
+* runs with the screen off as a foreground service; Android can start it when the glasses come near (companion device)
+* setup on the phone: pairing the glasses, eye alignment, text scale, tilt angles, API settings, notification access
+
+**Handover**: pair the phone and laptop once (Setup → Pair with the laptop, then `chewedfeed -enroll-invitation FILE`). After that the laptop holds the glasses while it is awake; when its lid closes or it sleeps, the phone takes over on the same page, and gives them back when the laptop wakes. "Keep the glasses on this phone" overrides it. The link is TLS 1.3 with pinned keys, the protocol and its shared test vectors are in `tests/handover`, and both sides are tested against each other.
+
 # Project structure
 
 * `font_converter/` - python script that converts `.ttf` files into ScouterKit-compatible packed font files (glasses have very little memory so something like this is necessary)
 * `g1_firmware/` - firmware for the Even Realities G1
 * `src/` - C/C++ sources - the core library that talks with the glasses
 * `go/` - Golang wrappers
+* `go/examples/chewedfeed` - the Chewedfeed dashboard for the laptop
+* `examples/chewedfeed_android/` - the Chewedfeed dashboard for Android (Kotlin + JNI)
+* `examples/ssh/` - the SSH terminal for Android
 * `tests/`, `third_party/` - extra code for the C/C++ library
+* `tests/handover/` - the laptop/phone handover protocol, fixtures and contract tests
 * `tools/` - tools for testing the glasses
 
 # Editing

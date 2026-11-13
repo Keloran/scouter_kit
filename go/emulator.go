@@ -9,6 +9,7 @@ import "C"
 
 import (
 	"image"
+	"time"
 	"unsafe"
 )
 
@@ -47,6 +48,14 @@ func (a Arm) SetEmulatedMic(hz, peak float64) {
 	mu.RLock()
 	defer mu.RUnlock()
 	C.sk_g1_emulator_set_mic(C.int(a), C.double(hz), C.double(peak))
+}
+
+// EmulateDisconnect drops the emulated arm's link for d; the library then
+// reconnects as it would to real glasses. Emulator builds only.
+func (a Arm) EmulateDisconnect(d time.Duration) {
+	mu.RLock()
+	defer mu.RUnlock()
+	C.sk_g1_emulator_disconnect(C.int(a), C.int(d.Milliseconds()))
 }
 
 // EmulateNewHost makes the emulated arms see a new host: the library forgets

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Chewedfeed</string>
+    <string name="settings">Settings</string>
+    <string name="status">Native %1$s, interface %2$d</string>
+    <string name="settings_placeholder">Setup and calibration come later.</string>
+</resources>

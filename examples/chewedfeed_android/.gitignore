@@ -1,0 +1,12 @@
+/.gradle/
+/.kotlin/
+/.idea/
+*.iml
+/build/
+/app/build/
+/app/.cxx/
+/local.properties
+# release signing: keystore.properties (storeFile, storePassword, keyAlias, keyPassword) and the keystore
+/keystore.properties
+*.jks
+*.keystore

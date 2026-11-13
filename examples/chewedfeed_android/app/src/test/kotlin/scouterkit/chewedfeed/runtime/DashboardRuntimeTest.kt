@@ -174,4 +174,25 @@ class DashboardRuntimeTest {
         r.sampled(status(), null) // the service samples every 500 ms; rotation happens on these ticks
         assertEquals(1, shown.index)
     }
+
+    @Test
+    fun navigationTravelsThroughTheBridge() {
+        val r = runtime(AppSettings(rotateSeconds = 12, project = "one"))
+        r.start(1)
+        requests[0].second(data)
+        r.sampled(status(), null)
+        assertEquals("summary", r.bridge.export()?.pageId) // this phone's selection, for the laptop
+        assertEquals("one", r.bridge.export()?.project)
+        r.bridge.requested("laptop-session", "t1")
+        val incoming = """{"snapshot":{"schema_version":1,"revision":9,"view":"sites","page_id":"projects/one/0","project":null,"rotation_paused":true,"rotation_ms":30000}}"""
+        assertTrue(r.bridge.receive("laptop-session", "t1", incoming))
+        r.bridge.finish(true) // the release proof: restored on the runtime's thread
+        assertEquals(1, shown.index)
+        assertTrue(shown.paused)
+        assertEquals("projects/one/0", r.bridge.export()?.pageId)
+        // A local touch after a request wins over a later transfer.
+        r.bridge.requested("laptop-session", "t2")
+        r.touch(0, 1)
+        assertTrue(!r.bridge.receive("laptop-session", "t2", incoming))
+    }
 }

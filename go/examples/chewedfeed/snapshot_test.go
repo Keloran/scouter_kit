@@ -198,3 +198,25 @@ func TestSnapshotGate(t *testing.T) {
 		t.Fatalf("new session: %v", err)
 	}
 }
+
+// tests/handover/snapshot_vectors.json: decode then encode gives the same bytes (the Kotlin side checks the same).
+func TestSnapshotCanonicalVectors(t *testing.T) {
+	var f struct{ Canonical []string }
+	b, err := os.ReadFile("../../../tests/handover/snapshot_vectors.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(b, &f); err != nil || len(f.Canonical) < 4 {
+		t.Fatalf("vectors: %v", err)
+	}
+	for _, c := range f.Canonical {
+		s, err := decodeSnapshot([]byte(c))
+		if err != nil {
+			t.Fatalf("%s: %v", c, err)
+		}
+		out, err := s.encode()
+		if err != nil || string(out) != c {
+			t.Fatalf("re-encoded %s as %s (%v)", c, out, err)
+		}
+	}
+}

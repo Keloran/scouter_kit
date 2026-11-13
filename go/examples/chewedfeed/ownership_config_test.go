@@ -33,3 +33,38 @@ func TestOwnershipConfiguration(t *testing.T) {
 		t.Fatal("unknown config field ignored")
 	}
 }
+
+// peer_endpoint in the user config (next to the display settings): used when no flag or handover config says
+// otherwise; -handover=false still disables it.
+func TestUserConfigPeerEndpoint(t *testing.T) {
+	dir := t.TempDir()
+	if s := withUserPeerEndpoint(ownershipSettings{}, nil, dir); s.Endpoint != "" {
+		t.Fatalf("no file: %+v", s)
+	}
+	os.MkdirAll(filepath.Join(dir, "chewedfeed"), 0700)
+	if err := os.WriteFile(filepath.Join(dir, "chewedfeed", "config"), []byte(`{"dx":-10,"dy":-8,"font_scale":1.5,"peer_endpoint":"phone.invalid:47613"}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	s, err := configureOwnership(withUserPeerEndpoint(ownershipSettings{}, nil, dir), nil)
+	if err != nil || !s.Enabled || s.Endpoint != "phone.invalid:47613" {
+		t.Fatalf("user config: %+v %v", s, err)
+	}
+	for _, c := range []struct {
+		s        ownershipSettings
+		explicit map[string]bool
+		want     string
+	}{
+		{ownershipSettings{Endpoint: "other.invalid:1"}, map[string]bool{"peer-endpoint": true}, "other.invalid:1"}, // the flag wins
+		{ownershipSettings{config: "given.json"}, map[string]bool{"handover-config": true}, ""},                     // its own file decides
+		{ownershipSettings{}, map[string]bool{"handover": true}, ""},                                                // -handover=false
+	} {
+		if got := withUserPeerEndpoint(c.s, c.explicit, dir).Endpoint; got != c.want {
+			t.Fatalf("%+v: endpoint %q, want %q", c, got, c.want)
+		}
+	}
+	// The display settings in the same file still load: the field is simply not theirs.
+	os.WriteFile(filepath.Join(dir, "chewedfeed", "config"), []byte(`{"peer_endpoint":"not-an-endpoint"}`), 0600)
+	if _, err := configureOwnership(withUserPeerEndpoint(ownershipSettings{}, nil, dir), nil); err == nil {
+		t.Fatal("an invalid peer_endpoint was accepted")
+	}
+}

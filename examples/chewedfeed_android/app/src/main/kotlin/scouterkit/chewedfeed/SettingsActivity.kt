@@ -18,23 +18,23 @@ class SettingsActivity : Activity() {
         setTitle(R.string.settings)
         val current = DisplaySettings.load(this)
         val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(32, 32, 32, 32) }
-        fun field(label: Int, value: Int) = EditText(this).apply {
-            inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_SIGNED
-            setText(String.format(Locale.ROOT, "%d", value)) // ASCII digits: parsed back with toIntOrNull
+        fun field(label: Int, value: String, decimal: Boolean = false) = EditText(this).apply {
+            inputType = InputType.TYPE_CLASS_NUMBER or if (decimal) InputType.TYPE_NUMBER_FLAG_DECIMAL else InputType.TYPE_NUMBER_FLAG_SIGNED
+            setText(value) // ASCII digits: parsed back with toIntOrNull / toDoubleOrNull
         }.also {
             list.addView(TextView(this).apply { setText(label) })
             list.addView(it)
         }
         list.addView(TextView(this).apply { setText(R.string.display_settings) })
-        val dx = field(R.string.dx_label, current.dx)
-        val dy = field(R.string.dy_label, current.dy)
-        val scale = field(R.string.scale_label, current.scale)
+        val dx = field(R.string.dx_label, String.format(Locale.ROOT, "%d", current.dx))
+        val dy = field(R.string.dy_label, String.format(Locale.ROOT, "%d", current.dy))
+        val scale = field(R.string.scale_label, String.format(Locale.ROOT, "%.2f", current.scale).trimEnd('0').trimEnd('.'), decimal = true)
         val state = TextView(this)
         list.addView(Button(this).apply {
             setText(R.string.save)
             setOnClickListener {
                 val s = DisplaySettings(dx.text.toString().toIntOrNull() ?: Int.MIN_VALUE,
-                    dy.text.toString().toIntOrNull() ?: Int.MIN_VALUE, scale.text.toString().toIntOrNull() ?: 0)
+                    dy.text.toString().toIntOrNull() ?: Int.MIN_VALUE, scale.text.toString().replace(',', '.').toDoubleOrNull() ?: Double.NaN)
                 val problem = s.problem()
                 if (problem != null) {
                     state.text = problem

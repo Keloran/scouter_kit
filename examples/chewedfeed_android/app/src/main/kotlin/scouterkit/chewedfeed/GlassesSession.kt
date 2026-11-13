@@ -14,6 +14,7 @@ interface GlassesBridge {
     fun cancel()
     fun stop()
     fun loadFont(generation: Long, scale: Int): Int
+    fun loadFontBlob(generation: Long, blob: ByteArray): Int
     fun fontMetrics(generation: Long, font: Int): IntArray?
     fun measure(generation: Long, font: Int, utf8: ByteArray): Int
     fun canvas(generation: Long, width: Int, height: Int): Boolean
@@ -33,6 +34,7 @@ object NativeBridge : GlassesBridge {
     override fun cancel() = Native.cancel()
     override fun stop() = Native.stop()
     override fun loadFont(generation: Long, scale: Int) = Native.loadFont(generation, scale)
+    override fun loadFontBlob(generation: Long, blob: ByteArray) = Native.loadFontBlob(generation, blob)
     override fun fontMetrics(generation: Long, font: Int) = Native.fontMetrics(generation, font)
     override fun measure(generation: Long, font: Int, utf8: ByteArray) = Native.measure(generation, font, utf8)
     override fun canvas(generation: Long, width: Int, height: Int) = Native.canvas(generation, width, height)
@@ -113,6 +115,7 @@ data class GlassesEvent(val arm: Int, val type: Int, val trigger: Int, val a: In
 // Drawing for one generation; every call fails (false, -1, null) once that generation has stopped.
 class Frame internal constructor(private val bridge: GlassesBridge, val generation: Long) {
     fun loadFont(scale: Int) = bridge.loadFont(generation, scale)
+    fun loadFontBlob(blob: ByteArray) = bridge.loadFontBlob(generation, blob)
     fun fontMetrics(font: Int) = bridge.fontMetrics(generation, font) // ascent, descent, line spacing
     fun measure(font: Int, text: String) = bridge.measure(generation, font, text.toByteArray(Charsets.UTF_8))
     fun canvas(width: Int, height: Int) = bridge.canvas(generation, width, height)

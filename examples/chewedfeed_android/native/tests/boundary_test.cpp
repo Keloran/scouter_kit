@@ -17,7 +17,7 @@ int main() {
     }
   };
   check(std::strcmp(chewedfeed::Backend(), "emulated") == 0, "host build is emulated");
-  check(chewedfeed::kAbiVersion == 2, "ABI version");
+  check(chewedfeed::kAbiVersion == 3, "ABI version");
   for (int i = 0; i < 2; i++) {
     std::string error;
     check(g1::Init(nullptr, &error) == g1::ERROR_NONE, "emulated Init");

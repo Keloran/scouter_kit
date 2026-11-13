@@ -25,6 +25,10 @@ import scouterkit.chewedfeed.bluetooth.HandlerScheduler
 import scouterkit.chewedfeed.bluetooth.NativeEvents
 import scouterkit.chewedfeed.bluetooth.PairFinder
 import scouterkit.chewedfeed.bluetooth.PairScan
+import scouterkit.chewedfeed.dashboard.Page
+import scouterkit.chewedfeed.render.Batteries
+import scouterkit.chewedfeed.render.GlassesScreen
+import scouterkit.chewedfeed.render.MusicStatus
 
 // Hardware check for the glasses link (until setup, CF-45): scan for pairs by their pair record, bond the chosen
 // pair only on the user's tap (the glasses in the open case), connect both arms through the native session and
@@ -150,13 +154,11 @@ class GlassesCheckActivity : Activity() {
                 is StartOutcome.Ready -> {
                     val st = outcome.status
                     val drawn = s.draw { f ->
-                        val font = f.loadFont(scale)
-                        val m = f.fontMetrics(font) ?: return@draw false
-                        val w2 = minOf(600, st.width - 40)
-                        f.canvas(w2, 160) && f.clear() &&
-                            f.text(font, "Chewedfeed", w2 / 2, m[0] + 20, Frame.ALIGN_CENTER) &&
-                            f.text(font, "phone link OK ✓", w2 / 2, m[0] + 20 + m[2], Frame.ALIGN_CENTER) &&
-                            f.present((st.width - w2) / 2, (st.height - 160) / 2)
+                        // A sample dashboard frame, drawn as the dashboard will be: the configured text scale and offsets.
+                        val screen = GlassesScreen.open(f, st.width, st.height, dx, scale, Native::departureMono) ?: return@draw false
+                        val page = Page("check", "Chewedfeed", listOf("phone link OK ✓", "Text scale $scale, dx $dx, dy $dy"), "Unavailable")
+                        val clock = MusicStatus()
+                        screen.show(page, 0, 1, true, null, Batteries(st.left.battery, st.right.battery), { w -> clock.line(System.currentTimeMillis(), w, screen::measure) })
                     }.get()
                     show("connected (dx $dx, dy $dy, scale $scale): generation ${outcome.generation}, left ${st.left.battery}% right ${st.right.battery}%, " +
                         "in case ${st.left.inCase}/${st.right.inCase}, frame ${if (drawn == true) "drawn" else "FAILED"}")

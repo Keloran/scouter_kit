@@ -124,6 +124,20 @@ uint64_t Session::Generation() {
   return generation_;
 }
 
+const std::vector<uint8_t> &DepartureMono() {
+  static const std::vector<uint8_t> blob(kDepartureMonoBlob, kDepartureMonoBlob + sizeof kDepartureMonoBlob);
+  return blob;
+}
+
+int Session::LoadFontBlob(uint64_t gen, const std::vector<uint8_t> &blob, std::string *error) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  if (!Live(gen) || blob.empty() || fonts_.size() >= 8) return -1;
+  sk::Font &f = sk::LoadFont(std::span<const uint8_t>(blob.data(), blob.size()), "", error, 1);
+  if (!f.pimpl) return -1;
+  fonts_.push_back(&f);
+  return int(fonts_.size()) - 1;
+}
+
 int Session::LoadFont(uint64_t gen, int scale, std::string *error) {
   std::lock_guard<std::mutex> lock(mutex_);
   if (!Live(gen) || scale < 1 || scale > 4 || fonts_.size() >= 8) return -1;

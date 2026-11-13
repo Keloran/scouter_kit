@@ -225,6 +225,7 @@ const (
 	footerRaiseRows = 2
 	footerLift      = 80
 	lowBatteryAt    = 20
+	popupLines      = 3 // a notification popup: the app, then at most this many lines (all of it in the Notifications view)
 )
 
 func newScreen(cfg scouterkit.Config) (*screen, error) {
@@ -271,6 +272,9 @@ func newScreenScale(cfg scouterkit.Config, scale float64) (*screen, error) {
 
 func (s *screen) measure(text string) int { return s.font.Measure(text).Width }
 
+// textW is what content text may use: textInset clear of both the left edge and the status divider.
+func (s *screen) textW() int { return max(1, s.contentW-2*textInset) }
+
 func (s *screen) hide(arms []scouterkit.Arm) {
 	// Clear the compositor too, so showing the same page again emits its pixels.
 	scouterkit.Clear()
@@ -304,7 +308,7 @@ func footerStatus(status string) string {
 func (s *screen) render(p page, index, total int, paused bool, popup *notification) {
 	s.bitmap.Fill(s.bitmap.Bounds(), 0)
 	line := func(text string, n int, gray uint8) {
-		text = fitLine(text, s.contentW-textInset, s.measure)
+		text = fitLine(text, s.textW(), s.measure)
 		s.font.DrawLine(s.bitmap, text, textInset, s.font.Ascent+n*s.font.LineSpacing, scouterkit.AlignLeft, gray)
 	}
 	if popup == nil {
@@ -321,7 +325,7 @@ func (s *screen) render(p page, index, total int, paused bool, popup *notificati
 			app = "Notification"
 		}
 		line(app, 0, 255)
-		for i, text := range notificationLines(*popup, s.contentW-textInset, s.rows+s.bodyStart-1, s.measure) {
+		for i, text := range notificationLines(*popup, s.textW(), min(popupLines, s.rows+s.bodyStart-1), s.measure) {
 			line(text, i+1, 255)
 		}
 	}
@@ -384,7 +388,7 @@ func (d *dashState) attach(s *glassesSession) {
 	scr := s.screen
 	scr.status = &d.music
 	if d.sites != nil {
-		d.nav.replace(viewSites, makePages(*d.sites, scr.contentW-textInset, scr.rows, scr.measure))
+		d.nav.replace(viewSites, makePages(*d.sites, scr.textW(), scr.rows, scr.measure))
 	}
 	if d.system != nil {
 		d.nav.replace(viewSystem, systemPages(*d.system, scr.rows))
@@ -405,7 +409,7 @@ func (d *dashState) formatNotes() {
 		d.nav.replace(viewNotifications, d.notesOff)
 	} else if d.s != nil {
 		scr := d.s.screen
-		d.nav.replace(viewNotifications, d.history.pages(scr.contentW-textInset, scr.rows, scr.measure))
+		d.nav.replace(viewNotifications, d.history.pages(scr.textW(), scr.rows, scr.measure))
 	}
 }
 
@@ -777,7 +781,7 @@ func dashboard(ctx context.Context, host *glassesHost, o options, c *client, con
 			d.sites = &data
 			if d.s != nil {
 				scr := d.s.screen
-				d.nav.replace(viewSites, makePages(data, scr.contentW-textInset, scr.rows, scr.measure))
+				d.nav.replace(viewSites, makePages(data, scr.textW(), scr.rows, scr.measure))
 				d.restoreSnapshotPage()
 				progress("Sites ready: %d pages; page %d selected", len(d.nav.views[0].pages), d.nav.views[0].index+1)
 			}

@@ -4,6 +4,7 @@ package main
 
 import (
 	"bytes"
+	"strings"
 	"testing"
 
 	"scouterkit"
@@ -142,5 +143,50 @@ func TestCaseBatteryRowFitsStatusPanel(t *testing.T) {
 			}
 		}
 		scouterkit.UnloadAll()
+	}
+}
+
+// Content text keeps textInset clear of the status divider, and a notification popup is the app and at most
+// popupLines lines (CF-78).
+func TestContentClearOfDividerAndShortPopups(t *testing.T) {
+	cfg := scouterkit.DefaultConfig()
+	cfg.DX, cfg.DY = -10, -8
+	if err := scouterkit.Init(cfg); err != nil {
+		t.Fatal(err)
+	}
+	defer scouterkit.Deinit()
+	s, err := newScreenScale(cfg, 1.5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	long := strings.Repeat("Wide words ", 40)
+	p := page{title: long, lines: []string{long, long, long}, status: "Fetched 12:00"}
+	footerTop := s.footerBaseline - s.footerFont.Ascent - 5
+	lit := func(x0, x1, y0, y1 int) bool {
+		img := s.bitmap.Image()
+		for y := y0; y < y1; y++ {
+			for x := x0; x < x1; x++ {
+				if img.GrayAt(x, y).Y != 0 {
+					return true
+				}
+			}
+		}
+		return false
+	}
+	s.render(p, 0, 1, false, nil)
+	if !lit(0, s.contentW-textInset, 0, footerTop) {
+		t.Fatal("the page drew nothing")
+	}
+	if lit(s.contentW-textInset, s.statusX-1, 0, footerTop) {
+		t.Fatal("page text runs into the margin before the status divider")
+	}
+	// One unbroken word: wrapping cuts it without "...", so each line is filled with wide glyphs to the edge.
+	s.render(p, 0, 1, false, &notification{App: "Mail", Summary: strings.Repeat("M", 500), Body: long})
+	if lit(s.contentW-textInset, s.statusX-1, 0, footerTop) {
+		t.Fatal("popup text runs into the margin before the status divider")
+	}
+	below := s.font.Ascent + popupLines*s.font.LineSpacing + s.font.Descent + 1
+	if lit(0, s.contentW-textInset, below, footerTop) {
+		t.Fatalf("the popup is longer than the app and %d lines", popupLines)
 	}
 }

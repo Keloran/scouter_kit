@@ -27,9 +27,11 @@ type ownershipLink interface {
 }
 
 type ownershipPacket struct {
-	link    ownershipLink
-	message *h.Message // nil: new connection; down: retired connection
-	down    bool
+	link     ownershipLink
+	message  *h.Message // nil: new connection; down: retired connection
+	down     bool
+	session  string // authenticated hello metadata, set only for a new link
+	snapshot bool
 }
 
 type ownershipTimer struct {
@@ -96,6 +98,10 @@ type ownershipController struct {
 	powerDone         []func()
 	ctx               context.Context
 	failures          int
+	snapshots         *snapshotBridge
+	peerSession       string
+	peerSnapshots     bool
+	snapshotNotice    bool
 }
 
 func newOwnershipController(native ownershipNative, power <-chan powerEvent, enrolled bool) *ownershipController {
@@ -166,8 +172,13 @@ func (c *ownershipController) apply(kind h.EventKind, data h.EventData) {
 }
 
 func (c *ownershipController) event(e h.Event) {
+	previous := c.state.Phase
 	tr := h.Reduce(c.state, e)
 	c.state = tr.State
+	if previous == h.Requesting && c.state.Phase != h.Requesting {
+		c.snapshots.finish(c.state.Phase == h.Acquiring && c.state.Permission == h.Released)
+		c.snapshotNotice = false
+	}
 	for _, fx := range tr.Effects {
 		c.effect(fx)
 	}
@@ -232,6 +243,10 @@ func (c *ownershipController) effect(f h.Effect) {
 	case h.Redraw:
 		c.failures = 0 // the dashboard already completed its full repaint before Initialized
 	case h.SendRequest:
+		c.snapshotNotice = false
+		if c.peerSnapshots {
+			c.snapshots.requested(c.peerSession, f.Transfer)
+		}
 		if c.peer != nil {
 			c.peer.Expect(f.Transfer)
 		}
@@ -239,6 +254,11 @@ func (c *ownershipController) effect(f h.Effect) {
 		c.schedule(h.Timer("request_reply"), f.Generation, h.ReleaseDeadlineMs*time.Millisecond)
 	case h.SendRelease:
 		c.send("release", f.Transfer, h.ReleaseBody{Target: h.Phone, Reason: c.reason})
+		if c.peerSnapshots && c.snapshots != nil && s.Arms.Left && s.Arms.Right {
+			if s, ok := c.snapshots.export(); ok {
+				c.send("snapshot", f.Transfer, h.SnapshotBody{Snapshot: h.Snapshot(s)})
+			}
+		}
 	case h.SendReleased:
 		c.send("released", f.Transfer, h.ReleasedBody{Target: h.Phone, ReconnectDisabled: true, WorkersStopped: true})
 	case h.SendAcquiring:
@@ -356,6 +376,8 @@ func (c *ownershipController) prefer() {
 func (c *ownershipController) packet(p ownershipPacket) {
 	if p.down {
 		if c.peer == p.link {
+			c.snapshots.finish(false)
+			c.peerSession, c.peerSnapshots, c.snapshotNotice = "", false, false
 			c.peer = nil
 			c.reason = "peer_lost"
 			c.apply(h.RouteLost, h.EventData{})
@@ -368,6 +390,8 @@ func (c *ownershipController) packet(p ownershipPacket) {
 			return
 		}
 		c.peer = p.link
+		c.peerSession, c.peerSnapshots = p.session, p.snapshot
+		c.snapshotNotice = false
 		c.lastStatus = ""
 		c.apply(h.RouteRestored, h.EventData{})
 		return
@@ -397,7 +421,18 @@ func (c *ownershipController) packet(p ownershipPacket) {
 		c.reason = b.Reason
 		c.apply(h.ReleaseRequest, h.EventData{Transfer: transfer, Target: b.Target, Reason: b.Reason, PeerPinned: b.Pinned})
 	case "release":
+		previous := c.state.Phase
 		c.apply(h.ReleaseNotice, h.EventData{Transfer: transfer})
+		if c.state.Phase == h.Requesting && c.state.Transfer == transfer {
+			if previous != h.Requesting && c.peerSnapshots {
+				c.snapshots.requested(c.peerSession, transfer)
+			}
+			c.snapshotNotice = true
+		}
+	case "snapshot":
+		if c.peerSnapshots && c.snapshotNotice && c.state.Phase == h.Requesting && transfer == c.state.Transfer && m.Session == c.peerSession {
+			c.snapshots.receive(m.Session, transfer, m.Body)
+		}
 	case "released":
 		c.apply(h.ReleasedEvent, h.EventData{Transfer: transfer})
 	case "ready":

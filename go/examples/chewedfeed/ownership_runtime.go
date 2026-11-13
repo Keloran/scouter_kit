@@ -152,12 +152,14 @@ func coordinatedDisplay(ctx context.Context, f demo.Flags, o options, client *cl
 	dashCtx, stopDash := context.WithCancel(context.WithoutCancel(ctx))
 	defer stopDash()
 	o.managed = true
+	o.snapshots = newSnapshotBridge()
 	host := &glassesHost{f: f, o: o}
 	commands := make(chan hostCommand)
 	dashDone := make(chan struct{})
 	var dashErr error
 	power := newPowerWatcher().watch(runCtx)
 	ctrl := newOwnershipController(dashboardNative{host, commands, dashDone}, power, store != nil)
+	ctrl.snapshots = o.snapshots
 	path := o.ownership.Socket
 	if path == "" {
 		path = localcontrol.DefaultPath()
@@ -179,7 +181,7 @@ func coordinatedDisplay(ctx context.Context, f demo.Flags, o options, client *cl
 		network.Add(1)
 		go func() {
 			defer network.Done()
-			h.Link(runCtx, store, route, peerID, h.Options{Role: h.Laptop, Optional: []string{}, Heartbeat: ctrl.Heartbeat}, func(conn *h.Conn) {
+			h.Link(runCtx, store, route, peerID, h.Options{Role: h.Laptop, Optional: []string{h.CapSnapshot}, Heartbeat: ctrl.Heartbeat}, func(conn *h.Conn) {
 				ctrl.serveLink(runCtx, conn)
 			})
 		}()
@@ -208,7 +210,7 @@ func coordinatedDisplay(ctx context.Context, f demo.Flags, o options, client *cl
 
 func (c *ownershipController) serveLink(ctx context.Context, conn *h.Conn) {
 	select {
-	case c.packets <- ownershipPacket{link: conn}:
+	case c.packets <- ownershipPacket{link: conn, session: conn.PeerSession, snapshot: conn.Negotiated(h.CapSnapshot)}:
 	case <-ctx.Done():
 		conn.Close()
 		return

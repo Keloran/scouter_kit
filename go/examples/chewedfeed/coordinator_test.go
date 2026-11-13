@@ -183,7 +183,7 @@ func awaitOwnership(t *testing.T, c *ownershipController, condition func(localco
 func startOwnershipTest(t *testing.T, n interface {
 	ownershipNative
 	counts() (int, int, int)
-}, enrolled, open bool) (*ownershipController, chan powerEvent, *ownershipTestClock) {
+}, enrolled, open bool, configure ...func(*ownershipController)) (*ownershipController, chan powerEvent, *ownershipTestClock) {
 	t.Helper()
 	power := make(chan powerEvent, 8)
 	state := powerState{Lid: lidClosed}
@@ -195,6 +195,9 @@ func startOwnershipTest(t *testing.T, n interface {
 	clock := newOwnershipTestClock()
 	c.clock = clock.clock()
 	c.jitter = func() float64 { return 0 }
+	for _, setup := range configure {
+		setup(c)
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	go c.run(ctx)
 	t.Cleanup(func() {
@@ -255,6 +258,24 @@ func TestOwnershipStandaloneManualRelease(t *testing.T) {
 	}
 	if done, err := c.Resume(ctx); err != nil || !done {
 		t.Fatalf("resume: %v %v", done, err)
+	}
+}
+
+func TestOwnershipIdleReleaseOmitsOldSnapshot(t *testing.T) {
+	bridge := newSnapshotBridge()
+	nav := snapshotNav()
+	bridge.publish(exportSnapshot(&nav, "", 12*time.Second, 0))
+	n := &ownershipTestNative{}
+	c, _, _ := startOwnershipTest(t, n, true, false, func(c *ownershipController) { c.snapshots = bridge })
+	l := &ownershipTestLink{}
+	c.packets <- ownershipPacket{link: l, session: "session-a", snapshot: true}
+	peerOwnershipMessage(c, l, "request", "11111111111111111111111111111111", h.RequestBody{Target: h.Phone, Reason: "manual", Pinned: true})
+	awaitOwnership(t, c, func(s localcontrol.Status) bool { return s.Phase == string(h.Idle) && len(l.messages("released")) == 1 })
+	if len(l.messages("snapshot")) != 0 {
+		t.Fatal("inactive host overwrote the current owner's navigation")
+	}
+	if acquired, _, _ := n.counts(); acquired != 0 {
+		t.Fatal("idle release acquired native handles")
 	}
 }
 

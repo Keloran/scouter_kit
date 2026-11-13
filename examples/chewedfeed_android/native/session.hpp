@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <functional>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -60,8 +61,8 @@ public:
   // Connects both arms (through transport, or the emulated arms when it is
   // null in an emulator build) and prepares a fresh session: inputs reported,
   // panels off until the first Present. Blocks up to 30 s; Cancel ends it sooner.
-  // on_cancel (may be empty) makes a pending Init give up, e.g. by reporting
-  // a problem through the transport.
+  // on_cancel is an optional notification; native cancellation also works
+  // without it. Transport callbacks must return promptly.
   StartResult Start(const StartConfig &config, scouter_kit::g1::Transport *transport,
                     std::function<void()> on_cancel = {});
   // From any thread while Start runs: it fails with kCancelled.
@@ -98,8 +99,12 @@ private:
   void Close(); // mutex_ held
 
   std::mutex mutex_;
+  // Independent of mutex_: cancellation must wake a call holding that mutex.
+  std::mutex cancellation_mutex_;
+  std::optional<scouter_kit::g1::Cancellation> cancellation_;
+  bool pending_ = false;
   std::condition_variable idle_;
-  bool starting_ = false, cancel_ = false;
+  bool starting_ = false;
   std::function<void()> on_cancel_;
   uint64_t generation_ = 0, last_generation_ = 0;
   std::vector<scouter_kit::Font *> fonts_;

@@ -210,7 +210,13 @@ func (c *ownershipController) effect(f h.Effect) {
 			c.failures++
 		}
 		c.begin(true, f.Generation)
+		if c.reason == "suspend" {
+			c.schedule(h.Timer("suspend_abort"), f.Generation, 500*time.Millisecond)
+		}
 	case h.ForceDisconnect:
+		if native, ok := c.native.(interface{ Abort() }); ok {
+			native.Abort()
+		}
 		c.begin(true, f.Generation)
 	case h.CancelTimers:
 		for _, cancel := range c.timers {
@@ -447,6 +453,15 @@ func (c *ownershipController) run(ctx context.Context) {
 	c.ctx = ctx
 	defer close(c.done)
 	defer func() {
+		if native, ok := c.native.(interface{ Abort() }); ok {
+			ended := make(chan struct{})
+			timer := time.AfterFunc(500*time.Millisecond, func() { defer close(ended); native.Abort() })
+			defer func() {
+				if !timer.Stop() {
+					<-ended
+				}
+			}()
+		}
 		for _, cancel := range c.timers {
 			cancel()
 		}
@@ -519,7 +534,13 @@ func (c *ownershipController) run(ctx context.Context) {
 				continue
 			}
 			delete(c.timers, t.name)
-			if t.name == h.Timer("request_reply") {
+			if t.name == h.Timer("suspend_abort") {
+				if c.state.Phase == h.Yielding || c.state.Phase == h.Degraded {
+					if native, ok := c.native.(interface{ Abort() }); ok {
+						native.Abort()
+					}
+				}
+			} else if t.name == h.Timer("request_reply") {
 				if c.state.Phase == h.Requesting && c.peer != nil {
 					c.peer.Close()
 				}

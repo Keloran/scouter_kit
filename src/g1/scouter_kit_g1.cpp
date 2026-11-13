@@ -52,6 +52,7 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <shared_mutex>
 #include <random>
 #include <set>
@@ -1695,6 +1696,7 @@ public:
   Transport *transport = nullptr;
   std::thread thread;
   std::atomic<bool> stop{false};
+  std::optional<Cancellation> cancellation; // set before Launch; the token's signal is atomic
   std::atomic<bool> ending{false}; // Deinit has begun: no more eye matching
   std::atomic<uint64_t> present_counter{0};
   std::atomic<int> hold_ms[2] = {0, 0}; // Arm::Disconnect, for the transport
@@ -1724,7 +1726,7 @@ public:
     bool p0 = present[0], p1 = present[1];
     thread = std::thread([this, p0, p1] {
       bool p[2] = {p0, p1};
-      if (transport->Start(this, p)) {
+      if (!(cancellation && cancellation->Cancelled()) && transport->Start(this, p)) {
         Run();
         transport->Stop();
       }
@@ -1738,6 +1740,7 @@ public:
     {
       std::lock_guard<std::mutex> lock(mutex);
       finished = true;
+      for (auto &link : links) link.ready = false;
       if (problem == ERROR_NONE && !stop) problem = ERROR_BLUETOOTH_ERROR;
       jobs.swap(controls);
     }
@@ -1794,7 +1797,7 @@ public:
 
   // ------------------------------------------------ main loop
   void Run() {
-    while (!stop) {
+    while (!stop && !(cancellation && cancellation->Cancelled())) {
       Step(NowUs());
       transport->Poll(NextTimeoutMs(NowUs()));
     }
@@ -5928,11 +5931,17 @@ bool Forget(AssetId id, std::string *error) {
 
 // ---------------------------------------------------------------- Init / Deinit
 
-InitError Init(GrayConfig *config, std::string *error_message, const Connection *connection) {
+Cancellation::Cancellation() : cancelled_(std::make_shared<std::atomic<bool>>(false)) {}
+void Cancellation::Cancel() const { cancelled_->store(true); }
+bool Cancellation::Cancelled() const { return cancelled_->load(); }
+
+static InitError InitSession(GrayConfig *config, std::string *error_message, const Connection *connection,
+                             const Cancellation *cancellation) {
   auto fail = [&](InitError e, const std::string &text) {
     if (error_message) *error_message = text;
     return e;
   };
+  if (cancellation && cancellation->Cancelled()) return fail(ERROR_CANCELLED, "cancelled");
   if (g) return fail(ERROR_BLUETOOTH_ERROR, "already initialized");
   GrayConfig gc = config ? *config : GrayConfig{};
   if (std::abs(gc.dx) > 640 || std::abs(gc.dy) > 240)
@@ -5964,6 +5973,7 @@ InitError Init(GrayConfig *config, std::string *error_message, const Connection 
     kArms[i]->pimpl = &g->arms[i];
   }
   g->core = std::make_unique<Core>();
+  if (cancellation) g->core->cancellation = *cancellation;
   std::unique_ptr<Transport> owned;
 #ifdef SCOUTER_G1_EMULATOR
   if (!conn.transport) {
@@ -5995,7 +6005,10 @@ InitError Init(GrayConfig *config, std::string *error_message, const Connection 
       return all_ready() || core->finished || core->problem == ERROR_G1_FIRMWARE ||
              core->problem == ERROR_G1_BONDING_ERROR || core->problem == ERROR_NO_G1_FOUND;
     });
-    if (!all_ready()) {
+    if (cancellation && cancellation->Cancelled()) {
+      result = ERROR_CANCELLED;
+      text = "cancelled";
+    } else if (!all_ready()) {
       result = core->problem;
       text = core->problem_text;
       if (result == ERROR_NONE) {
@@ -6034,6 +6047,15 @@ InitError Init(GrayConfig *config, std::string *error_message, const Connection 
   return ERROR_NONE;
 }
 
+InitError Init(GrayConfig *config, std::string *error_message, const Connection *connection) {
+  return InitSession(config, error_message, connection, nullptr);
+}
+
+InitError InitCancelable(const Cancellation &cancellation, GrayConfig *config,
+                        std::string *error_message, const Connection *connection) {
+  return InitSession(config, error_message, connection, &cancellation);
+}
+
 void Deinit() {
   if (!g) return;
   Core *core = g->core.get();
@@ -6046,6 +6068,7 @@ void Deinit() {
     std::unique_lock<std::mutex> lock(core->mutex);
     uint64_t want[2] = {core->links[0].emitted, core->links[1].emitted};
     core->cv.wait_for(lock, std::chrono::seconds(3), [&] {
+      if (core->finished) return true;
       for (int i = 0; i < 2; i++) {
         Link &l = core->links[i];
         if (l.present && l.ready && !core->Settled(i, want[i])) return false;
@@ -6054,7 +6077,7 @@ void Deinit() {
     });
     // the background puts of kept fonts and bitmaps finish (their staging is the objects themselves)
     auto end = std::chrono::steady_clock::now() + std::chrono::seconds(30);
-    while (std::chrono::steady_clock::now() < end &&
+    while (!core->finished && std::chrono::steady_clock::now() < end &&
            ((core->links[0].ready && !core->links[0].asset_jobs.empty()) ||
             (core->links[1].ready && !core->links[1].asset_jobs.empty())))
       core->cv.wait_for(lock, std::chrono::milliseconds(200));

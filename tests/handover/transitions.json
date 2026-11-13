@@ -3455,6 +3455,13 @@
               "transfer": "11111111111111111111111111111111",
               "timer": null,
               "delay_ms": 0
+            },
+            {
+              "kind": "schedule",
+              "generation": 2,
+              "transfer": "11111111111111111111111111111111",
+              "timer": "acquire",
+              "delay_ms": 30000
             }
           ]
         }

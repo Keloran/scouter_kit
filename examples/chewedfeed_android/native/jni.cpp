@@ -2,13 +2,16 @@
 // drawing) is made from the session's own thread in GlassesSession.kt, never the
 // UI thread. Text arrives as UTF-8 bytes (JNI's modified UTF-8 would mangle
 // characters outside the BMP). No native lock is held while calling into Java.
+#include <android/log.h>
 #include <jni.h>
+#include <unistd.h>
 
 #include <climits>
 #include <memory>
 #include <mutex>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <vector>
 
 #include "boundary.hpp"
@@ -25,6 +28,29 @@ std::mutex g_mutex; // guards g_link and g_last_error
 std::shared_ptr<chewedfeed::LinkTransport> g_link;
 std::string g_last_error;
 bool g_starting = false; // a start owns g_link until it returns
+bool g_log = false;      // Native.setLog: the library logs each start
+
+// The library logs to stderr, which Android discards: a thread copies it to logcat (tag scouterkit).
+void ForwardStderr() {
+  int fds[2];
+  if (pipe(fds) != 0) return;
+  dup2(fds[1], STDERR_FILENO);
+  close(fds[1]);
+  std::thread([fd = fds[0]] {
+    std::string line;
+    char buf[512];
+    for (ssize_t n; (n = read(fd, buf, sizeof buf)) > 0;) {
+      for (ssize_t i = 0; i < n; i++) {
+        if (buf[i] != '\n') {
+          line += buf[i];
+          continue;
+        }
+        __android_log_write(ANDROID_LOG_INFO, "scouterkit", line.c_str());
+        line.clear();
+      }
+    }
+  }).detach();
+}
 
 std::shared_ptr<chewedfeed::LinkTransport> Link() {
   std::lock_guard<std::mutex> lock(g_mutex);
@@ -56,6 +82,7 @@ extern "C" {
 
 JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void *) {
   g_vm = vm;
+  ForwardStderr();
   return JNI_VERSION_1_6;
 }
 
@@ -72,7 +99,7 @@ JNIEXPORT jstring JNICALL Java_scouterkit_chewedfeed_Native_backend(JNIEnv *env,
 // Blocks up to 30 s. A generation (> 0), or minus the error (lastError says more).
 JNIEXPORT jlong JNICALL Java_scouterkit_chewedfeed_Native_start(JNIEnv *env, jclass, jobject link, jstring left,
                                                                  jstring right, jint dx, jint dy, jint brightness) {
-  chewedfeed::StartConfig config{Text(env, left), Text(env, right), dx, dy, brightness};
+  chewedfeed::StartConfig config{Text(env, left), Text(env, right), dx, dy, brightness, g_log};
   std::shared_ptr<chewedfeed::LinkTransport> transport;
   if (link) transport = std::make_shared<chewedfeed::LinkTransport>(g_vm, env->NewGlobalRef(link));
   {
@@ -98,6 +125,9 @@ JNIEXPORT jlong JNICALL Java_scouterkit_chewedfeed_Native_start(JNIEnv *env, jcl
   g_last_error.clear();
   return jlong(r.generation);
 }
+
+// The library's log (to logcat, tag scouterkit) for the next starts.
+JNIEXPORT void JNICALL Java_scouterkit_chewedfeed_Native_setLog(JNIEnv *, jclass, jboolean on) { g_log = on; }
 
 JNIEXPORT jstring JNICALL Java_scouterkit_chewedfeed_Native_lastError(JNIEnv *env, jclass) {
   std::lock_guard<std::mutex> lock(g_mutex);

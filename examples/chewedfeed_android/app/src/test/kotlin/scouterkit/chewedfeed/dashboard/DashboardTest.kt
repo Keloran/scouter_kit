@@ -167,6 +167,26 @@ class DashboardTest {
     }
 
     @Test
+    fun keyedNotificationsReplaceAndDismiss() {
+        val d = dashboard()
+        d.acquired(1)
+        d.notify(Notification("Chat", "One"), "now", "k")
+        d.notify(Notification("Chat", "One, edited"), "now", "k")
+        assertEquals(1, d.history.size)
+        assertEquals("One, edited", (d.screen() as Screen.Shown).popup?.summary)
+        d.dismissed("k")
+        assertNull((d.screen() as Screen.Shown).popup)
+        assertEquals(0, d.history.size)
+        assertEquals(NotificationHistory.EMPTY, d.nav.pages(View.NOTIFICATIONS))
+        // After release: kept in history only, no popup.
+        d.released()
+        d.notify(Notification("Chat", "Two"), "now", "k2")
+        assertEquals(Screen.Hidden, d.screen())
+        d.acquired(2)
+        assertNull((d.screen() as Screen.Shown).popup)
+    }
+
+    @Test
     fun angleBoundaries() {
         val d = dashboard()
         d.acquired(1)

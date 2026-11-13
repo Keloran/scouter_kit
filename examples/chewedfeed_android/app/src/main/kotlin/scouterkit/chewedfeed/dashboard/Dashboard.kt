@@ -33,6 +33,7 @@ class Dashboard(
     private val inCase = BooleanArray(2)
     private var level = false
     private var popup: Notification? = null
+    private var popupKey: String? = null
     private var popupUntil = 0L
     private var nextRotation = 0L
     private var last: Screen? = null
@@ -89,14 +90,22 @@ class Dashboard(
         }
     }
 
-    // A phone notification: into the history, and a popup when the glasses would show it.
-    fun notify(note: Notification, receivedLabel: String) {
-        history.add(note, receivedLabel)
+    // A phone notification: into the history, and a popup when the glasses would show it. key: its source
+    // identity (an update replaces the old entry).
+    fun notify(note: Notification, receivedLabel: String, key: String? = null) {
+        history.add(note, receivedLabel, key)
         nav.replace(View.NOTIFICATIONS, historyPages(history))
         if (generation != 0L && (visible || options.alwaysShowNotifications && popupVisible)) {
             popup = note
+            popupKey = key
             popupUntil = clock() + options.popupMs
         }
+    }
+
+    // The source dismissed a notification: out of the history, and its popup ends.
+    fun dismissed(key: String) {
+        if (popupKey == key) popup = null
+        if (history.remove(key)) nav.replace(View.NOTIFICATIONS, historyPages(history))
     }
 
     // Forces the next poll to report the screen (e.g. the clock in the footer changed).

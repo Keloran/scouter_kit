@@ -26,7 +26,6 @@ import scouterkit.chewedfeed.providers.PhoneMedia
 import scouterkit.chewedfeed.providers.batteries
 import android.os.IBinder
 import android.os.Looper
-import scouterkit.chewedfeed.render.TEXT_INSET
 import scouterkit.chewedfeed.dashboard.Screen
 import scouterkit.chewedfeed.dashboard.Navigation
 import scouterkit.chewedfeed.dashboard.Dashboard
@@ -296,7 +295,7 @@ class GlassesService : Service(), LifecycleActions {
             if (g == null) return lifecycle.failed(attempt, why = "no font or canvas")
             screen = g
             val rows = g.renderer.layout.rows
-            val width = g.renderer.layout.contentW - TEXT_INSET
+            val width = g.renderer.layout.textW
             val page = Page("service", "Chewedfeed", listOf("Phone connected", "Dashboard coming soon"), "Unavailable")
             // History pages measure with the session font from the main thread: native calls take the session lock.
             dashboard = Dashboard(Navigation(listOf(page), emptyList(), emptyList()), settings.displayOptions(), SystemClock::elapsedRealtime) { h ->

@@ -1,3 +1,6 @@
 add_executable(boundary_test boundary_test.cpp)
 target_link_libraries(boundary_test PRIVATE chewedfeed_core)
 add_test(NAME boundary COMMAND boundary_test)
+add_executable(session_test session_test.cpp)
+target_link_libraries(session_test PRIVATE chewedfeed_core)
+add_test(NAME session COMMAND session_test)

@@ -1,5 +1,5 @@
 # The models of the G1 arm board (g1-fw's, commit b8ec262, fetched into the work directory by scripts/fetch_g1fw.sh;
-# seven with this project's changes, work/models/), compiled once per emulation. Paths are relative to the work directory.
+# eight with this project's changes, work/models/), compiled once per emulation. Paths are relative to the work directory.
 using sysbus
 
 i @g1-fw/models/NRF5340_TrapStub.cs
@@ -16,7 +16,8 @@ i @g1-fw/models/NRF5340_CCM.cs
 i @g1-fw/models/NRF5340_TEMP.cs
 i @g1-fw/models/NRF5340_VREQCTRL.cs
 i @g1-fw/models/NRF5340_EGU.cs
-i @g1-fw/models/NRF5340_Timer.cs
+# changed: SHORTS (COMPARE[n]_CLEAR / COMPARE[n]_STOP), which the network core's controller relies on
+i @models/NRF5340_Timer.cs
 i @g1-fw/models/NRF5340_RTC.cs
 i @g1-fw/models/NRF5340_SPIM.cs
 # changed: the JBD013 cache write/read as the real panel (pixel addresses, final 4 dummy clocks)

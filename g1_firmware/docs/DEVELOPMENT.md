@@ -14,7 +14,7 @@ Paths on this page are relative to `g1_firmware/`.
 | `../tools/g1host.py` | The reference host client (Python): host code assembler, the window and RTO of VM.md §6.2, all control requests, SMP, and a mirror that is the VM core itself (`g1mirror.c`), so arena and panel compare byte for byte |
 | `g1min/` | A minimal app whose build yields the replica of the G1's MCUboot (sdk-mcuboot of NCS v2.5.1, the G1's configuration: overwrite-only, RSA-2048 with MCUboot's public sample key, two images) for the emulator, and the DK's flash overlay |
 | `container/`, `scripts/` | The build and emulator containers and scripts (`setup.sh`, `build.sh`, `gate.sh`, `bridge_start.sh`, `fetch_*.sh`, `box`) |
-| `emulator/` | Renode harness (`harness/`), the virtual phone (`models/G1_VirtualPhone.cs`), this project's changes to seven of g1-fw's models (`models/patches/`, ed scripts), the tests (`tests/v5_tests.py`, `tests/common.py`) |
+| `emulator/` | Renode harness (`harness/`), the virtual phone (`models/G1_VirtualPhone.cs`), this project's changes to eight of g1-fw's models (`models/patches/`, ed scripts), the tests (`tests/v5_tests.py`, `tests/common.py`) |
 | `stock_images.txt` | Even's official images: URL and SHA-256, for `scripts/fetch_stock.sh` |
 | `work/` | Everything fetched or built (NCS, Renode, g1-fw, Even's images, builds, emulator runs); `G1_WORK` moves it |
 

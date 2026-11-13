@@ -1,0 +1,48 @@
+374a
+        private IFlagRegisterField[] shortClear;
+        private IFlagRegisterField[] shortStop;
+.
+341a
+        // The shortcuts of COMPARE[idx], after the event as on hardware.
+        private void RunShorts(int idx)
+        {
+            if(shortClear[idx].Value)
+            {
+                ClearTimer();
+            }
+            if(shortStop[idx].Value)
+            {
+                StopTimer();
+            }
+        }
+
+.
+336a
+                    RunShorts(i);
+.
+231a
+            Register.Shortcuts.Define(this)
+                .WithFlags(0, numberOfEvents, out shortClear, name: "COMPARE_CLEAR")
+                .WithReservedBits(numberOfEvents, 16 - numberOfEvents)
+                .WithFlags(16, numberOfEvents, out shortStop, name: "COMPARE_STOP")
+                .WithReservedBits(16 + numberOfEvents, 16 - numberOfEvents)
+            ;
+
+.
+58a
+                    RunShorts((int)j);
+.
+44a
+            shortClear = new IFlagRegisterField[numberOfEvents];
+            shortStop = new IFlagRegisterField[numberOfEvents];
+.
+19,20c
+//   - SHORTS (0x200): COMPARE[n]_CLEAR (bit n) and COMPARE[n]_STOP
+//     (bit 16 + n) run CLEAR / STOP when COMPARE[n] fires, as on hardware.
+//     The network core's controller sets COMPARE0_CLEAR on TIMER0 and then
+//     schedules the radio relative to the cleared count; without the short
+//     the count ran on past CC[0] and a later start time looked already
+//     passed (controller assert, CF-67).
+//
+// Not implemented (accesses log UNIMPL): ONESHOTEN[n] (0x580), INTEN (0x300).
+.

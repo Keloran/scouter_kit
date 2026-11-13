@@ -16,6 +16,7 @@ class SettingsActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setTitle(R.string.settings)
+        actionBar?.setDisplayHomeAsUpEnabled(true)
         val current = DisplaySettings.load(this)
         val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(32, 32, 32, 32) }
         fun field(label: Int, value: String, decimal: Boolean = false) = EditText(this).apply {
@@ -29,12 +30,16 @@ class SettingsActivity : Activity() {
         val dx = field(R.string.dx_label, String.format(Locale.ROOT, "%d", current.dx))
         val dy = field(R.string.dy_label, String.format(Locale.ROOT, "%d", current.dy))
         val scale = field(R.string.scale_label, String.format(Locale.ROOT, "%.2f", current.scale).trimEnd('0').trimEnd('.'), decimal = true)
+        list.addView(TextView(this).apply { setText(R.string.tilt_settings) })
+        val above = field(R.string.show_above_label, String.format(Locale.ROOT, "%d", current.showAbove))
+        val below = field(R.string.show_below_label, String.format(Locale.ROOT, "%d", current.showBelow))
         val state = TextView(this)
         list.addView(Button(this).apply {
             setText(R.string.save)
             setOnClickListener {
                 val s = DisplaySettings(dx.text.toString().toIntOrNull() ?: Int.MIN_VALUE,
-                    dy.text.toString().toIntOrNull() ?: Int.MIN_VALUE, scale.text.toString().replace(',', '.').toDoubleOrNull() ?: Double.NaN)
+                    dy.text.toString().toIntOrNull() ?: Int.MIN_VALUE, scale.text.toString().replace(',', '.').toDoubleOrNull() ?: Double.NaN,
+                    above.text.toString().toIntOrNull() ?: Int.MIN_VALUE, below.text.toString().toIntOrNull() ?: Int.MIN_VALUE)
                 val problem = s.problem()
                 if (problem != null) {
                     state.text = problem
@@ -46,5 +51,11 @@ class SettingsActivity : Activity() {
         })
         list.addView(state)
         setContentView(ScrollView(this).apply { addView(list) })
+    }
+
+    // The title bar's back arrow: the same as Back.
+    override fun onNavigateUp(): Boolean {
+        finish()
+        return true
     }
 }

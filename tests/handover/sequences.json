@@ -1,0 +1,1740 @@
+{
+  "version": 1,
+  "synthetic": true,
+  "identities": {
+    "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "session": "cccccccccccccccccccccccccccccccc",
+    "local_session": "dddddddddddddddddddddddddddddddd",
+    "transfer": "11111111111111111111111111111111"
+  },
+  "streams": [
+    {
+      "name": "cooperative_release_and_optional_payloads",
+      "options": {},
+      "steps": [
+        {
+          "message": {
+            "version": 1,
+            "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "session": "cccccccccccccccccccccccccccccccc",
+            "peer_session": null,
+            "seq": 1,
+            "epoch": 0,
+            "transfer": null,
+            "kind": "hello",
+            "body": {
+              "role": "phone",
+              "required_capabilities": [
+                "two_arm_v1",
+                "release_before_acquire_v1"
+              ],
+              "optional_capabilities": [
+                "snapshot_v1",
+                "telemetry_v1"
+              ]
+            }
+          },
+          "accept": true,
+          "expected_watermarks": {
+            "seq": 1,
+            "epoch": 0
+          }
+        },
+        {
+          "message": {
+            "version": 1,
+            "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "session": "cccccccccccccccccccccccccccccccc",
+            "peer_session": "dddddddddddddddddddddddddddddddd",
+            "seq": 2,
+            "epoch": 1,
+            "transfer": null,
+            "kind": "status",
+            "body": {
+              "role": "phone",
+              "phase": "active",
+              "eligible": true,
+              "pinned": false,
+              "arms": {
+                "left": true,
+                "right": true
+              },
+              "renderer_ready": true,
+              "transfer": "11111111111111111111111111111111",
+              "ready_epoch": 1
+            }
+          },
+          "accept": true,
+          "expected_watermarks": {
+            "seq": 2,
+            "epoch": 1
+          }
+        },
+        {
+          "message": {
+            "version": 1,
+            "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "session": "cccccccccccccccccccccccccccccccc",
+            "peer_session": "dddddddddddddddddddddddddddddddd",
+            "seq": 3,
+            "epoch": 2,
+            "transfer": "11111111111111111111111111111111",
+            "kind": "release",
+            "body": {
+              "target": "laptop",
+              "reason": "preference"
+            }
+          },
+          "accept": true,
+          "expected_watermarks": {
+            "seq": 3,
+            "epoch": 2
+          }
+        },
+        {
+          "message": {
+            "version": 1,
+            "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "session": "cccccccccccccccccccccccccccccccc",
+            "peer_session": "dddddddddddddddddddddddddddddddd",
+            "seq": 4,
+            "epoch": 2,
+            "transfer": "11111111111111111111111111111111",
+            "kind": "snapshot",
+            "body": {
+              "snapshot": {
+                "schema_version": 1,
+                "revision": 3,
+                "view": "sites",
+                "page_id": "summary",
+                "project": null,
+                "rotation_paused": false,
+                "rotation_ms": 12000
+              }
+            }
+          },
+          "accept": true,
+          "expected_watermarks": {
+            "seq": 4,
+            "epoch": 2
+          }
+        },
+        {
+          "message": {
+            "version": 1,
+            "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "session": "cccccccccccccccccccccccccccccccc",
+            "peer_session": "dddddddddddddddddddddddddddddddd",
+            "seq": 5,
+            "epoch": 2,
+            "transfer": "11111111111111111111111111111111",
+            "kind": "released",
+            "body": {
+              "target": "laptop",
+              "arms": {
+                "left": false,
+                "right": false
+              },
+              "reconnect_disabled": true,
+              "workers_stopped": true
+            }
+          },
+          "accept": true,
+          "expected_watermarks": {
+            "seq": 5,
+            "epoch": 2
+          }
+        },
+        {
+          "message": {
+            "version": 1,
+            "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "session": "cccccccccccccccccccccccccccccccc",
+            "peer_session": "dddddddddddddddddddddddddddddddd",
+            "seq": 6,
+            "epoch": 2,
+            "transfer": null,
+            "kind": "heartbeat",
+            "body": {
+              "phase": "idle",
+              "ready_epoch": 2
+            }
+          },
+          "accept": true,
+          "expected_watermarks": {
+            "seq": 6,
+            "epoch": 2
+          }
+        },
+        {
+          "message": {
+            "version": 1,
+            "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "session": "cccccccccccccccccccccccccccccccc",
+            "peer_session": "dddddddddddddddddddddddddddddddd",
+            "seq": 7,
+            "epoch": 2,
+            "transfer": null,
+            "kind": "telemetry",
+            "body": {
+              "telemetry": {
+                "schema_version": 1,
+                "revision": 4,
+                "source": "system",
+                "sample_unix_ms": 1800000000000,
+                "age_ms": 2000,
+                "status": "fresh",
+                "values": {
+                  "cpu_percent": 12.5,
+                  "memory_used_bytes": 4096,
+                  "memory_total_bytes": 8192,
+                  "battery_percent": 75
+                }
+              }
+            }
+          },
+          "accept": true,
+          "expected_watermarks": {
+            "seq": 7,
+            "epoch": 2
+          }
+        }
+      ]
+    },
+    {
+      "name": "replay_never_advances_watermarks",
+      "options": {},
+      "steps": [
+        {
+          "message": {
+            "version": 1,
+            "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "session": "cccccccccccccccccccccccccccccccc",
+            "peer_session": null,
+            "seq": 1,
+            "epoch": 0,
+            "transfer": null,
+            "kind": "hello",
+            "body": {
+              "role": "phone",
+              "required_capabilities": [
+                "two_arm_v1",
+                "release_before_acquire_v1"
+              ],
+              "optional_capabilities": [
+                "snapshot_v1",
+                "telemetry_v1"
+              ]
+            }
+          },
+          "accept": true,
+          "expected_watermarks": {
+            "seq": 1,
+            "epoch": 0
+          }
+        },
+        {
+          "message": {
+            "version": 1,
+            "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "session": "cccccccccccccccccccccccccccccccc",
+            "peer_session": "dddddddddddddddddddddddddddddddd",
+            "seq": 2,
+            "epoch": 1,
+            "transfer": null,
+            "kind": "status",
+            "body": {
+              "role": "phone",
+              "phase": "active",
+              "eligible": true,
+              "pinned": false,
+              "arms": {
+                "left": true,
+                "right": true
+              },
+              "renderer_ready": true,
+              "transfer": "11111111111111111111111111111111",
+              "ready_epoch": 1
+            }
+          },
+          "accept": true,
+          "expected_watermarks": {
+            "seq": 2,
+            "epoch": 1
+          }
+        },
+        {
+          "message": {
+            "version": 1,
+            "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "session": "cccccccccccccccccccccccccccccccc",
+            "peer_session": "dddddddddddddddddddddddddddddddd",
+            "seq": 2,
+            "epoch": 1,
+            "transfer": null,
+            "kind": "status",
+            "body": {
+              "role": "phone",
+              "phase": "active",
+              "eligible": true,
+              "pinned": false,
+              "arms": {
+                "left": true,
+                "right": true
+              },
+              "renderer_ready": true,
+              "transfer": "11111111111111111111111111111111",
+              "ready_epoch": 1
+            }
+          },
+          "accept": false,
+          "expected_watermarks": {
+            "seq": 2,
+            "epoch": 1
+          }
+        },
+        {
+          "message": {
+            "version": 1,
+            "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "session": "cccccccccccccccccccccccccccccccc",
+            "peer_session": "dddddddddddddddddddddddddddddddd",
+            "seq": 3,
+            "epoch": 2,
+            "transfer": "11111111111111111111111111111111",
+            "kind": "release",
+            "body": {
+              "target": "laptop",
+              "reason": "preference"
+            }
+          },
+          "accept": true,
+          "expected_watermarks": {
+            "seq": 3,
+            "epoch": 2
+          }
+        }
+      ]
+    },
+    {
+      "name": "stale_epoch_rejected_without_consuming_sequence",
+      "options": {},
+      "steps": [
+        {
+          "message": {
+            "version": 1,
+            "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "session": "cccccccccccccccccccccccccccccccc",
+            "peer_session": null,
+            "seq": 1,
+            "epoch": 0,
+            "transfer": null,
+            "kind": "hello",
+            "body": {
+              "role": "phone",
+              "required_capabilities": [
+                "two_arm_v1",
+                "release_before_acquire_v1"
+              ],
+              "optional_capabilities": [
+                "snapshot_v1",
+                "telemetry_v1"
+              ]
+            }
+          },
+          "accept": true,
+          "expected_watermarks": {
+            "seq": 1,
+            "epoch": 0
+          }
+        },
+        {
+          "message": {
+            "version": 1,
+            "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "session": "cccccccccccccccccccccccccccccccc",
+            "peer_session": "dddddddddddddddddddddddddddddddd",
+            "seq": 2,
+            "epoch": 1,
+            "transfer": null,
+            "kind": "status",
+            "body": {
+              "role": "phone",
+              "phase": "active",
+              "eligible": true,
+              "pinned": false,
+              "arms": {
+                "left": true,
+                "right": true
+              },
+              "renderer_ready": true,
+              "transfer": "11111111111111111111111111111111",
+              "ready_epoch": 1
+            }
+          },
+          "accept": true,
+          "expected_watermarks": {
+            "seq": 2,
+            "epoch": 1
+          }
+        },
+        {
+          "message": {
+            "version": 1,
+            "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "session": "cccccccccccccccccccccccccccccccc",
+            "peer_session": "dddddddddddddddddddddddddddddddd",
+            "seq": 3,
+            "epoch": 0,
+            "transfer": null,
+            "kind": "heartbeat",
+            "body": {
+              "phase": "idle",
+              "ready_epoch": 2
+            }
+          },
+          "accept": false,
+          "expected_watermarks": {
+            "seq": 2,
+            "epoch": 1
+          }
+        },
+        {
+          "message": {
+            "version": 1,
+            "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "session": "cccccccccccccccccccccccccccccccc",
+            "peer_session": "dddddddddddddddddddddddddddddddd",
+            "seq": 3,
+            "epoch": 1,
+            "transfer": null,
+            "kind": "heartbeat",
+            "body": {
+              "phase": "idle",
+              "ready_epoch": 2
+            }
+          },
+          "accept": true,
+          "expected_watermarks": {
+            "seq": 3,
+            "epoch": 1
+          }
+        }
+      ]
+    },
+    {
+      "name": "invalid_packet_cannot_poison_watermarks",
+      "options": {},
+      "steps": [
+        {
+          "message": {
+            "version": 1,
+            "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "session": "cccccccccccccccccccccccccccccccc",
+            "peer_session": null,
+            "seq": 1,
+            "epoch": 0,
+            "transfer": null,
+            "kind": "hello",
+            "body": {
+              "role": "phone",
+              "required_capabilities": [
+                "two_arm_v1",
+                "release_before_acquire_v1"
+              ],
+              "optional_capabilities": [
+                "snapshot_v1",
+                "telemetry_v1"
+              ]
+            }
+          },
+          "accept": true,
+          "expected_watermarks": {
+            "seq": 1,
+            "epoch": 0
+          }
+        },
+        {
+          "message": {
+            "version": 1,
+            "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "session": "cccccccccccccccccccccccccccccccc",
+            "peer_session": "dddddddddddddddddddddddddddddddd",
+            "seq": 2,
+            "epoch": 1,
+            "transfer": null,
+            "kind": "status",
+            "body": {
+              "role": "phone",
+              "phase": "active",
+              "eligible": true,
+              "pinned": false,
+              "arms": {
+                "left": true,
+                "right": true
+              },
+              "renderer_ready": true,
+              "transfer": "11111111111111111111111111111111",
+              "ready_epoch": 1
+            }
+          },
+          "accept": true,
+          "expected_watermarks": {
+            "seq": 2,
+            "epoch": 1
+          }
+        },
+        {
+          "message": {
+            "version": 1,
+            "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "session": "cccccccccccccccccccccccccccccccc",
+            "peer_session": "dddddddddddddddddddddddddddddddd",
+            "seq": 900,
+            "epoch": 90,
+            "transfer": null,
+            "kind": "status",
+            "body": {
+              "role": "phone",
+              "phase": "active",
+              "eligible": true,
+              "pinned": false,
+              "arms": {
+                "left": true,
+                "right": true
+              },
+              "renderer_ready": true,
+              "transfer": "11111111111111111111111111111111",
+              "ready_epoch": 1,
+              "untrusted": "synthetic"
+            }
+          },
+          "accept": false,
+          "expected_watermarks": {
+            "seq": 2,
+            "epoch": 1
+          }
+        },
+        {
+          "message": {
+            "version": 1,
+            "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "session": "cccccccccccccccccccccccccccccccc",
+            "peer_session": "dddddddddddddddddddddddddddddddd",
+            "seq": 3,
+            "epoch": 2,
+            "transfer": "11111111111111111111111111111111",
+            "kind": "release",
+            "body": {
+              "target": "laptop",
+              "reason": "preference"
+            }
+          },
+          "accept": true,
+          "expected_watermarks": {
+            "seq": 3,
+            "epoch": 2
+          }
+        }
+      ]
+    },
+    {
+      "name": "new_session_requires_new_authenticated_connection",
+      "options": {},
+      "steps": [
+        {
+          "message": {
+            "version": 1,
+            "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "session": "cccccccccccccccccccccccccccccccc",
+            "peer_session": null,
+            "seq": 1,
+            "epoch": 0,
+            "transfer": null,
+            "kind": "hello",
+            "body": {
+              "role": "phone",
+              "required_capabilities": [
+                "two_arm_v1",
+                "release_before_acquire_v1"
+              ],
+              "optional_capabilities": [
+                "snapshot_v1",
+                "telemetry_v1"
+              ]
+            }
+          },
+          "accept": true,
+          "expected_watermarks": {
+            "seq": 1,
+            "epoch": 0
+          }
+        },
+        {
+          "message": {
+            "version": 1,
+            "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "session": "cccccccccccccccccccccccccccccccc",
+            "peer_session": "dddddddddddddddddddddddddddddddd",
+            "seq": 2,
+            "epoch": 1,
+            "transfer": null,
+            "kind": "status",
+            "body": {
+              "role": "phone",
+              "phase": "active",
+              "eligible": true,
+              "pinned": false,
+              "arms": {
+                "left": true,
+                "right": true
+              },
+              "renderer_ready": true,
+              "transfer": "11111111111111111111111111111111",
+              "ready_epoch": 1
+            }
+          },
+          "accept": true,
+          "expected_watermarks": {
+            "seq": 2,
+            "epoch": 1
+          }
+        },
+        {
+          "message": {
+            "version": 1,
+            "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "session": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "peer_session": null,
+            "seq": 3,
+            "epoch": 2,
+            "transfer": null,
+            "kind": "hello",
+            "body": {
+              "role": "phone",
+              "required_capabilities": [
+                "two_arm_v1",
+                "release_before_acquire_v1"
+              ],
+              "optional_capabilities": [
+                "snapshot_v1",
+                "telemetry_v1"
+              ]
+            }
+          },
+          "accept": false,
+          "expected_watermarks": {
+            "seq": 2,
+            "epoch": 1
+          }
+        },
+        {
+          "message": {
+            "version": 1,
+            "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "session": "cccccccccccccccccccccccccccccccc",
+            "peer_session": "dddddddddddddddddddddddddddddddd",
+            "seq": 3,
+            "epoch": 2,
+            "transfer": "11111111111111111111111111111111",
+            "kind": "release",
+            "body": {
+              "target": "laptop",
+              "reason": "preference"
+            }
+          },
+          "accept": true,
+          "expected_watermarks": {
+            "seq": 3,
+            "epoch": 2
+          }
+        }
+      ]
+    },
+    {
+      "name": "recipient_boot_nonce_is_bound",
+      "options": {},
+      "steps": [
+        {
+          "message": {
+            "version": 1,
+            "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "session": "cccccccccccccccccccccccccccccccc",
+            "peer_session": null,
+            "seq": 1,
+            "epoch": 0,
+            "transfer": null,
+            "kind": "hello",
+            "body": {
+              "role": "phone",
+              "required_capabilities": [
+                "two_arm_v1",
+                "release_before_acquire_v1"
+              ],
+              "optional_capabilities": [
+                "snapshot_v1",
+                "telemetry_v1"
+              ]
+            }
+          },
+          "accept": true,
+          "expected_watermarks": {
+            "seq": 1,
+            "epoch": 0
+          }
+        },
+        {
+          "message": {
+            "version": 1,
+            "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "session": "cccccccccccccccccccccccccccccccc",
+            "peer_session": "dddddddddddddddddddddddddddddddd",
+            "seq": 2,
+            "epoch": 1,
+            "transfer": null,
+            "kind": "status",
+            "body": {
+              "role": "phone",
+              "phase": "active",
+              "eligible": true,
+              "pinned": false,
+              "arms": {
+                "left": true,
+                "right": true
+              },
+              "renderer_ready": true,
+              "transfer": "11111111111111111111111111111111",
+              "ready_epoch": 1
+            }
+          },
+          "accept": true,
+          "expected_watermarks": {
+            "seq": 2,
+            "epoch": 1
+          }
+        },
+        {
+          "message": {
+            "version": 1,
+            "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "session": "cccccccccccccccccccccccccccccccc",
+            "peer_session": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "seq": 3,
+            "epoch": 2,
+            "transfer": "11111111111111111111111111111111",
+            "kind": "release",
+            "body": {
+              "target": "laptop",
+              "reason": "preference"
+            }
+          },
+          "accept": false,
+          "expected_watermarks": {
+            "seq": 2,
+            "epoch": 1
+          }
+        },
+        {
+          "message": {
+            "version": 1,
+            "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "session": "cccccccccccccccccccccccccccccccc",
+            "peer_session": "dddddddddddddddddddddddddddddddd",
+            "seq": 3,
+            "epoch": 2,
+            "transfer": "11111111111111111111111111111111",
+            "kind": "release",
+            "body": {
+              "target": "laptop",
+              "reason": "preference"
+            }
+          },
+          "accept": true,
+          "expected_watermarks": {
+            "seq": 3,
+            "epoch": 2
+          }
+        }
+      ]
+    },
+    {
+      "name": "pending_transfer_is_bound",
+      "options": {
+        "pending": "11111111111111111111111111111111"
+      },
+      "steps": [
+        {
+          "message": {
+            "version": 1,
+            "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "session": "cccccccccccccccccccccccccccccccc",
+            "peer_session": null,
+            "seq": 1,
+            "epoch": 0,
+            "transfer": null,
+            "kind": "hello",
+            "body": {
+              "role": "phone",
+              "required_capabilities": [
+                "two_arm_v1",
+                "release_before_acquire_v1"
+              ],
+              "optional_capabilities": [
+                "snapshot_v1",
+                "telemetry_v1"
+              ]
+            }
+          },
+          "accept": true,
+          "expected_watermarks": {
+            "seq": 1,
+            "epoch": 0
+          }
+        },
+        {
+          "message": {
+            "version": 1,
+            "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "session": "cccccccccccccccccccccccccccccccc",
+            "peer_session": "dddddddddddddddddddddddddddddddd",
+            "seq": 2,
+            "epoch": 1,
+            "transfer": null,
+            "kind": "status",
+            "body": {
+              "role": "phone",
+              "phase": "active",
+              "eligible": true,
+              "pinned": false,
+              "arms": {
+                "left": true,
+                "right": true
+              },
+              "renderer_ready": true,
+              "transfer": "11111111111111111111111111111111",
+              "ready_epoch": 1
+            }
+          },
+          "accept": true,
+          "expected_watermarks": {
+            "seq": 2,
+            "epoch": 1
+          }
+        },
+        {
+          "message": {
+            "version": 1,
+            "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "session": "cccccccccccccccccccccccccccccccc",
+            "peer_session": "dddddddddddddddddddddddddddddddd",
+            "seq": 3,
+            "epoch": 2,
+            "transfer": "22222222222222222222222222222222",
+            "kind": "release",
+            "body": {
+              "target": "laptop",
+              "reason": "preference"
+            }
+          },
+          "accept": false,
+          "expected_watermarks": {
+            "seq": 2,
+            "epoch": 1
+          }
+        },
+        {
+          "message": {
+            "version": 1,
+            "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "session": "cccccccccccccccccccccccccccccccc",
+            "peer_session": "dddddddddddddddddddddddddddddddd",
+            "seq": 3,
+            "epoch": 2,
+            "transfer": "11111111111111111111111111111111",
+            "kind": "release",
+            "body": {
+              "target": "laptop",
+              "reason": "preference"
+            }
+          },
+          "accept": true,
+          "expected_watermarks": {
+            "seq": 3,
+            "epoch": 2
+          }
+        }
+      ]
+    },
+    {
+      "name": "released_requires_matching_release_epoch",
+      "options": {},
+      "steps": [
+        {
+          "message": {
+            "version": 1,
+            "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "session": "cccccccccccccccccccccccccccccccc",
+            "peer_session": null,
+            "seq": 1,
+            "epoch": 0,
+            "transfer": null,
+            "kind": "hello",
+            "body": {
+              "role": "phone",
+              "required_capabilities": [
+                "two_arm_v1",
+                "release_before_acquire_v1"
+              ],
+              "optional_capabilities": [
+                "snapshot_v1",
+                "telemetry_v1"
+              ]
+            }
+          },
+          "accept": true,
+          "expected_watermarks": {
+            "seq": 1,
+            "epoch": 0
+          }
+        },
+        {
+          "message": {
+            "version": 1,
+            "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "session": "cccccccccccccccccccccccccccccccc",
+            "peer_session": "dddddddddddddddddddddddddddddddd",
+            "seq": 2,
+            "epoch": 1,
+            "transfer": null,
+            "kind": "status",
+            "body": {
+              "role": "phone",
+              "phase": "active",
+              "eligible": true,
+              "pinned": false,
+              "arms": {
+                "left": true,
+                "right": true
+              },
+              "renderer_ready": true,
+              "transfer": "11111111111111111111111111111111",
+              "ready_epoch": 1
+            }
+          },
+          "accept": true,
+          "expected_watermarks": {
+            "seq": 2,
+            "epoch": 1
+          }
+        },
+        {
+          "message": {
+            "version": 1,
+            "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "session": "cccccccccccccccccccccccccccccccc",
+            "peer_session": "dddddddddddddddddddddddddddddddd",
+            "seq": 3,
+            "epoch": 2,
+            "transfer": "11111111111111111111111111111111",
+            "kind": "release",
+            "body": {
+              "target": "laptop",
+              "reason": "preference"
+            }
+          },
+          "accept": true,
+          "expected_watermarks": {
+            "seq": 3,
+            "epoch": 2
+          }
+        },
+        {
+          "message": {
+            "version": 1,
+            "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "session": "cccccccccccccccccccccccccccccccc",
+            "peer_session": "dddddddddddddddddddddddddddddddd",
+            "seq": 5,
+            "epoch": 3,
+            "transfer": "11111111111111111111111111111111",
+            "kind": "released",
+            "body": {
+              "target": "laptop",
+              "arms": {
+                "left": false,
+                "right": false
+              },
+              "reconnect_disabled": true,
+              "workers_stopped": true
+            }
+          },
+          "accept": false,
+          "expected_watermarks": {
+            "seq": 3,
+            "epoch": 2
+          }
+        },
+        {
+          "message": {
+            "version": 1,
+            "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "session": "cccccccccccccccccccccccccccccccc",
+            "peer_session": "dddddddddddddddddddddddddddddddd",
+            "seq": 5,
+            "epoch": 2,
+            "transfer": "11111111111111111111111111111111",
+            "kind": "released",
+            "body": {
+              "target": "laptop",
+              "arms": {
+                "left": false,
+                "right": false
+              },
+              "reconnect_disabled": true,
+              "workers_stopped": true
+            }
+          },
+          "accept": true,
+          "expected_watermarks": {
+            "seq": 5,
+            "epoch": 2
+          }
+        }
+      ]
+    },
+    {
+      "name": "released_without_release_is_not_permission",
+      "options": {
+        "pending": "11111111111111111111111111111111"
+      },
+      "steps": [
+        {
+          "message": {
+            "version": 1,
+            "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "session": "cccccccccccccccccccccccccccccccc",
+            "peer_session": null,
+            "seq": 1,
+            "epoch": 0,
+            "transfer": null,
+            "kind": "hello",
+            "body": {
+              "role": "phone",
+              "required_capabilities": [
+                "two_arm_v1",
+                "release_before_acquire_v1"
+              ],
+              "optional_capabilities": [
+                "snapshot_v1",
+                "telemetry_v1"
+              ]
+            }
+          },
+          "accept": true,
+          "expected_watermarks": {
+            "seq": 1,
+            "epoch": 0
+          }
+        },
+        {
+          "message": {
+            "version": 1,
+            "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "session": "cccccccccccccccccccccccccccccccc",
+            "peer_session": "dddddddddddddddddddddddddddddddd",
+            "seq": 2,
+            "epoch": 1,
+            "transfer": null,
+            "kind": "status",
+            "body": {
+              "role": "phone",
+              "phase": "active",
+              "eligible": true,
+              "pinned": false,
+              "arms": {
+                "left": true,
+                "right": true
+              },
+              "renderer_ready": true,
+              "transfer": "11111111111111111111111111111111",
+              "ready_epoch": 1
+            }
+          },
+          "accept": true,
+          "expected_watermarks": {
+            "seq": 2,
+            "epoch": 1
+          }
+        },
+        {
+          "message": {
+            "version": 1,
+            "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "session": "cccccccccccccccccccccccccccccccc",
+            "peer_session": "dddddddddddddddddddddddddddddddd",
+            "seq": 3,
+            "epoch": 2,
+            "transfer": "11111111111111111111111111111111",
+            "kind": "released",
+            "body": {
+              "target": "laptop",
+              "arms": {
+                "left": false,
+                "right": false
+              },
+              "reconnect_disabled": true,
+              "workers_stopped": true
+            }
+          },
+          "accept": false,
+          "expected_watermarks": {
+            "seq": 2,
+            "epoch": 1
+          }
+        },
+        {
+          "message": {
+            "version": 1,
+            "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "session": "cccccccccccccccccccccccccccccccc",
+            "peer_session": "dddddddddddddddddddddddddddddddd",
+            "seq": 3,
+            "epoch": 2,
+            "transfer": "11111111111111111111111111111111",
+            "kind": "release",
+            "body": {
+              "target": "laptop",
+              "reason": "preference"
+            }
+          },
+          "accept": true,
+          "expected_watermarks": {
+            "seq": 3,
+            "epoch": 2
+          }
+        },
+        {
+          "message": {
+            "version": 1,
+            "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "session": "cccccccccccccccccccccccccccccccc",
+            "peer_session": "dddddddddddddddddddddddddddddddd",
+            "seq": 5,
+            "epoch": 2,
+            "transfer": "11111111111111111111111111111111",
+            "kind": "released",
+            "body": {
+              "target": "laptop",
+              "arms": {
+                "left": false,
+                "right": false
+              },
+              "reconnect_disabled": true,
+              "workers_stopped": true
+            }
+          },
+          "accept": true,
+          "expected_watermarks": {
+            "seq": 5,
+            "epoch": 2
+          }
+        }
+      ]
+    },
+    {
+      "name": "enrolled_identity_is_bound",
+      "options": {},
+      "steps": [
+        {
+          "message": {
+            "version": 1,
+            "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "session": "cccccccccccccccccccccccccccccccc",
+            "peer_session": null,
+            "seq": 1,
+            "epoch": 0,
+            "transfer": null,
+            "kind": "hello",
+            "body": {
+              "role": "phone",
+              "required_capabilities": [
+                "two_arm_v1",
+                "release_before_acquire_v1"
+              ],
+              "optional_capabilities": [
+                "snapshot_v1",
+                "telemetry_v1"
+              ]
+            }
+          },
+          "accept": true,
+          "expected_watermarks": {
+            "seq": 1,
+            "epoch": 0
+          }
+        },
+        {
+          "message": {
+            "version": 1,
+            "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "session": "cccccccccccccccccccccccccccccccc",
+            "peer_session": "dddddddddddddddddddddddddddddddd",
+            "seq": 2,
+            "epoch": 1,
+            "transfer": null,
+            "kind": "status",
+            "body": {
+              "role": "phone",
+              "phase": "active",
+              "eligible": true,
+              "pinned": false,
+              "arms": {
+                "left": true,
+                "right": true
+              },
+              "renderer_ready": true,
+              "transfer": "11111111111111111111111111111111",
+              "ready_epoch": 1
+            }
+          },
+          "accept": true,
+          "expected_watermarks": {
+            "seq": 2,
+            "epoch": 1
+          }
+        },
+        {
+          "message": {
+            "version": 1,
+            "sender": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "session": "cccccccccccccccccccccccccccccccc",
+            "peer_session": "dddddddddddddddddddddddddddddddd",
+            "seq": 3,
+            "epoch": 2,
+            "transfer": "11111111111111111111111111111111",
+            "kind": "release",
+            "body": {
+              "target": "laptop",
+              "reason": "preference"
+            }
+          },
+          "accept": false,
+          "expected_watermarks": {
+            "seq": 2,
+            "epoch": 1
+          }
+        },
+        {
+          "message": {
+            "version": 1,
+            "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "session": "cccccccccccccccccccccccccccccccc",
+            "peer_session": "dddddddddddddddddddddddddddddddd",
+            "seq": 3,
+            "epoch": 2,
+            "transfer": "11111111111111111111111111111111",
+            "kind": "release",
+            "body": {
+              "target": "laptop",
+              "reason": "preference"
+            }
+          },
+          "accept": true,
+          "expected_watermarks": {
+            "seq": 3,
+            "epoch": 2
+          }
+        }
+      ]
+    },
+    {
+      "name": "retired_session_cannot_be_reintroduced",
+      "options": {
+        "retired": [
+          "cccccccccccccccccccccccccccccccc"
+        ]
+      },
+      "steps": [
+        {
+          "message": {
+            "version": 1,
+            "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "session": "cccccccccccccccccccccccccccccccc",
+            "peer_session": null,
+            "seq": 1,
+            "epoch": 0,
+            "transfer": null,
+            "kind": "hello",
+            "body": {
+              "role": "phone",
+              "required_capabilities": [
+                "two_arm_v1",
+                "release_before_acquire_v1"
+              ],
+              "optional_capabilities": [
+                "snapshot_v1",
+                "telemetry_v1"
+              ]
+            }
+          },
+          "accept": false,
+          "expected_watermarks": {
+            "seq": 0,
+            "epoch": 0
+          }
+        }
+      ]
+    },
+    {
+      "name": "unsupported_required_capability_precedes_watermarks",
+      "options": {},
+      "steps": [
+        {
+          "message": {
+            "version": 1,
+            "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "session": "cccccccccccccccccccccccccccccccc",
+            "peer_session": null,
+            "seq": 1,
+            "epoch": 0,
+            "transfer": null,
+            "kind": "hello",
+            "body": {
+              "role": "phone",
+              "required_capabilities": [
+                "two_arm_v1",
+                "release_before_acquire_v1",
+                "future_required_v2"
+              ],
+              "optional_capabilities": [
+                "snapshot_v1",
+                "telemetry_v1"
+              ]
+            }
+          },
+          "accept": false,
+          "expected_watermarks": {
+            "seq": 0,
+            "epoch": 0
+          }
+        },
+        {
+          "message": {
+            "version": 1,
+            "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "session": "cccccccccccccccccccccccccccccccc",
+            "peer_session": null,
+            "seq": 1,
+            "epoch": 0,
+            "transfer": null,
+            "kind": "hello",
+            "body": {
+              "role": "phone",
+              "required_capabilities": [
+                "two_arm_v1",
+                "release_before_acquire_v1"
+              ],
+              "optional_capabilities": [
+                "snapshot_v1",
+                "telemetry_v1"
+              ]
+            }
+          },
+          "accept": true,
+          "expected_watermarks": {
+            "seq": 1,
+            "epoch": 0
+          }
+        }
+      ]
+    },
+    {
+      "name": "optional_payload_requires_negotiation",
+      "options": {},
+      "steps": [
+        {
+          "message": {
+            "version": 1,
+            "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "session": "cccccccccccccccccccccccccccccccc",
+            "peer_session": null,
+            "seq": 1,
+            "epoch": 0,
+            "transfer": null,
+            "kind": "hello",
+            "body": {
+              "role": "phone",
+              "required_capabilities": [
+                "two_arm_v1",
+                "release_before_acquire_v1"
+              ],
+              "optional_capabilities": []
+            }
+          },
+          "accept": true,
+          "expected_watermarks": {
+            "seq": 1,
+            "epoch": 0
+          }
+        },
+        {
+          "message": {
+            "version": 1,
+            "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "session": "cccccccccccccccccccccccccccccccc",
+            "peer_session": "dddddddddddddddddddddddddddddddd",
+            "seq": 2,
+            "epoch": 0,
+            "transfer": null,
+            "kind": "telemetry",
+            "body": {
+              "telemetry": {
+                "schema_version": 1,
+                "revision": 4,
+                "source": "system",
+                "sample_unix_ms": 1800000000000,
+                "age_ms": 2000,
+                "status": "fresh",
+                "values": {
+                  "cpu_percent": 12.5,
+                  "memory_used_bytes": 4096,
+                  "memory_total_bytes": 8192,
+                  "battery_percent": 75
+                }
+              }
+            }
+          },
+          "accept": false,
+          "expected_watermarks": {
+            "seq": 1,
+            "epoch": 0
+          }
+        }
+      ]
+    },
+    {
+      "name": "unknown_optional_capability_is_compatible",
+      "options": {},
+      "steps": [
+        {
+          "message": {
+            "version": 1,
+            "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "session": "cccccccccccccccccccccccccccccccc",
+            "peer_session": null,
+            "seq": 1,
+            "epoch": 0,
+            "transfer": null,
+            "kind": "hello",
+            "body": {
+              "role": "phone",
+              "required_capabilities": [
+                "two_arm_v1",
+                "release_before_acquire_v1"
+              ],
+              "optional_capabilities": [
+                "snapshot_v1",
+                "telemetry_v1",
+                "future_feature_v2"
+              ]
+            }
+          },
+          "accept": true,
+          "expected_watermarks": {
+            "seq": 1,
+            "epoch": 0
+          }
+        }
+      ]
+    },
+    {
+      "name": "role_is_fixed_by_hello",
+      "options": {},
+      "steps": [
+        {
+          "message": {
+            "version": 1,
+            "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "session": "cccccccccccccccccccccccccccccccc",
+            "peer_session": null,
+            "seq": 1,
+            "epoch": 0,
+            "transfer": null,
+            "kind": "hello",
+            "body": {
+              "role": "phone",
+              "required_capabilities": [
+                "two_arm_v1",
+                "release_before_acquire_v1"
+              ],
+              "optional_capabilities": [
+                "snapshot_v1",
+                "telemetry_v1"
+              ]
+            }
+          },
+          "accept": true,
+          "expected_watermarks": {
+            "seq": 1,
+            "epoch": 0
+          }
+        },
+        {
+          "message": {
+            "version": 1,
+            "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "session": "cccccccccccccccccccccccccccccccc",
+            "peer_session": "dddddddddddddddddddddddddddddddd",
+            "seq": 2,
+            "epoch": 1,
+            "transfer": null,
+            "kind": "status",
+            "body": {
+              "role": "laptop",
+              "phase": "active",
+              "eligible": true,
+              "pinned": false,
+              "arms": {
+                "left": true,
+                "right": true
+              },
+              "renderer_ready": true,
+              "transfer": "11111111111111111111111111111111",
+              "ready_epoch": 1
+            }
+          },
+          "accept": false,
+          "expected_watermarks": {
+            "seq": 1,
+            "epoch": 0
+          }
+        },
+        {
+          "message": {
+            "version": 1,
+            "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "session": "cccccccccccccccccccccccccccccccc",
+            "peer_session": "dddddddddddddddddddddddddddddddd",
+            "seq": 2,
+            "epoch": 1,
+            "transfer": null,
+            "kind": "status",
+            "body": {
+              "role": "phone",
+              "phase": "active",
+              "eligible": true,
+              "pinned": false,
+              "arms": {
+                "left": true,
+                "right": true
+              },
+              "renderer_ready": true,
+              "transfer": "11111111111111111111111111111111",
+              "ready_epoch": 1
+            }
+          },
+          "accept": true,
+          "expected_watermarks": {
+            "seq": 2,
+            "epoch": 1
+          }
+        }
+      ]
+    },
+    {
+      "name": "status_cannot_skip_hello",
+      "options": {},
+      "steps": [
+        {
+          "message": {
+            "version": 1,
+            "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "session": "cccccccccccccccccccccccccccccccc",
+            "peer_session": "dddddddddddddddddddddddddddddddd",
+            "seq": 2,
+            "epoch": 1,
+            "transfer": null,
+            "kind": "status",
+            "body": {
+              "role": "phone",
+              "phase": "active",
+              "eligible": true,
+              "pinned": false,
+              "arms": {
+                "left": true,
+                "right": true
+              },
+              "renderer_ready": true,
+              "transfer": "11111111111111111111111111111111",
+              "ready_epoch": 1
+            }
+          },
+          "accept": false,
+          "expected_watermarks": {
+            "seq": 0,
+            "epoch": 0
+          }
+        },
+        {
+          "message": {
+            "version": 1,
+            "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "session": "cccccccccccccccccccccccccccccccc",
+            "peer_session": null,
+            "seq": 1,
+            "epoch": 0,
+            "transfer": null,
+            "kind": "hello",
+            "body": {
+              "role": "phone",
+              "required_capabilities": [
+                "two_arm_v1",
+                "release_before_acquire_v1"
+              ],
+              "optional_capabilities": [
+                "snapshot_v1",
+                "telemetry_v1"
+              ]
+            }
+          },
+          "accept": true,
+          "expected_watermarks": {
+            "seq": 1,
+            "epoch": 0
+          }
+        }
+      ]
+    },
+    {
+      "name": "local_capability_must_also_be_advertised",
+      "options": {
+        "local_capabilities": [
+          "two_arm_v1",
+          "release_before_acquire_v1"
+        ]
+      },
+      "steps": [
+        {
+          "message": {
+            "version": 1,
+            "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "session": "cccccccccccccccccccccccccccccccc",
+            "peer_session": null,
+            "seq": 1,
+            "epoch": 0,
+            "transfer": null,
+            "kind": "hello",
+            "body": {
+              "role": "phone",
+              "required_capabilities": [
+                "two_arm_v1",
+                "release_before_acquire_v1"
+              ],
+              "optional_capabilities": [
+                "snapshot_v1",
+                "telemetry_v1"
+              ]
+            }
+          },
+          "accept": true,
+          "expected_watermarks": {
+            "seq": 1,
+            "epoch": 0
+          }
+        },
+        {
+          "message": {
+            "version": 1,
+            "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "session": "cccccccccccccccccccccccccccccccc",
+            "peer_session": "dddddddddddddddddddddddddddddddd",
+            "seq": 2,
+            "epoch": 0,
+            "transfer": null,
+            "kind": "telemetry",
+            "body": {
+              "telemetry": {
+                "schema_version": 1,
+                "revision": 4,
+                "source": "system",
+                "sample_unix_ms": 1800000000000,
+                "age_ms": 2000,
+                "status": "fresh",
+                "values": {
+                  "cpu_percent": 12.5,
+                  "memory_used_bytes": 4096,
+                  "memory_total_bytes": 8192,
+                  "battery_percent": 75
+                }
+              }
+            }
+          },
+          "accept": false,
+          "expected_watermarks": {
+            "seq": 1,
+            "epoch": 0
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,993 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Portable ownership reducer input/output",
+  "$defs": {
+    "state": {
+      "type": "object",
+      "properties": {
+        "role": {
+          "enum": [
+            "laptop",
+            "phone"
+          ]
+        },
+        "enrolled": {
+          "type": "boolean"
+        },
+        "eligible": {
+          "type": "boolean"
+        },
+        "pinned": {
+          "type": "boolean"
+        },
+        "phase": {
+          "enum": [
+            "idle",
+            "requesting",
+            "yielding",
+            "acquiring",
+            "active",
+            "recovering",
+            "degraded"
+          ]
+        },
+        "arms": {
+          "type": "object",
+          "properties": {
+            "left": {
+              "type": "boolean"
+            },
+            "right": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "left",
+            "right"
+          ],
+          "additionalProperties": false
+        },
+        "renderer_ready": {
+          "type": "boolean"
+        },
+        "generation": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "transfer": {
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{32}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "peer_reachable": {
+          "type": "boolean"
+        },
+        "peer_active": {
+          "type": "boolean"
+        },
+        "permission": {
+          "enum": [
+            "none",
+            "standalone",
+            "released",
+            "probe"
+          ]
+        },
+        "release_intent": {
+          "enum": [
+            "none",
+            "handover",
+            "rollback",
+            "local_stop"
+          ]
+        },
+        "peer_eligible": {
+          "type": "boolean"
+        },
+        "peer_pinned": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "role",
+        "enrolled",
+        "eligible",
+        "pinned",
+        "phase",
+        "arms",
+        "renderer_ready",
+        "generation",
+        "transfer",
+        "peer_reachable",
+        "peer_active",
+        "permission",
+        "release_intent",
+        "peer_eligible",
+        "peer_pinned"
+      ],
+      "additionalProperties": false
+    },
+    "event": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "start"
+            },
+            "generation": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "data": {
+              "type": "object",
+              "properties": {
+                "eligible": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "eligible"
+              ],
+              "additionalProperties": false
+            },
+            "attempt_nonce": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{32}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "generation",
+            "data",
+            "attempt_nonce"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "availability"
+            },
+            "generation": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "data": {
+              "type": "object",
+              "properties": {
+                "eligible": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "eligible"
+              ],
+              "additionalProperties": false
+            },
+            "attempt_nonce": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{32}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "generation",
+            "data",
+            "attempt_nonce"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "peer_status"
+            },
+            "generation": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "data": {
+              "type": "object",
+              "properties": {
+                "active": {
+                  "type": "boolean"
+                },
+                "reachable": {
+                  "type": "boolean"
+                },
+                "eligible": {
+                  "type": "boolean"
+                },
+                "pinned": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "active",
+                "reachable",
+                "eligible",
+                "pinned"
+              ],
+              "additionalProperties": false
+            },
+            "attempt_nonce": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{32}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "generation",
+            "data",
+            "attempt_nonce"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "prefer_local"
+            },
+            "generation": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "data": {
+              "type": "object",
+              "properties": {
+                "stable_ms": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "stable_ms"
+              ],
+              "additionalProperties": false
+            },
+            "attempt_nonce": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{32}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "generation",
+            "data",
+            "attempt_nonce"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "release_request"
+            },
+            "generation": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "data": {
+              "type": "object",
+              "properties": {
+                "transfer": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{32}$"
+                },
+                "reason": {
+                  "enum": [
+                    "preference",
+                    "manual"
+                  ]
+                },
+                "target": {
+                  "enum": [
+                    "laptop",
+                    "phone"
+                  ]
+                },
+                "peer_pinned": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "transfer",
+                "reason",
+                "target",
+                "peer_pinned"
+              ],
+              "additionalProperties": false
+            },
+            "attempt_nonce": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{32}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "generation",
+            "data",
+            "attempt_nonce"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "released"
+            },
+            "generation": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "data": {
+              "type": "object",
+              "properties": {
+                "transfer": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{32}$"
+                }
+              },
+              "required": [
+                "transfer"
+              ],
+              "additionalProperties": false
+            },
+            "attempt_nonce": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{32}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "generation",
+            "data",
+            "attempt_nonce"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "release_complete"
+            },
+            "generation": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "data": {
+              "type": "object",
+              "properties": {
+                "both_down": {
+                  "type": "boolean"
+                },
+                "workers_stopped": {
+                  "type": "boolean"
+                },
+                "reconnect_disabled": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "both_down",
+                "workers_stopped",
+                "reconnect_disabled"
+              ],
+              "additionalProperties": false
+            },
+            "attempt_nonce": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{32}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "generation",
+            "data",
+            "attempt_nonce"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "arms_changed"
+            },
+            "generation": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "data": {
+              "type": "object",
+              "properties": {
+                "left": {
+                  "type": "boolean"
+                },
+                "right": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "left",
+                "right"
+              ],
+              "additionalProperties": false
+            },
+            "attempt_nonce": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{32}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "generation",
+            "data",
+            "attempt_nonce"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "initialized"
+            },
+            "generation": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "data": {
+              "type": "object",
+              "properties": {
+                "renderer_ready": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "renderer_ready"
+              ],
+              "additionalProperties": false
+            },
+            "attempt_nonce": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{32}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "generation",
+            "data",
+            "attempt_nonce"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "timeout"
+            },
+            "generation": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "data": {
+              "type": "object",
+              "properties": {
+                "timer": {
+                  "enum": [
+                    "stability",
+                    "release",
+                    "acquire",
+                    "partial_arms",
+                    "peer_suspect",
+                    "retry",
+                    "cold_start"
+                  ]
+                },
+                "elapsed_ms": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "timer",
+                "elapsed_ms"
+              ],
+              "additionalProperties": false
+            },
+            "attempt_nonce": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{32}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "generation",
+            "data",
+            "attempt_nonce"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "route_lost"
+            },
+            "generation": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "data": {
+              "type": "object",
+              "properties": {},
+              "required": [],
+              "additionalProperties": false
+            },
+            "attempt_nonce": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{32}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "generation",
+            "data",
+            "attempt_nonce"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "route_restored"
+            },
+            "generation": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "data": {
+              "type": "object",
+              "properties": {},
+              "required": [],
+              "additionalProperties": false
+            },
+            "attempt_nonce": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{32}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "generation",
+            "data",
+            "attempt_nonce"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "pin"
+            },
+            "generation": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "data": {
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "enabled"
+              ],
+              "additionalProperties": false
+            },
+            "attempt_nonce": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{32}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "generation",
+            "data",
+            "attempt_nonce"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "clock_adjusted"
+            },
+            "generation": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "data": {
+              "type": "object",
+              "properties": {
+                "wall_delta_ms": {
+                  "type": "integer",
+                  "minimum": -86400000,
+                  "maximum": 86400000
+                }
+              },
+              "required": [
+                "wall_delta_ms"
+              ],
+              "additionalProperties": false
+            },
+            "attempt_nonce": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{32}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "generation",
+            "data",
+            "attempt_nonce"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "failed"
+            },
+            "generation": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "data": {
+              "type": "object",
+              "properties": {
+                "reason": {
+                  "enum": [
+                    "startup",
+                    "lid_closed",
+                    "suspend",
+                    "resume",
+                    "preference",
+                    "manual",
+                    "peer_lost",
+                    "acquire_failed",
+                    "partial_arms",
+                    "timeout",
+                    "stopped",
+                    "protocol_error"
+                  ]
+                }
+              },
+              "required": [
+                "reason"
+              ],
+              "additionalProperties": false
+            },
+            "attempt_nonce": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{32}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "generation",
+            "data",
+            "attempt_nonce"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "stop"
+            },
+            "generation": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "data": {
+              "type": "object",
+              "properties": {},
+              "required": [],
+              "additionalProperties": false
+            },
+            "attempt_nonce": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{32}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "generation",
+            "data",
+            "attempt_nonce"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "release_notice"
+            },
+            "generation": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "data": {
+              "type": "object",
+              "properties": {
+                "transfer": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{32}$"
+                }
+              },
+              "required": [
+                "transfer"
+              ],
+              "additionalProperties": false
+            },
+            "attempt_nonce": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{32}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "generation",
+            "data",
+            "attempt_nonce"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "effect": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "enum": [
+            "send_request",
+            "send_release",
+            "send_released",
+            "send_acquiring",
+            "send_ready",
+            "send_abort",
+            "publish_status",
+            "acquire_both",
+            "release_both",
+            "force_disconnect",
+            "redraw",
+            "reconcile",
+            "schedule",
+            "cancel_timers",
+            "ignore"
+          ]
+        },
+        "generation": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "transfer": {
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{32}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "timer": {
+          "oneOf": [
+            {
+              "enum": [
+                "stability",
+                "release",
+                "acquire",
+                "partial_arms",
+                "peer_suspect",
+                "retry",
+                "cold_start"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "delay_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "kind",
+        "generation",
+        "transfer",
+        "timer",
+        "delay_ms"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "oneOf": [
+    {
+      "$ref": "#/$defs/state"
+    },
+    {
+      "$ref": "#/$defs/event"
+    },
+    {
+      "$ref": "#/$defs/effect"
+    }
+  ]
+}

@@ -3,6 +3,11 @@
     <string name="app_name">Chewedfeed</string>
     <string name="settings">Settings</string>
     <string name="status">Native %1$s, interface %2$d</string>
-    <string name="settings_placeholder">Setup and calibration come later.</string>
     <string name="glasses_check">Glasses check</string>
+    <string name="display_settings">Glasses display on this phone (the laptop keeps its own)</string>
+    <string name="dx_label">dx: horizontal eye separation, pixels (−240 to 240)</string>
+    <string name="dy_label">dy: vertical eye offset, pixels (−120 to 120)</string>
+    <string name="scale_label">Text scale (1 to 4)</string>
+    <string name="save">Save</string>
+    <string name="saved">Saved: used the next time the glasses connect</string>
 </resources>

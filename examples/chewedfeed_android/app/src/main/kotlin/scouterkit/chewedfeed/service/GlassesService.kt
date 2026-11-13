@@ -19,9 +19,19 @@ import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.net.ConnectivityManager
 import android.net.Network
+import android.os.BatteryManager
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import scouterkit.chewedfeed.render.TEXT_INSET
+import scouterkit.chewedfeed.dashboard.Screen
+import scouterkit.chewedfeed.dashboard.Navigation
+import scouterkit.chewedfeed.dashboard.Dashboard
+import scouterkit.chewedfeed.GlassesStatus
+import scouterkit.chewedfeed.GlassesEvent
+import java.time.format.DateTimeFormatter
+import java.time.LocalTime
+import android.os.SystemClock
 import scouterkit.chewedfeed.DisplaySettings
 import scouterkit.chewedfeed.GlassesSession
 import scouterkit.chewedfeed.MainActivity
@@ -35,7 +45,6 @@ import scouterkit.chewedfeed.bluetooth.BluetoothWatch
 import scouterkit.chewedfeed.bluetooth.HandlerScheduler
 import scouterkit.chewedfeed.bluetooth.LinkStatus
 import scouterkit.chewedfeed.bluetooth.NativeEvents
-import scouterkit.chewedfeed.dashboard.Notification as Note
 import scouterkit.chewedfeed.dashboard.Page
 import scouterkit.chewedfeed.notifications.FeedEvent
 import scouterkit.chewedfeed.notifications.Hub
@@ -147,6 +156,8 @@ class GlassesService : Service(), LifecycleActions {
         main.post { lifecycle.conditions(adapter?.isEnabled == true, permitted(), saved() != null) }
     }
 
+    private fun phoneBattery() = getSystemService(BatteryManager::class.java).getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY).takeIf { it in 0..100 }
+
     private fun prefs() = getSharedPreferences("service", Context.MODE_PRIVATE)
 
     // LifecycleActions, on the main thread.
@@ -199,8 +210,9 @@ class GlassesService : Service(), LifecycleActions {
             .build()
     }
 
-    // One attempt's session: the two-arm link, the native session and, until the dashboard runtime (CF-48), a
-    // status frame with phone notifications as popups.
+    // One attempt's session: the two-arm link, the native session, and the dashboard controller deciding what
+    // shows: head tilt (Settings: shown while looking up past showAbove or down past showBelow, as the desktop),
+    // the case, touches and notification popups. Until the dashboard runtime (CF-48) the page is a status page.
     private inner class Connection(val attempt: Long, private val left: String, private val right: String) {
         private val sched = HandlerScheduler()
         private val link = ArmsLink(AndroidBleAdapter(this@GlassesService, adapter, sched.looperHandler), arrayOf(left, right), NativeEvents, sched) { s, why ->
@@ -211,11 +223,21 @@ class GlassesService : Service(), LifecycleActions {
             }
         }
         private val watch = BluetoothWatch(this@GlassesService, link)
-        private val session = GlassesSession(callbacks = { main.post(it) }, onEvents = { _, _ -> })
+        private val session = GlassesSession(callbacks = { main.post(it) }, onEvents = { gen, events -> events(gen, events) })
         private val settings = DisplaySettings.load(this@GlassesService)
-        private var screen: GlassesScreen? = null
         private val clock = MusicStatus()
-        private val clear = Runnable { frame(null) }
+        private var screen: GlassesScreen? = null
+        private var dashboard: Dashboard? = null
+        private var generation = 0L
+        private var batteries = Batteries()
+        private var minute = -1L
+        private val tick = object : Runnable {
+            override fun run() {
+                if (conn !== this@Connection) return
+                sample()
+                main.postDelayed(this, TICK_MS)
+            }
+        }
 
         fun start() {
             watch.start()
@@ -223,36 +245,87 @@ class GlassesService : Service(), LifecycleActions {
                 if (conn !== this) return@start
                 when (outcome) {
                     is StartOutcome.Failed -> lifecycle.failed(attempt, why = outcome.message)
-                    is StartOutcome.Ready -> {
-                        lifecycle.connected(attempt)
-                        frame(null)
-                        Hub.attach(mainExecutor) { e ->
-                            if (conn !== this) return@attach
-                            main.removeCallbacks(clear)
-                            if (e is FeedEvent.Show) {
-                                frame(e.note)
-                                main.postDelayed(clear, 5000)
-                            } else frame(null)
-                        }
-                    }
+                    is StartOutcome.Ready -> ready(outcome.generation, outcome.status)
                 }
             }
         }
 
-        private fun frame(popup: Note?) {
+        private fun ready(gen: Long, st: GlassesStatus) {
             session.draw { f ->
-                val st = f.status() ?: return@draw false
-                val g = screen ?: GlassesScreen.open(f, st.width, st.height, settings.dx, settings.scale, Native::departureMono)?.also { screen = it }
-                    ?: return@draw false
-                g.show(Page("service", "Chewedfeed", listOf("Phone connected", "Dashboard coming soon"), "Unavailable"), 0, 1, true, popup,
-                    Batteries(st.left.battery, st.right.battery)) { w -> clock.line(System.currentTimeMillis(), w, g::measure) }
+                val g = GlassesScreen.open(f, st.width, st.height, settings.dx, settings.scale, Native::departureMono)
+                main.post { if (conn === this) opened(gen, g) }
+            }
+        }
+
+        private fun opened(gen: Long, g: GlassesScreen?) {
+            if (g == null) return lifecycle.failed(attempt, why = "no font or canvas")
+            screen = g
+            val rows = g.renderer.layout.rows
+            val width = g.renderer.layout.contentW - TEXT_INSET
+            val page = Page("service", "Chewedfeed", listOf("Phone connected", "Dashboard coming soon"), "Unavailable")
+            // History pages measure with the session font from the main thread: native calls take the session lock.
+            dashboard = Dashboard(Navigation(listOf(page), emptyList(), emptyList()), settings.displayOptions(), SystemClock::elapsedRealtime) { h ->
+                h.pages(width, rows) { t -> g.measure(t) }
+            }.also { it.acquired(gen) }
+            generation = gen
+            lifecycle.connected(attempt)
+            Hub.attach(mainExecutor) { e ->
+                val d = dashboard ?: return@attach
+                if (conn !== this) return@attach
+                when (e) {
+                    is FeedEvent.Show -> d.notify(e.note, LocalTime.now().format(RECEIVED), e.key)
+                    is FeedEvent.Dismiss -> d.dismissed(e.key)
+                }
+                render()
+            }
+            sample()
+            main.postDelayed(tick, TICK_MS)
+        }
+
+        // Head angle, case and batteries, read on the session thread (both arms report the same angles); then
+        // what to show.
+        private fun sample() {
+            session.draw { f ->
+                val st = f.status() ?: return@draw
+                main.post {
+                    val d = dashboard ?: return@post
+                    if (conn !== this) return@post
+                    batteries = Batteries(st.left.battery, st.right.battery, st.caseBattery, phoneBattery())
+                    d.pitch(generation, st.pitch)
+                    st.left.inCase?.let { d.caseChanged(generation, 0, it) }
+                    st.right.inCase?.let { d.caseChanged(generation, 1, it) }
+                    val m = System.currentTimeMillis() / 60_000
+                    if (m != minute) { minute = m; d.invalidate() } // the footer clock
+                    render()
+                }
+            }
+        }
+
+        private fun events(gen: Long, events: List<GlassesEvent>) {
+            val d = dashboard ?: return
+            if (conn !== this) return
+            for (e in events) if (e.type == GlassesEvent.INPUT && e.trigger == GlassesEvent.TRIGGER_TOUCH) d.touch(gen, e.arm, e.a)
+            render()
+        }
+
+        // Only when the screen changed: the page (or a popup), or black and off.
+        private fun render() {
+            val d = dashboard ?: return
+            val g = screen ?: return
+            when (val s = d.poll() ?: return) {
+                Screen.Hidden -> session.draw { g.hide() }
+                is Screen.Shown -> session.draw {
+                    g.show(s.page, s.index, s.total, s.paused, s.popup, batteries) { w -> clock.line(System.currentTimeMillis(), w, g::measure) }
+                }
             }
         }
 
         // Blank, deinitialize (closes GATT, ends reconnects), then free the link's thread.
         fun stop() {
             Hub.detach()
-            main.removeCallbacks(clear)
+            main.removeCallbacks(tick)
+            dashboard?.released()
+            dashboard = null
             session.stop {
                 watch.stop()
                 sched.quit()
@@ -275,6 +348,8 @@ class GlassesService : Service(), LifecycleActions {
         const val ACTION_STOP = "scouterkit.chewedfeed.STOP"
         private const val CHANNEL = "glasses"
         private const val NOTIFICATION = 1
+        private const val TICK_MS = 500L // the desktop's head-angle interval
+        private val RECEIVED = DateTimeFormatter.ofPattern("HH:mm")
 
         fun start(c: Context) = c.startForegroundService(Intent(c, GlassesService::class.java).setAction(ACTION_START))
         fun stop(c: Context) = c.startService(Intent(c, GlassesService::class.java).setAction(ACTION_STOP))

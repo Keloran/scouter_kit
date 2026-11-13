@@ -102,6 +102,11 @@ StartResult Session::Start(const StartConfig &config, g1::Transport *transport, 
       ArmAt(i).SetBrightness(std::clamp(config.brightness, 0, 42));
       Step(i ? "right: brightness" : "left: brightness", t);
     }
+    // Head angles for showing and hiding the dashboard (desktop session.go): a TILT range narrower than ±90 makes
+    // the firmware stream every sample; without it PITCH stays at its first value. Both arms report the same
+    // angles, so one arm is enough; restored on Close (sensor settings outlive the session).
+    pitch_arm_ = present_[0] ? 0 : present_[1] ? 1 : -1;
+    if (pitch_arm_ >= 0) ArmAt(pitch_arm_).SysWrite(g1::PROP_PITCH_LO, uint32_t(kPitchLo));
     if (token.Cancelled()) {
       g1::Deinit();
       result = {0, kCancelled, "cancelled"};
@@ -156,6 +161,8 @@ void Session::Close() {
   // bitmap (CF-30); our handles go with it.
   gray::Clear();
   sk::Flush();
+  if (pitch_arm_ >= 0) ArmAt(pitch_arm_).SysWrite(g1::PROP_PITCH_LO, uint32_t(kPitchLo - 1));
+  pitch_arm_ = -1;
   for (int i = 0; i < 2; i++)
     if (present_[i]) {
       ArmAt(i).ReportInputs(0);

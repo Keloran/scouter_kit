@@ -130,6 +130,24 @@ type snapshotOverrides struct {
 // exists falls back to the view's first page; a view without pages to the
 // first Sites page. It returns the rotation and project to use.
 func (s uiSnapshot) apply(nav *navigation, local snapshotOverrides, rotate time.Duration, project string) (time.Duration, string) {
+	s.selectPage(nav)
+	nav.paused = s.RotationPaused
+	if !local.rotate {
+		rotate = time.Duration(s.RotationMs) * time.Millisecond
+	}
+	if rotate == 0 {
+		nav.paused = true
+	}
+	if !local.project {
+		project = ""
+		if s.Project != nil {
+			project = *s.Project
+		}
+	}
+	return rotate, project
+}
+
+func (s uiSnapshot) selectPage(nav *navigation) {
 	view := viewSites
 	for v, name := range snapshotViews {
 		if name == s.View {
@@ -143,17 +161,6 @@ func (s uiSnapshot) apply(nav *navigation, local snapshotOverrides, rotate time.
 	if v := &nav.views[view]; len(v.pages) > 0 {
 		v.index = preservePage(v.pages, s.PageID)
 	}
-	nav.paused = s.RotationPaused
-	if !local.rotate {
-		rotate = time.Duration(s.RotationMs) * time.Millisecond
-	}
-	if !local.project {
-		project = ""
-		if s.Project != nil {
-			project = *s.Project
-		}
-	}
-	return rotate, project
 }
 
 // snapshotGate decides whether an incoming snapshot may change navigation:

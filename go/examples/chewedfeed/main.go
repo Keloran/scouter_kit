@@ -54,6 +54,8 @@ type options struct {
 	alwaysNotes             bool
 	ownership               ownershipSettings
 	managed                 bool // coordinator owns acquisition and reconnect policy
+	snapshots               *snapshotBridge
+	snapshotLocal           snapshotOverrides
 }
 
 var stages = log.New(os.Stderr, "chewedfeed: ", log.Ltime|log.Lmicroseconds)
@@ -102,6 +104,7 @@ func main() {
 	}
 	explicit := make(map[string]bool)
 	flag.Visit(func(f *flag.Flag) { explicit[f.Name] = true })
+	o.snapshotLocal = snapshotOverrides{rotate: explicit["rotate"], project: explicit["project"]}
 	var err error
 	o, err = configureDisplay(o, explicit)
 	if err == nil {
@@ -354,14 +357,24 @@ var (
 // notification history and music line survive sessions. s is the current
 // session (nil while released); pages are formatted for its screen.
 type dashState struct {
-	nav      navigation
-	history  notificationHistory
-	notesOff []page        // the listener is unavailable or disabled: shown instead of the history
-	sites    *snapshot     // the last API data; nil until the first fetch
-	system   *systemUpdate // the last sample; nil until the first one
-	music    musicStatus
-	popup    notificationPopup
-	s        *glassesSession
+	nav         navigation
+	history     notificationHistory
+	notesOff    []page        // the listener is unavailable or disabled: shown instead of the history
+	sites       *snapshot     // the last API data; nil until the first fetch
+	system      *systemUpdate // the last sample; nil until the first one
+	music       musicStatus
+	popup       notificationPopup
+	s           *glassesSession
+	snapshots   *snapshotBridge
+	restorePage *uiSnapshot
+}
+
+func (d *dashState) restoreSnapshotPage() {
+	if d.restorePage == nil || d.s == nil || d.restorePage.View == "sites" && d.sites == nil {
+		return
+	}
+	d.restorePage.selectPage(&d.nav)
+	d.restorePage = nil
 }
 
 // attach formats every view for a new session's screen and paints it in full
@@ -377,6 +390,7 @@ func (d *dashState) attach(s *glassesSession) {
 		d.nav.replace(viewSystem, systemPages(*d.system, scr.rows))
 	}
 	d.formatNotes()
+	d.restoreSnapshotPage()
 	d.nav.inCase = s.cases.any()
 	d.nav.level = false // no head angle yet: dashboard on
 	if d.nav.visible() {
@@ -451,9 +465,13 @@ func dashboard(ctx context.Context, host *glassesHost, o options, c *client, con
 	loading := []page{{id: "loading", title: "Chewedfeed", lines: []string{"Loading dashboard..."}, status: "Connecting to API"}}
 	ai := aiUsagePages(o.aiUsageDir, nil, time.Now())
 	system := []page{{id: "system/cpu", title: "System monitor", lines: []string{"Sampling laptop activity..."}, status: "Starting"}}
-	d := &dashState{nav: newNavigation(loading, ai, system, o.rotate == 0)}
+	d := &dashState{nav: newNavigation(loading, ai, system, o.rotate == 0), snapshots: o.snapshots}
 	d.music.setTitle(currentMusicTitle(ctx), time.Now())
 	rotation := o.rotate
+	rotationSetting := o.rotate
+	selection := apiSelection{project: c.project}
+	publishSnapshot := func() { o.snapshots.publish(exportSnapshot(&d.nav, selection.project, rotationSetting, 0)) }
+	publishSnapshot()
 	if rotation == 0 {
 		rotation = 12 * time.Second
 	}
@@ -484,7 +502,8 @@ func dashboard(ctx context.Context, host *glassesHost, o options, c *client, con
 	}
 	progress("Started: Sites, AI, Notifications and Stats screens; system refresh every 2s, API refresh every %s, page rotation every %s (paused: %t)", o.refresh, rotation, d.nav.paused)
 
-	updates := make(chan snapshot, 1)
+	updates := make(chan apiUpdate, 1)
+	projects := make(chan apiSelection, 1)
 	musicUpdates := make(chan string, 1)
 	workers.Add(3)
 	go func() {
@@ -542,29 +561,44 @@ func dashboard(ctx context.Context, host *glassesHost, o options, c *client, con
 			}
 		}
 	}()
-	go func() {
+	go func(initial apiSelection) {
 		defer workers.Done()
-		var previous snapshot
-		for {
-			previous = c.fetch(workerCtx, previous)
-			select {
-			case updates <- previous:
-			case <-workerCtx.Done():
-				return
-			}
-			timer := time.NewTimer(o.refresh)
-			select {
-			case <-timer.C:
-			case <-workerCtx.Done():
-				timer.Stop()
-				return
-			}
-		}
-	}()
+		watchDashboardAPI(workerCtx, c, o.refresh, initial, projects, updates)
+	}(selection)
 	progress("Single right/left: next/previous page. Double right/left: next/previous screen (Sites, AI, Notifications, Stats). Triple right: pause. Ctrl-C exits.")
 	tick := time.NewTicker(100 * time.Millisecond)
 	defer tick.Stop()
 	next := time.Now().Add(rotation)
+	var snapshotUpdates <-chan struct{}
+	if o.snapshots != nil {
+		snapshotUpdates = o.snapshots.notify
+	}
+	changeProject := func(project string) {
+		if project == selection.project {
+			return
+		}
+		selection = apiSelection{project: project, generation: selection.generation + 1}
+		d.sites = nil
+		d.nav.replace(viewSites, loading)
+		selectDashboardProject(projects, selection)
+	}
+	applySnapshot := func() bool {
+		s, ok := o.snapshots.take()
+		if !ok {
+			return false
+		}
+		setting, project := s.apply(&d.nav, o.snapshotLocal, rotationSetting, selection.project)
+		changeProject(project)
+		rotationSetting, rotation = setting, setting
+		if rotation == 0 {
+			rotation = 12 * time.Second
+		}
+		next = time.Now().Add(rotation)
+		d.restorePage = &s
+		d.restoreSnapshotPage()
+		publishSnapshot()
+		return true
+	}
 	lastWarnings := ""
 	lastClockMinute := time.Now().Format(musicStatusFormat)
 	// ponytail: 5 checks per arm; all arms missing 5 in a row releases the session.
@@ -580,6 +614,7 @@ func dashboard(ctx context.Context, host *glassesHost, o options, c *client, con
 		host.Release(lost)
 	}
 	acquire := func(acquireCtx context.Context, token *scouterkit.Cancellation) error {
+		applySnapshot() // before setup/attach and the first complete frame
 		var err error
 		if token == nil {
 			err = host.Acquire(acquireCtx)
@@ -621,8 +656,11 @@ func dashboard(ctx context.Context, host *glassesHost, o options, c *client, con
 				err = acquire(acquireCtx, cmd.cancellation)
 			}
 			retryAt, retryDelay = time.Time{}, reconnectFirst
+			publishSnapshot()
 			cmd.done <- err
 			continue
+		case <-snapshotUpdates:
+			redraw = applySnapshot()
 		case <-angleTick.C:
 			if d.s == nil || len(d.s.arms) == 0 {
 				continue
@@ -726,11 +764,21 @@ func dashboard(ctx context.Context, host *glassesHost, o options, c *client, con
 				}
 				lastSystemError = message
 			}
-		case data := <-updates:
+		case update := <-updates:
+			if update.selection != selection {
+				continue
+			}
+			data := update.data
+			if o.snapshots != nil && !o.snapshotLocal.project && selection.project != "" && missingSnapshotProject(data) {
+				changeProject("")
+				publishSnapshot()
+				continue
+			}
 			d.sites = &data
 			if d.s != nil {
 				scr := d.s.screen
 				d.nav.replace(viewSites, makePages(data, scr.contentW-textInset, scr.rows, scr.measure))
+				d.restoreSnapshotPage()
 				progress("Sites ready: %d pages; page %d selected", len(d.nav.views[0].pages), d.nav.views[0].index+1)
 			}
 			if d.nav.selected == viewSites {
@@ -816,6 +864,8 @@ func dashboard(ctx context.Context, host *glassesHost, o options, c *client, con
 			}
 			if !d.nav.paused && d.nav.visible() && !d.popup.active() && now.After(next) {
 				d.nav.move(1)
+				d.snapshots.edited()
+				d.restorePage = nil
 				next = time.Now().Add(rotation)
 				redraw = true
 			}
@@ -823,6 +873,7 @@ func dashboard(ctx context.Context, host *glassesHost, o options, c *client, con
 		if redraw {
 			d.render()
 		}
+		publishSnapshot()
 	}
 }
 
@@ -873,6 +924,8 @@ func (d *dashState) events(redraw *bool, next *time.Time, rotation time.Duration
 			if !d.nav.touch(e.A, arm == scouterkit.Left) {
 				continue
 			}
+			d.snapshots.edited()
+			d.restorePage = nil
 			v := d.nav.current()
 			if e.A == 1 || e.A == 2 {
 				d.popup = notificationPopup{}

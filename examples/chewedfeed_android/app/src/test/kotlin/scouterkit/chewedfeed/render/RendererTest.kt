@@ -73,12 +73,12 @@ class RendererTest {
             val footerTop = l.footerBaseline - l.m.ascent - 5
             for (b in rec.boxes.filter { it.text != null }) when {
                 b.y1 > footerTop -> assertTrue("$c footer $b", b.y0 >= footerTop && b.x1 <= l.w - TEXT_INSET)
-                b.x0 < l.statusX -> assertTrue("$c content $b", b.x1 <= l.statusX - 1)
+                b.x0 < l.statusX -> assertTrue("$c content $b", b.x1 <= l.statusX - 1 - TEXT_INSET) // clear of the divider
                 else -> assertTrue("$c panel $b", b.x1 <= l.w)
             }
             val content = rec.boxes.filter { it.text != null && it.x0 == TEXT_INSET && it.y1 <= footerTop }
             if (popup == null) assertEquals("$c rows", l.rows + 1, content.size)
-            else assertTrue("$c popup rows ${content.size}", content.size in 2..l.rows + l.bodyStart)
+            else assertTrue("$c popup rows ${content.size}", content.size in 2..1 + minOf(POPUP_LINES, l.rows + l.bodyStart - 1))
             if (popup != null) assertTrue(rec.texts.none { it.startsWith("Ünïcödé") && it == content[0].text })
         }
     }

@@ -39,6 +39,7 @@ val STATUS_ICONS: Map<String, List<String>> = mapOf(
 
 const val TEXT_INSET = 4
 const val LOW_BATTERY_AT = 20
+const val POPUP_LINES = 3 // a notification popup: the app, then at most this many lines (all of it in the Notifications view)
 private const val FETCH_GAP = 10 // px between the mode icon and the fetch time
 
 private fun iconScale(m: FontMetrics) = maxOf(0.1, (m.ascent + m.descent) / 11.0)
@@ -58,6 +59,7 @@ class Layout(vw: Int, vh: Int, dx: Int, scale: Double, val m: FontMetrics, measu
     val y = (vh - h) / 2
     val statusW: Int
     val contentW: Int
+    val textW: Int // what content text may use: TEXT_INSET clear of both the left edge and the status divider
     val statusX: Int
     val footerBaseline = m.ascent + ((h / m.lineSpacing) - 1 - 2) * m.lineSpacing - 80
     val bodyStart = if (scale == 2.0) 2 else 1
@@ -69,6 +71,7 @@ class Layout(vw: Int, vh: Int, dx: Int, scale: Double, val m: FontMetrics, measu
             maxOf(measure(" 100%"), measure(" 20% ") + iconSize("warning", m).first) // "100%", or low "20%" with its warning
         statusW = maxOf(90, w / 7, fetchW, batteryW)
         contentW = maxOf(1, w - statusW - 1)
+        textW = maxOf(1, contentW - 2 * TEXT_INSET)
         statusX = contentW + 1
         rows = maxOf(1, (footerBaseline - m.ascent - 8 - m.ascent - m.descent) / m.lineSpacing - bodyStart + 1)
     }
@@ -105,13 +108,13 @@ class Renderer(private val s: Surface, val layout: Layout) {
     fun render(page: Page, index: Int, total: Int, paused: Boolean, popup: Notification?, batteries: Batteries, footer: (Int) -> String) {
         val l = layout
         s.fill(0, 0, l.w, l.h, 0)
-        fun line(text: String, n: Int) = s.text(fitLine(text, l.contentW - TEXT_INSET, s::measure), TEXT_INSET, m.ascent + n * m.lineSpacing, 255)
+        fun line(text: String, n: Int) = s.text(fitLine(text, l.textW, s::measure), TEXT_INSET, m.ascent + n * m.lineSpacing, 255)
         if (popup == null) {
             line(page.title, 0)
             page.lines.take(l.rows).forEachIndexed { i, text -> line(text, i + l.bodyStart) }
         } else {
             line(popup.app.ifEmpty { "Notification" }, 0)
-            notificationLines(popup, l.contentW - TEXT_INSET, l.rows + l.bodyStart - 1, s::measure).forEachIndexed { i, text -> line(text, i + 1) }
+            notificationLines(popup, l.textW, minOf(POPUP_LINES, l.rows + l.bodyStart - 1), s::measure).forEachIndexed { i, text -> line(text, i + 1) }
         }
         statusPanel(paused, page.status, batteries)
         navigationRow(index, total, footer)

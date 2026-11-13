@@ -19,6 +19,9 @@ import android.widget.ScrollView
 import android.widget.TextView
 import scouterkit.chewedfeed.bluetooth.PairFinder
 import scouterkit.chewedfeed.bluetooth.PairScan
+import scouterkit.chewedfeed.service.GlassesCompanion
+import scouterkit.chewedfeed.service.GlassesService
+import scouterkit.chewedfeed.service.Phase
 
 // Glasses setup: permission and Bluetooth state, scanning for pairs by their pair record and pairing the chosen
 // one on the user's tap (the glasses in the open case), and the alignment calibration. Works, and says what is
@@ -43,6 +46,8 @@ class SetupActivity : Activity() {
         list.addView(paired)
         list.addView(Button(this).apply { setText(R.string.scan_glasses); setOnClickListener { scanPairs() } })
         list.addView(Button(this).apply { setText(R.string.forget_glasses); setOnClickListener { forget() } })
+        list.addView(companion)
+        list.addView(Button(this).apply { setText(R.string.companion_set_up); setOnClickListener { associate() } })
         list.addView(Button(this).apply {
             setText(R.string.calibrate)
             setOnClickListener { startActivity(Intent(this@SetupActivity, CalibrationActivity::class.java)) }
@@ -53,6 +58,37 @@ class SetupActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
+        showPaired()
+    }
+
+    private val companion by lazy { TextView(this) }
+    private var resumeService = false
+
+    // Companion association (optional): the left arm must be advertising, so the connection pauses meanwhile.
+    private fun associate() {
+        val saved = Pairing.saved(this) ?: return show(getString(R.string.setup_none))
+        if (GlassesService.State.phase != Phase.STOPPED) {
+            resumeService = true
+            GlassesService.stop(this)
+        }
+        show(getString(R.string.companion_waiting))
+        GlassesCompanion.associate(this, saved.first) { error -> if (error != null) finishAssociation(error) }
+    }
+
+    @Deprecated("Activity result of the companion dialog")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (requestCode != GlassesCompanion.REQUEST) return
+        val saved = Pairing.saved(this)
+        finishAssociation(when {
+            resultCode != RESULT_OK || saved == null -> getString(R.string.companion_cancelled)
+            else -> GlassesCompanion.observe(this, saved.first)
+        })
+    }
+
+    private fun finishAssociation(error: String?) {
+        show(if (error == null) getString(R.string.companion_done) else getString(R.string.companion_failed, error))
+        if (resumeService) GlassesService.start(this)
+        resumeService = false
         showPaired()
     }
 
@@ -86,6 +122,7 @@ class SetupActivity : Activity() {
                 if (saved.first in bonded && saved.second in bonded) getString(R.string.setup_paired) else getString(R.string.setup_unpaired)
             }
         }
+        companion.setText(if (saved != null && GlassesCompanion.associated(this, saved.first)) R.string.companion_on else R.string.companion_off)
     }
 
     private fun scanPairs() {
@@ -155,6 +192,7 @@ class SetupActivity : Activity() {
 
     // Forgets the saved pair here; unpairing itself is in Android's Bluetooth settings.
     private fun forget() {
+        Pairing.saved(this)?.let { GlassesCompanion.forget(this, it.first) }
         Pairing.forget(this)
         showPaired()
         show(getString(R.string.setup_forgotten))

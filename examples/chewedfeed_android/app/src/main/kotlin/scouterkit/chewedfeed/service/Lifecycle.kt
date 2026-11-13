@@ -75,6 +75,14 @@ class Lifecycle(private val a: LifecycleActions, private val maxAttempts: Int = 
         evaluate()
     }
 
+    // The glasses came into range (Companion Device Manager presence): a waiting retry or a given-up connect is
+    // tried again now. Nothing else changes: stopped, standby and blocked stay as they are.
+    fun present() {
+        if (phase != Phase.RETRY_WAIT && phase != Phase.FAILED) return
+        failures = 0
+        evaluate(force = true)
+    }
+
     fun connected(attempt: Long) {
         if (attempt != this.attempt || phase != Phase.CONNECTING) return
         failures = 0

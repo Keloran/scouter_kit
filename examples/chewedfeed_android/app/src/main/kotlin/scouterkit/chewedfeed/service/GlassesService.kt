@@ -91,10 +91,22 @@ class GlassesService : Service(), LifecycleActions {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_STOP -> lifecycle.userStop()
+            ACTION_PRESENT -> if (enterForeground()) { // the glasses came into range (GlassesPresence)
+                if (lifecycle.phase == Phase.STOPPED) lifecycle.restored(prefs().getBoolean("wanted", false))
+                refresh()
+                reconcile()
+                main.post { lifecycle.present() }
+            } else {
+                stopSelf()
+                return START_NOT_STICKY
+            }
             ACTION_START -> if (enterForeground()) {
                 lifecycle.userStart()
                 refresh()
                 reconcile()
+            } else if (!foreground) {
+                stopSelf()
+                return START_NOT_STICKY
             }
             else -> { // a sticky restart: only what was saved
                 val wanted = prefs().getBoolean("wanted", false)
@@ -346,12 +358,14 @@ class GlassesService : Service(), LifecycleActions {
     companion object {
         const val ACTION_START = "scouterkit.chewedfeed.START"
         const val ACTION_STOP = "scouterkit.chewedfeed.STOP"
+        const val ACTION_PRESENT = "scouterkit.chewedfeed.PRESENT"
         private const val CHANNEL = "glasses"
         private const val NOTIFICATION = 1
         private const val TICK_MS = 500L // the desktop's head-angle interval
         private val RECEIVED = DateTimeFormatter.ofPattern("HH:mm")
 
         fun start(c: Context) = c.startForegroundService(Intent(c, GlassesService::class.java).setAction(ACTION_START))
+        fun present(c: Context) = c.startForegroundService(Intent(c, GlassesService::class.java).setAction(ACTION_PRESENT))
         fun stop(c: Context) = c.startService(Intent(c, GlassesService::class.java).setAction(ACTION_STOP))
     }
 }

@@ -103,6 +103,8 @@
     <string name="laptop_enrolled">Laptop paired. Code %1$s: the laptop shows the same.</string>
     <string name="laptop_forgotten">Laptop forgotten: it can no longer connect</string>
     <string name="laptop_rotated">New phone key: pair the laptop again</string>
+    <string name="phone_address">For the laptop (this phone on this Wi-Fi): %1$s</string>
+    <string name="phone_address_none">For the laptop: connect this phone to the same Wi-Fi as the laptop</string>
     <string name="save">Save</string>
     <string name="saved">Saved: used the next time the glasses connect</string>
 </resources>

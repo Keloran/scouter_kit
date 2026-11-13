@@ -21,6 +21,7 @@ import scouterkit.chewedfeed.bluetooth.PairFinder
 import scouterkit.chewedfeed.bluetooth.PairScan
 import scouterkit.chewedfeed.handover.AndroidPeers
 import scouterkit.chewedfeed.handover.Enroller
+import scouterkit.chewedfeed.handover.PhoneAddress
 import scouterkit.chewedfeed.handover.Peer
 import scouterkit.chewedfeed.handover.PeerServer
 import scouterkit.chewedfeed.service.GlassesCompanion
@@ -94,8 +95,8 @@ class SetupActivity : Activity() {
     // Listens for the laptop and shows a single-use invitation for this phone's Wi-Fi address(es), valid 5 minutes.
     private fun pairLaptop() {
         stopPairing()
-        val addresses = lanAddresses()
-        if (addresses.isEmpty()) return show(getString(R.string.laptop_no_network))
+        val endpoints = PhoneAddress.endpoints(this)
+        if (endpoints.isEmpty()) return show(getString(R.string.laptop_no_network))
         hub.onEnrolled = { peer, code -> main.post { paired(peer, code) } }
         try {
             hub.open("pairing") // shared with the glasses service's listener
@@ -104,7 +105,7 @@ class SetupActivity : Activity() {
             return show(getString(R.string.laptop_listen_failed, x.message))
         }
         pairing = true
-        val inv = hub.enroller.invite("phone", addresses.map { "$it:${PeerServer.DEFAULT_PORT}" })
+        val inv = hub.enroller.invite("phone", endpoints)
         window.addFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE) // no screenshots while the secret shows
         invitationText.text = inv.encode()
         invitationText.visibility = android.view.View.VISIBLE
@@ -148,16 +149,6 @@ class SetupActivity : Activity() {
         show(getString(R.string.laptop_rotated))
     }
 
-    // This phone's IPv4 addresses on its current network (Wi-Fi or Ethernet; not cellular, where the laptop
-    // cannot reach it).
-    private fun lanAddresses(): List<String> {
-        val cm = getSystemService(android.net.ConnectivityManager::class.java)
-        val net = cm.activeNetwork ?: return emptyList()
-        val caps = cm.getNetworkCapabilities(net) ?: return emptyList()
-        if (!caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI) && !caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_ETHERNET)) return emptyList()
-        return cm.getLinkProperties(net)?.linkAddresses.orEmpty().map { it.address }
-            .filter { it is java.net.Inet4Address && !it.isLoopbackAddress }.mapNotNull { it.hostAddress }
-    }
 
     override fun onResume() {
         super.onResume()

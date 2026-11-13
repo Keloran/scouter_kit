@@ -14,6 +14,7 @@ import android.widget.RadioButton
 import android.widget.RadioGroup
 import android.widget.ScrollView
 import android.widget.TextView
+import scouterkit.chewedfeed.handover.PhoneAddress
 import scouterkit.chewedfeed.service.GlassesService
 import scouterkit.chewedfeed.service.Holder
 import scouterkit.chewedfeed.service.Progress
@@ -83,6 +84,7 @@ class MainActivity : Activity() {
                     }
                 })
                 addView(laptop)
+                addView(address)
                 addView(battery)
                 addView(Button(this@MainActivity).apply {
                     setText(R.string.battery_settings)
@@ -108,6 +110,7 @@ class MainActivity : Activity() {
     private val service by lazy { TextView(this) }
     private val holder by lazy { TextView(this).apply { textSize = 18f } }
     private val laptop by lazy { TextView(this) }
+    private val address by lazy { TextView(this).apply { setTextIsSelectable(true) } }
     private var requested = false
     private val battery by lazy { TextView(this) }
 
@@ -134,6 +137,10 @@ class MainActivity : Activity() {
             Holder.UNKNOWN -> R.string.holder_unknown
             Holder.NOBODY -> R.string.holder_nobody
         })
+        // What to give the laptop's chewedfeed (-peer-endpoint), on this network.
+        val endpoints = PhoneAddress.endpoints(this)
+        address.text = if (endpoints.isEmpty()) getString(R.string.phone_address_none)
+            else getString(R.string.phone_address, endpoints.joinToString("  ") { "-peer-endpoint $it" })
         laptop.setText(when (st.laptop) {
             "connected" -> R.string.laptop_link_connected
             "unreachable" -> R.string.laptop_link_unreachable

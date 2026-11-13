@@ -10,8 +10,10 @@
 // on the right and backward on the left; right triple tap: pause rotation;
 // AI usage reads the existing local ai-usagebar cache.
 // Desktop notifications temporarily replace the page for five seconds.
-// Without the host (link lost, or after it exits) the arms show "Not connected"
-// with their batteries and the time, kept up to date by a program on each arm.
+// Without the host (link lost, released, or after it exits) the arms show "Not
+// connected" with their batteries and the time, kept up to date by a program on
+// each arm. When every arm stays unreachable the dashboard releases the glasses
+// and keeps trying to connect again; its data and page stay as they were.
 // -preview prints one snapshot without initializing Bluetooth or the glasses.
 package main
 
@@ -202,7 +204,7 @@ type screen struct {
 	statusX        int
 	statusW        int
 	rows           int
-	status         musicStatus
+	status         *musicStatus // the dashboard's; outlives the screen
 }
 
 const (
@@ -251,7 +253,7 @@ func newScreenScale(cfg scouterkit.Config, scale float64) (*screen, error) {
 	return &screen{font: f, footerFont: footer, footerBaseline: footerBaseline, bodyStart: bodyStart,
 		bitmap: b, x: max(max(cfg.DX, -cfg.DX)+8, (vw-w)/2), y: (vh - h) / 2, w: w, h: h,
 		contentW: contentW, statusX: contentW + 1, statusW: statusW,
-		rows: max(1, rows)}, nil
+		rows: max(1, rows), status: &musicStatus{}}, nil
 }
 
 func (s *screen) measure(text string) int { return s.font.Measure(text).Width }
@@ -317,74 +319,143 @@ func (s *screen) render(p page, index, total int, paused bool, popup *notificati
 }
 
 func display(ctx context.Context, f demo.Flags, o options, c *client) error {
+	return dashboard(ctx, &glassesHost{f: f, o: o}, o, c, nil)
+}
+
+// hostCommand asks the dashboard to release the glasses (release) or acquire
+// them again; the outcome goes to done. The release is complete (workers
+// joined, Deinit returned) before done receives.
+type hostCommand struct {
+	release bool
+	done    chan<- error
+}
+
+// Link checks, and reconnects after an unexpected loss (handover contract:
+// retry 5 s, doubling to 60 s). Variables for the tests.
+var (
+	hostLinkCheck  = 10 * time.Second
+	reconnectFirst = 5 * time.Second
+	reconnectMax   = 60 * time.Second
+)
+
+// dashState is the dashboard without the glasses: its data, navigation,
+// notification history and music line survive sessions. s is the current
+// session (nil while released); pages are formatted for its screen.
+type dashState struct {
+	nav      navigation
+	history  notificationHistory
+	notesOff []page        // the listener is unavailable or disabled: shown instead of the history
+	sites    *snapshot     // the last API data; nil until the first fetch
+	system   *systemUpdate // the last sample; nil until the first one
+	music    musicStatus
+	popup    notificationPopup
+	s        *glassesSession
+}
+
+// attach formats every view for a new session's screen and paints it in full
+// (the session's compositor starts empty).
+func (d *dashState) attach(s *glassesSession) {
+	d.s = s
+	scr := s.screen
+	scr.status = &d.music
+	if d.sites != nil {
+		d.nav.replace(viewSites, makePages(*d.sites, scr.contentW-textInset, scr.rows, scr.measure))
+	}
+	if d.system != nil {
+		d.nav.replace(viewSystem, systemPages(*d.system, scr.rows))
+	}
+	d.formatNotes()
+	d.nav.inCase = s.cases.any()
+	d.nav.level = false // no head angle yet: dashboard on
+	if d.nav.visible() {
+		d.render()
+	} else {
+		scr.hide(s.arms)
+	}
+}
+
+func (d *dashState) formatNotes() {
+	if d.notesOff != nil {
+		d.nav.replace(viewNotifications, d.notesOff)
+	} else if d.s != nil {
+		scr := d.s.screen
+		d.nav.replace(viewNotifications, d.history.pages(scr.contentW-textInset, scr.rows, scr.measure))
+	}
+}
+
+func (d *dashState) render() {
+	if d.s == nil || !(d.nav.visible() || d.popup.active() && d.nav.popupVisible()) {
+		return
+	}
+	var note *notification
+	if d.popup.active() {
+		note = &d.popup.note
+	}
+	d.s.screen.renderView(&d.nav, note)
+}
+
+// hide blanks the glasses, if there is a session.
+func (d *dashState) hide() {
+	if d.s != nil {
+		d.s.screen.hide(d.s.arms)
+	}
+}
+
+// dashboard runs until ctx ends. The data workers run for its whole life; the
+// glasses session can be released and acquired again (control, or after every
+// arm stayed unreachable) without losing the data or the selected page.
+func dashboard(ctx context.Context, host *glassesHost, o options, c *client, control <-chan hostCommand) error {
 	started := time.Now()
 	progress("Looking for glasses and connecting over Bluetooth")
-	cfg, arms, err := connectDisplay(f, o)
-	if err != nil {
+	if err := host.Acquire(ctx); err != nil {
+		if ctx.Err() != nil {
+			return nil
+		}
 		return fmt.Errorf("connecting to glasses: %w", err)
 	}
 	defer func() {
-		// The standby program runs on: it shows "Not connected" and the battery once the link is gone.
 		progress("Stopping dashboard; the glasses keep their standby screen")
-		scouterkit.Deinit()
+		host.Release(nil)
 		progress("Stopped")
 	}()
-	if ctx.Err() != nil {
-		return nil
-	}
-	progress("Glasses connected: %d arms (%s)", len(arms), time.Since(started).Round(time.Millisecond))
-	for _, arm := range arms {
+	s := host.current()
+	progress("Glasses connected: %d arms (%s)", len(s.arms), time.Since(started).Round(time.Millisecond))
+	for _, arm := range s.arms {
 		progress("%s arm ready: firmware %s", arm, arm.State().Firmware)
 	}
-	s, err := newScreenScale(cfg, o.fontScale)
-	if err != nil {
-		return err
-	}
-	standbyState, err := installStandby(cfg, s, o.fontScale, arms)
-	if err != nil {
-		return fmt.Errorf("standby program: %w", err)
-	}
-	for _, arm := range arms {
-		progress("Enabling touch controls on %s arm", arm)
-		mask, err := arm.ReportInputs(1<<scouterkit.TriggerTouch | 1<<scouterkit.TriggerCase)
-		if err != nil {
-			return err
-		}
-		if mask&(1<<scouterkit.TriggerTouch) == 0 {
-			progress("%s arm: touch unavailable; use automatic rotation", arm)
-		}
-	}
-	defer func() {
-		for _, arm := range arms {
-			arm.ReportInputs(0)
-		}
-	}()
+
 	loading := []page{{id: "loading", title: "Chewedfeed", lines: []string{"Loading dashboard..."}, status: "Connecting to API"}}
 	ai := aiUsagePages(o.aiUsageDir, nil, time.Now())
 	system := []page{{id: "system/cpu", title: "System monitor", lines: []string{"Sampling laptop activity..."}, status: "Starting"}}
-	s.status.setTitle(currentMusicTitle(ctx), time.Now())
-	nav := newNavigation(loading, ai, system, o.rotate == 0)
-	var history notificationHistory
-	nav.replace(viewNotifications, history.pages(s.contentW-textInset, s.rows, s.measure))
-	cases, err := initialCaseState(arms)
-	if err != nil {
-		return err
-	}
-	nav.inCase = cases.any()
+	d := &dashState{nav: newNavigation(loading, ai, system, o.rotate == 0)}
+	d.music.setTitle(currentMusicTitle(ctx), time.Now())
 	rotation := o.rotate
 	if rotation == 0 {
 		rotation = 12 * time.Second
 	}
-	progress("Sending loading screen to glasses")
-	if nav.visible() {
-		s.renderView(&nav, nil)
-	} else {
-		s.hide(arms)
-	}
-	progress("Started: Sites, AI, Notifications and Stats screens; system refresh every 2s, API refresh every %s, page rotation every %s (paused: %t)", o.refresh, rotation, nav.paused)
-	updates := make(chan snapshot, 1)
+
 	workerCtx, stopWorker := context.WithCancel(ctx)
 	defer stopWorker()
+	var notes <-chan notification
+	var noteErrors <-chan error
+	if o.notifications {
+		var err error
+		notes, noteErrors, err = startNotifications(workerCtx, o.notificationBus)
+		if err != nil {
+			progress("Desktop notifications unavailable: %v", err)
+			d.notesOff = []page{{id: "notifications/empty", title: "Notifications", lines: []string{"Notification listener unavailable"}, status: "Unavailable"}}
+		} else {
+			progress("Desktop notification listener started (5-second popups)")
+		}
+	} else {
+		d.notesOff = []page{{id: "notifications/empty", title: "Notifications", lines: []string{"Notification listening disabled"}, status: "Disabled"}}
+	}
+	progress("Sending loading screen to glasses")
+	d.attach(s)
+	batteryUpdates := s.batteries
+	progress("Started: Sites, AI, Notifications and Stats screens; system refresh every 2s, API refresh every %s, page rotation every %s (paused: %t)", o.refresh, rotation, d.nav.paused)
+
+	updates := make(chan snapshot, 1)
 	musicUpdates := make(chan string, 1)
 	go func() {
 		ticker := time.NewTicker(musicRefresh)
@@ -403,8 +474,6 @@ func display(ctx context.Context, f demo.Flags, o options, c *client) error {
 			}
 		}
 	}()
-	batteryUpdates, stopBatteries := monitorBatteries(workerCtx, arms)
-	defer stopBatteries()
 	statusPath := glassesStatusPath()
 	if statusPath != "" {
 		defer os.Remove(statusPath)
@@ -430,20 +499,6 @@ func display(ctx context.Context, f demo.Flags, o options, c *client) error {
 			}
 		}
 	}()
-	var notes <-chan notification
-	var noteErrors <-chan error
-	var popup notificationPopup
-	if o.notifications {
-		notes, noteErrors, err = startNotifications(workerCtx, o.notificationBus)
-		if err != nil {
-			progress("Desktop notifications unavailable: %v", err)
-			nav.replace(viewNotifications, []page{{id: "notifications/empty", title: "Notifications", lines: []string{"Notification listener unavailable"}, status: "Unavailable"}})
-		} else {
-			progress("Desktop notification listener started (5-second popups)")
-		}
-	} else {
-		nav.replace(viewNotifications, []page{{id: "notifications/empty", title: "Notifications", lines: []string{"Notification listening disabled"}, status: "Disabled"}})
-	}
 	go func() {
 		var previous snapshot
 		for {
@@ -468,29 +523,50 @@ func display(ctx context.Context, f demo.Flags, o options, c *client) error {
 	next := time.Now().Add(rotation)
 	lastWarnings := ""
 	lastClockMinute := time.Now().Format(musicStatusFormat)
-	// ponytail: fixed 10s x 5 checks per arm; exits only when every arm has missed 5 in a row.
-	linkCheck := time.NewTicker(10 * time.Second)
+	// ponytail: 5 checks per arm; all arms missing 5 in a row releases the session.
+	linkCheck := time.NewTicker(hostLinkCheck)
 	defer linkCheck.Stop()
-	missed := make(map[scouterkit.Arm]int)
-	var angleTick <-chan time.Time
-	if len(arms) > 0 {
-		t := time.NewTicker(500 * time.Millisecond)
-		defer t.Stop()
-		angleTick = t.C
-		// A TILT range narrower than ±90 makes the firmware stream every sample; without it,
-		// PITCH read on demand stayed at its first value. Restored on exit (sensor settings
-		// outlive the session).
-		lo := int32(-89)
-		arms[0].SysWrite(scouterkit.PropPitchLo, uint32(lo))
-		defer arms[0].SysWrite(scouterkit.PropPitchLo, uint32(lo-1))
-	}
+	angleTick := time.NewTicker(500 * time.Millisecond)
+	defer angleTick.Stop()
 	lastAngle := ""
+	var retryAt time.Time // reconnect after an unexpected loss; zero: not trying
+	retryDelay := reconnectFirst
+	release := func(lost error) {
+		d.s, batteryUpdates = nil, nil
+		host.Release(lost)
+	}
+	acquire := func() error {
+		if err := host.Acquire(ctx); err != nil {
+			return err
+		}
+		if d.s == nil {
+			d.attach(host.current())
+			batteryUpdates = d.s.batteries
+			next = time.Now().Add(rotation)
+		}
+		return nil
+	}
 	for {
 		redraw := false
 		select {
-		case <-angleTick:
+		case cmd := <-control:
+			var err error
+			if cmd.release {
+				progress("Releasing the glasses")
+				release(nil)
+			} else {
+				progress("Acquiring the glasses")
+				err = acquire()
+			}
+			retryAt, retryDelay = time.Time{}, reconnectFirst
+			cmd.done <- err
+			continue
+		case <-angleTick.C:
+			if d.s == nil || len(d.s.arms) == 0 {
+				continue
+			}
 			// Both arms report the same head angles (VM.md §2).
-			v, err := arms[0].Props(scouterkit.PropPitch, scouterkit.PropRoll)
+			v, err := d.s.arms[0].Props(scouterkit.PropPitch, scouterkit.PropRoll)
 			line := ""
 			switch {
 			case err != nil:
@@ -506,14 +582,14 @@ func display(ctx context.Context, f demo.Flags, o options, c *client) error {
 			}
 			// No reading: keep the dashboard on.
 			level := err == nil && v[0] != scouterkit.Unknown && int32(v[0]) <= int32(o.showAbove) && int32(v[0]) >= int32(o.showBelow)
-			if level == nav.level {
+			if level == d.nav.level {
 				continue
 			}
-			wasVisible := nav.visible()
-			nav.level = level
-			progress("Head level: %t (dashboard shown: %t)", level, nav.visible())
-			if wasVisible && !nav.visible() && !popup.active() {
-				s.hide(arms)
+			wasVisible := d.nav.visible()
+			d.nav.level = level
+			progress("Head level: %t (dashboard shown: %t)", level, d.nav.visible())
+			if wasVisible && !d.nav.visible() && !d.popup.active() {
+				d.hide()
 			}
 			next = time.Now().Add(rotation)
 			redraw = true
@@ -525,13 +601,13 @@ func display(ctx context.Context, f demo.Flags, o options, c *client) error {
 				notes = nil
 				continue
 			}
-			history.add(n, time.Now())
-			nav.replace(viewNotifications, history.pages(s.contentW-textInset, s.rows, s.measure))
-			if nav.selected == viewNotifications {
+			d.history.add(n, time.Now())
+			d.formatNotes()
+			if d.nav.selected == viewNotifications {
 				redraw = true
 			}
-			if nav.visible() || o.alwaysNotes && nav.popupVisible() {
-				popup.show(n, time.Now())
+			if d.s != nil && (d.nav.visible() || o.alwaysNotes && d.nav.popupVisible()) {
+				d.popup.show(n, time.Now())
 				progress("Desktop notification popup (5s)")
 				redraw = true
 			}
@@ -542,21 +618,22 @@ func display(ctx context.Context, f demo.Flags, o options, c *client) error {
 			}
 			progress("Desktop notifications unavailable: %v", err)
 		case ai := <-aiUpdates:
-			nav.replace(viewAI, ai)
-			if nav.selected == viewAI {
+			d.nav.replace(viewAI, ai)
+			if d.nav.selected == viewAI {
 				redraw = true
 			}
 		case title := <-musicUpdates:
-			redraw = s.status.setTitle(title, time.Now())
+			redraw = d.music.setTitle(title, time.Now())
 		case batteries, ok := <-batteryUpdates:
 			if !ok {
 				batteryUpdates = nil
 				continue
 			}
-			if c := batteries.casePct; c != nil && (s.batteries.casePct == nil || *c != *s.batteries.casePct) {
+			scr := d.s.screen
+			if c := batteries.casePct; c != nil && (scr.batteries.casePct == nil || *c != *scr.batteries.casePct) {
 				progress("Case battery: %d%%", *c)
 			}
-			s.batteries = batteries
+			scr.batteries = batteries
 			redraw = true
 			if statusPath != "" {
 				if err := writeGlassesStatus(statusPath, batteries, time.Now()); err != nil {
@@ -568,8 +645,11 @@ func display(ctx context.Context, f demo.Flags, o options, c *client) error {
 				systemUpdates = nil
 				continue
 			}
-			nav.replace(viewSystem, systemPages(data, s.rows))
-			if nav.selected == viewSystem {
+			d.system = &data
+			if d.s != nil {
+				d.nav.replace(viewSystem, systemPages(data, d.s.screen.rows))
+			}
+			if d.nav.selected == viewSystem {
 				redraw = true
 			}
 			message := ""
@@ -585,9 +665,13 @@ func display(ctx context.Context, f demo.Flags, o options, c *client) error {
 				lastSystemError = message
 			}
 		case data := <-updates:
-			nav.replace(viewSites, makePages(data, s.contentW-textInset, s.rows, s.measure))
-			progress("Sites ready: %d pages; page %d selected", len(nav.views[0].pages), nav.views[0].index+1)
-			if nav.selected == viewSites {
+			d.sites = &data
+			if d.s != nil {
+				scr := d.s.screen
+				d.nav.replace(viewSites, makePages(data, scr.contentW-textInset, scr.rows, scr.measure))
+				progress("Sites ready: %d pages; page %d selected", len(d.nav.views[0].pages), d.nav.views[0].index+1)
+			}
+			if d.nav.selected == viewSites {
 				redraw = true
 			}
 			if w := warnings(data); w != lastWarnings {
@@ -599,110 +683,142 @@ func display(ctx context.Context, f demo.Flags, o options, c *client) error {
 				lastWarnings = w
 			}
 		case <-linkCheck.C:
+			if d.s == nil {
+				continue
+			}
 			allDown := true
-			for _, arm := range arms {
+			for _, arm := range d.s.arms {
 				if arm.State().Connected {
-					missed[arm] = 0
+					d.s.missed[arm] = 0
 					allDown = false
 					continue
 				}
-				missed[arm]++
-				progress("%s arm not connected (%d/5)", arm, missed[arm])
-				allDown = allDown && missed[arm] >= 5
+				d.s.missed[arm]++
+				progress("%s arm not connected (%d/5)", arm, d.s.missed[arm])
+				allDown = allDown && d.s.missed[arm] >= 5
 			}
-			if allDown && len(arms) > 0 {
-				return errors.New("all arms not connected for 5 checks; exiting")
+			if allDown && len(d.s.arms) > 0 {
+				lost := errors.New("all arms not connected for 5 checks")
+				progress("%v; releasing the glasses, reconnecting in %s", lost, reconnectFirst)
+				release(lost)
+				retryAt, retryDelay = time.Now().Add(reconnectFirst), reconnectFirst
 			}
 			continue
 		case <-tick.C:
-			for _, arm := range arms {
-				for {
-					e, ok := arm.NextEvent(0)
-					if !ok {
-						break
-					}
-					if e.Type == scouterkit.EventError || e.Type == scouterkit.EventHalt {
-						return fmt.Errorf("%s arm: event %d, code %d", arm, e.Type, e.Code)
-					}
-					if e.Type == scouterkit.EventNotify && e.A == linkNotice {
-						// The program drew its offline face, which the library's mirror does not know.
-						progress("%s arm link back; repainting", arm)
-						syncStandbyClock(arm, standbyState)
-						s.hide(arms) // flushes black, so the next render sends every pixel again
-						redraw = true
+			now := time.Now()
+			if d.s == nil && !retryAt.IsZero() && !now.Before(retryAt) {
+				progress("Reconnecting to the glasses")
+				if err := acquire(); err != nil {
+					if ctx.Err() != nil {
 						continue
 					}
-					if e.Type == scouterkit.EventReset {
-						progress("%s arm session reset; redrawing dashboard", arm)
-						redraw = true
-					}
-					if inCase, ok := caseEvent(e); ok {
-						if cases[arm] == inCase {
-							continue
-						}
-						wasVisible := nav.visible()
-						cases[arm] = inCase
-						nav.inCase = cases.any()
-						progress("%s arm in case: %t", arm, inCase)
-						if !nav.visible() && wasVisible {
-							s.hide(arms)
-							popup = notificationPopup{}
-						}
-						next = time.Now().Add(rotation)
-						redraw = true
-						continue
-					}
-					if e.Type != scouterkit.EventInput || e.Trigger != int(scouterkit.TriggerTouch) {
-						continue
-					}
-					if !nav.touch(e.A, arm == scouterkit.Left) {
-						continue
-					}
-					v := nav.current()
-					if e.A == 1 || e.A == 2 {
-						popup = notificationPopup{}
-					}
-					switch e.A {
-					case 1:
-						progress("%s arm tap: %s page %d/%d", arm, v.name, v.index+1, len(v.pages))
-					case 2:
-						progress("Screen switched to %s, page %d/%d", v.name, v.index+1, len(v.pages))
-					case 3:
-						progress("Page rotation paused: %t", nav.paused)
-					}
-					next = time.Now().Add(rotation)
-					redraw = true
+					retryDelay = min(2*retryDelay, reconnectMax)
+					retryAt = time.Now().Add(retryDelay)
+					progress("Reconnect failed: %v; next try in %s", err, retryDelay)
+				} else {
+					retryAt, retryDelay = time.Time{}, reconnectFirst
+					progress("Glasses reconnected: %d arms", len(d.s.arms))
+				}
+				continue
+			}
+			if d.s != nil {
+				if err := d.events(&redraw, &next, rotation); err != nil {
+					return err
 				}
 			}
-			now := time.Now()
 			if minute := now.Format(musicStatusFormat); minute != lastClockMinute {
 				lastClockMinute = minute
 				redraw = true
 			}
-			statusWidth := s.w - s.footerSplit() - 2*textInset
-			if s.status.advance(now, statusWidth, func(text string) int { return s.footerFont.Measure(text).Width }) {
-				redraw = true
+			if d.s != nil {
+				scr := d.s.screen
+				statusWidth := scr.w - scr.footerSplit() - 2*textInset
+				if d.music.advance(now, statusWidth, func(text string) int { return scr.footerFont.Measure(text).Width }) {
+					redraw = true
+				}
 			}
-			if popup.expire(now) {
+			if d.popup.expire(now) {
 				next = now.Add(rotation)
 				redraw = true
-				if !nav.visible() && nav.popupVisible() {
-					s.hide(arms) // head level: back to off
+				if !d.nav.visible() && d.nav.popupVisible() {
+					d.hide() // head level: back to off
 				}
 				progress("Notification popup ended; dashboard restored")
 			}
-			if !nav.paused && nav.visible() && !popup.active() && now.After(next) {
-				nav.move(1)
+			if !d.nav.paused && d.nav.visible() && !d.popup.active() && now.After(next) {
+				d.nav.move(1)
 				next = time.Now().Add(rotation)
 				redraw = true
 			}
 		}
-		if redraw && (nav.visible() || popup.active() && nav.popupVisible()) {
-			var note *notification
-			if popup.active() {
-				note = &popup.note
-			}
-			s.renderView(&nav, note)
+		if redraw {
+			d.render()
 		}
 	}
+}
+
+// events handles the session's arm events: link back, resets, case changes
+// and touches. An arm's program error or halt is fatal.
+func (d *dashState) events(redraw *bool, next *time.Time, rotation time.Duration) error {
+	s := d.s
+	for _, arm := range s.arms {
+		for {
+			e, ok := arm.NextEvent(0)
+			if !ok {
+				break
+			}
+			if e.Type == scouterkit.EventError || e.Type == scouterkit.EventHalt {
+				return fmt.Errorf("%s arm: event %d, code %d", arm, e.Type, e.Code)
+			}
+			if e.Type == scouterkit.EventNotify && e.A == linkNotice {
+				// The program drew its offline face, which the library's mirror does not know.
+				progress("%s arm link back; repainting", arm)
+				syncStandbyClock(arm, s.standby)
+				s.screen.hide(s.arms) // flushes black, so the next render sends every pixel again
+				*redraw = true
+				continue
+			}
+			if e.Type == scouterkit.EventReset {
+				progress("%s arm session reset; redrawing dashboard", arm)
+				*redraw = true
+			}
+			if inCase, ok := caseEvent(e); ok {
+				if s.cases[arm] == inCase {
+					continue
+				}
+				wasVisible := d.nav.visible()
+				s.cases[arm] = inCase
+				d.nav.inCase = s.cases.any()
+				progress("%s arm in case: %t", arm, inCase)
+				if !d.nav.visible() && wasVisible {
+					s.screen.hide(s.arms)
+					d.popup = notificationPopup{}
+				}
+				*next = time.Now().Add(rotation)
+				*redraw = true
+				continue
+			}
+			if e.Type != scouterkit.EventInput || e.Trigger != int(scouterkit.TriggerTouch) {
+				continue
+			}
+			if !d.nav.touch(e.A, arm == scouterkit.Left) {
+				continue
+			}
+			v := d.nav.current()
+			if e.A == 1 || e.A == 2 {
+				d.popup = notificationPopup{}
+			}
+			switch e.A {
+			case 1:
+				progress("%s arm tap: %s page %d/%d", arm, v.name, v.index+1, len(v.pages))
+			case 2:
+				progress("Screen switched to %s, page %d/%d", v.name, v.index+1, len(v.pages))
+			case 3:
+				progress("Page rotation paused: %t", d.nav.paused)
+			}
+			*next = time.Now().Add(rotation)
+			*redraw = true
+		}
+	}
+	return nil
 }

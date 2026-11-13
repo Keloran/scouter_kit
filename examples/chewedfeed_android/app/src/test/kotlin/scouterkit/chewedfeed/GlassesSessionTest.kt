@@ -31,6 +31,7 @@ private class FakeBridge(var startResult: Long = 7, val startBlocks: CountDownLa
     override fun cancel() { cancels.incrementAndGet() }
     override fun stop() { on(); stops.incrementAndGet(); live = 0 }
     override fun loadFont(generation: Long, scale: Int) = if (generation == live) 0 else -1
+    override fun loadFontBlob(generation: Long, blob: ByteArray) = if (generation == live) 1 else -1
     override fun fontMetrics(generation: Long, font: Int) = if (generation == live) intArrayOf(10, 3, 14) else null
     override fun measure(generation: Long, font: Int, utf8: ByteArray) = if (generation == live) utf8.size * 6 else -1
     override fun canvas(generation: Long, width: Int, height: Int) = generation == live

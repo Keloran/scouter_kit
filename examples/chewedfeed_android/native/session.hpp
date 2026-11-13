@@ -17,6 +17,9 @@ namespace chewedfeed {
 
 constexpr int kUnknown = INT32_MIN; // a value the arm did not report
 
+// The built-in Departure Mono blob (11 px), for scaling on the Kotlin side.
+const std::vector<uint8_t> &DepartureMono();
+
 struct StartConfig {
   std::string left, right; // bonded addresses; "" any bonded G1, "none" leave the arm out
   int dx = 0, dy = 0;      // eye alignment
@@ -76,6 +79,8 @@ public:
 
   // The built-in Departure Mono at an integer scale: a font handle, or -1.
   int LoadFont(uint64_t gen, int scale, std::string *error);
+  // A font blob (font_converter's format, e.g. DepartureMono() resampled to a fractional scale): a handle, or -1.
+  int LoadFontBlob(uint64_t gen, const std::vector<uint8_t> &blob, std::string *error);
   // ascent, descent, line spacing.
   bool FontMetrics(uint64_t gen, int font, int out[3]);
   int Measure(uint64_t gen, int font, std::string_view text); // advance width, -1 on error

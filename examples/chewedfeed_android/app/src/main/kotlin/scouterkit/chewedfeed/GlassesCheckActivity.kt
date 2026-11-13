@@ -14,9 +14,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
-import android.text.InputType
 import android.widget.Button
-import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
@@ -27,6 +25,10 @@ import scouterkit.chewedfeed.bluetooth.HandlerScheduler
 import scouterkit.chewedfeed.bluetooth.NativeEvents
 import scouterkit.chewedfeed.bluetooth.PairFinder
 import scouterkit.chewedfeed.bluetooth.PairScan
+import scouterkit.chewedfeed.dashboard.Page
+import scouterkit.chewedfeed.render.Batteries
+import scouterkit.chewedfeed.render.GlassesScreen
+import scouterkit.chewedfeed.render.MusicStatus
 
 // Hardware check for the glasses link (until setup, CF-45): scan for pairs by their pair record, bond the chosen
 // pair only on the user's tap (the glasses in the open case), connect both arms through the native session and
@@ -42,9 +44,6 @@ class GlassesCheckActivity : Activity() {
     private var link: ArmsLink? = null
     private var watch: BluetoothWatch? = null
     private var session: GlassesSession? = null
-    private lateinit var dxField: EditText
-    private lateinit var dyField: EditText
-    private lateinit var scaleField: EditText
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -58,17 +57,6 @@ class GlassesCheckActivity : Activity() {
         list.addView(Button(this).apply { text = "Scan for glasses (15 s)"; setOnClickListener { scanPairs() } })
         list.addView(Button(this).apply { text = "Connect saved glasses"; setOnClickListener { saved()?.let { start(it.first, it.second) } } })
         list.addView(Button(this).apply { text = "Stop"; setOnClickListener { stopSession() } })
-        // Eye alignment and text size on this phone (the desktop keeps its own: they never transfer).
-        val prefs = getSharedPreferences("glasses", Context.MODE_PRIVATE)
-        fun field(label: String, value: Int) = EditText(this).apply {
-            hint = label
-            inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_SIGNED
-            setText(value.toString())
-        }.also { list.addView(TextView(this).apply { text = label }); list.addView(it) }
-        dxField = field("dx: horizontal eye separation, pixels (-240…240)", prefs.getInt("dx", 0))
-        dyField = field("dy: vertical eye offset, pixels (-120…120)", prefs.getInt("dy", 0))
-        scaleField = field("text scale (1…4)", prefs.getInt("scale", 2))
-        list.addView(Button(this).apply { text = "Save (reconnect to apply)"; setOnClickListener { saveDisplay() } })
         setContentView(ScrollView(this).apply { addView(list) })
         permissions()
     }
@@ -90,24 +78,6 @@ class GlassesCheckActivity : Activity() {
     private fun show(text: String) = main.post {
         state.text = text
         Log.i(TAG, "check: $text")
-    }
-
-    // The display settings as entered, or null (and a message) when one is out of range.
-    private fun display(): Triple<Int, Int, Int>? {
-        val dx = dxField.text.toString().toIntOrNull()
-        val dy = dyField.text.toString().toIntOrNull()
-        val scale = scaleField.text.toString().toIntOrNull()
-        if (dx == null || dx !in -240..240 || dy == null || dy !in -120..120 || scale == null || scale !in 1..4) {
-            show("use dx -240…240, dy -120…120 and text scale 1…4")
-            return null
-        }
-        return Triple(dx, dy, scale)
-    }
-
-    private fun saveDisplay() {
-        val (dx, dy, scale) = display() ?: return
-        getSharedPreferences("glasses", Context.MODE_PRIVATE).edit().putInt("dx", dx).putInt("dy", dy).putInt("scale", scale).apply()
-        show("saved dx $dx, dy $dy, text scale $scale" + if (session != null) ": Stop and connect again to apply" else "")
     }
 
     private fun saved(): Pair<String, String>? {
@@ -166,7 +136,7 @@ class GlassesCheckActivity : Activity() {
 
     private fun start(left: String, right: String) {
         if (!permissions() || session != null) return
-        val (dx, dy, scale) = display() ?: return
+        val (dx, dy, scale) = DisplaySettings.load(this) // Settings screen
         Native.setLog(true)
         val sched = HandlerScheduler()
         val l = ArmsLink(AndroidBleAdapter(this, adapter, sched.looperHandler), arrayOf(left, right), NativeEvents, sched) { s, why ->
@@ -184,13 +154,11 @@ class GlassesCheckActivity : Activity() {
                 is StartOutcome.Ready -> {
                     val st = outcome.status
                     val drawn = s.draw { f ->
-                        val font = f.loadFont(scale)
-                        val m = f.fontMetrics(font) ?: return@draw false
-                        val w2 = minOf(600, st.width - 40)
-                        f.canvas(w2, 160) && f.clear() &&
-                            f.text(font, "Chewedfeed", w2 / 2, m[0] + 20, Frame.ALIGN_CENTER) &&
-                            f.text(font, "phone link OK ✓", w2 / 2, m[0] + 20 + m[2], Frame.ALIGN_CENTER) &&
-                            f.present((st.width - w2) / 2, (st.height - 160) / 2)
+                        // A sample dashboard frame, drawn as the dashboard will be: the configured text scale and offsets.
+                        val screen = GlassesScreen.open(f, st.width, st.height, dx, scale, Native::departureMono) ?: return@draw false
+                        val page = Page("check", "Chewedfeed", listOf("phone link OK ✓", "Text scale $scale, dx $dx, dy $dy"), "Unavailable")
+                        val clock = MusicStatus()
+                        screen.show(page, 0, 1, true, null, Batteries(st.left.battery, st.right.battery), { w -> clock.line(System.currentTimeMillis(), w, screen::measure) })
                     }.get()
                     show("connected (dx $dx, dy $dy, scale $scale): generation ${outcome.generation}, left ${st.left.battery}% right ${st.right.battery}%, " +
                         "in case ${st.left.inCase}/${st.right.inCase}, frame ${if (drawn == true) "drawn" else "FAILED"}")

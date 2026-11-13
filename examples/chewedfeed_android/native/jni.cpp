@@ -152,6 +152,22 @@ JNIEXPORT jint JNICALL Java_scouterkit_chewedfeed_Native_loadFont(JNIEnv *, jcla
   return g_session.LoadFont(Gen(gen), scale, &error);
 }
 
+JNIEXPORT jbyteArray JNICALL Java_scouterkit_chewedfeed_Native_departureMono(JNIEnv *env, jclass) {
+  const auto &blob = chewedfeed::DepartureMono();
+  jbyteArray out = env->NewByteArray(jsize(blob.size()));
+  if (out) env->SetByteArrayRegion(out, 0, jsize(blob.size()), reinterpret_cast<const jbyte *>(blob.data()));
+  return out;
+}
+
+JNIEXPORT jint JNICALL Java_scouterkit_chewedfeed_Native_loadFontBlob(JNIEnv *env, jclass, jlong gen, jbyteArray blob) {
+  if (!blob) return -1;
+  std::vector<uint8_t> bytes(static_cast<size_t>(env->GetArrayLength(blob)));
+  env->GetByteArrayRegion(blob, 0, jsize(bytes.size()), reinterpret_cast<jbyte *>(bytes.data()));
+  if (env->ExceptionCheck()) return -1;
+  std::string error;
+  return g_session.LoadFontBlob(Gen(gen), bytes, &error);
+}
+
 JNIEXPORT jintArray JNICALL Java_scouterkit_chewedfeed_Native_fontMetrics(JNIEnv *env, jclass, jlong gen, jint font) {
   int m[3];
   if (!g_session.FontMetrics(Gen(gen), font, m)) return nullptr;

@@ -62,6 +62,13 @@ static void Draw(Session &s, uint64_t gen) {
   int m[3];
   CHECK(s.FontMetrics(gen, font, m) && m[2] > 0);
   CHECK(s.Measure(gen, font, "Hello") > 0);
+  // A blob from Kotlin (fractional scales): the built-in one loads; a damaged one does not.
+  const auto &blob = chewedfeed::DepartureMono();
+  int scaled = s.LoadFontBlob(gen, blob, &err);
+  int sm[3];
+  CHECK(scaled >= 0 && s.FontMetrics(gen, scaled, sm) && sm[2] > 0 && s.Measure(gen, scaled, "Hello 世界") > 0);
+  CHECK(s.LoadFontBlob(gen, std::vector<uint8_t>(blob.begin(), blob.begin() + 100), &err) < 0);
+  CHECK(s.LoadFontBlob(gen, {}, &err) < 0);
   CHECK(s.Canvas(gen, 400, 200));
   CHECK(s.Clear(gen, 0));
   CHECK(s.Fill(gen, 0, 150, 400, 2, 153));
@@ -93,6 +100,7 @@ int main() {
     CHECK(Eventually([] { return PanelPower(0) == 1 && PanelPower(1) == 1 && Lit(0) > 0 && Lit(1) > 0; }));
     // A stale generation does nothing.
     CHECK(!s.Present(last, 0, 0) && !s.Blank(last) && s.LoadFont(last, 1, nullptr) < 0);
+    CHECK(s.LoadFontBlob(last, chewedfeed::DepartureMono(), nullptr) < 0);
     CHECK(s.GetStatus(last).generation == 0 && s.Events(last, 10).empty());
     CHECK(s.Blank(r.generation));
     CHECK(Eventually([] { return PanelPower(0) == 0 && PanelPower(1) == 0; }));

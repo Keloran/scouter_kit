@@ -3,7 +3,7 @@ package scouterkit.chewedfeed
 // libchewedfeed.so (native/jni.cpp). Use it through GlassesSession, which keeps every call off the UI thread.
 object Native {
     // native/boundary.hpp kAbiVersion: checked at start so a stale library fails loudly.
-    const val ABI_VERSION = 2
+    const val ABI_VERSION = 3
 
     init {
         System.loadLibrary("chewedfeed")
@@ -25,6 +25,9 @@ object Native {
     @JvmStatic external fun stop()
 
     @JvmStatic external fun loadFont(generation: Long, scale: Int): Int
+    // The built-in Departure Mono blob (scaled in Kotlin for fractional sizes), and loading such a blob.
+    @JvmStatic external fun departureMono(): ByteArray
+    @JvmStatic external fun loadFontBlob(generation: Long, blob: ByteArray): Int
     @JvmStatic external fun fontMetrics(generation: Long, font: Int): IntArray?
     @JvmStatic external fun measure(generation: Long, font: Int, utf8: ByteArray): Int
     @JvmStatic external fun canvas(generation: Long, width: Int, height: Int): Boolean

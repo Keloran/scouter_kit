@@ -76,7 +76,8 @@ enum {
   SK_G1_ERROR_BLUETOOTH,
   SK_G1_ERROR_NO_G1_FOUND,
   SK_G1_ERROR_BONDING,
-  SK_G1_ERROR_FIRMWARE
+  SK_G1_ERROR_FIRMWARE,
+  SK_G1_ERROR_CANCELLED
 };
 enum { SK_G1_MODE_COPY, SK_G1_MODE_MAX, SK_G1_MODE_MASK, SK_G1_MODE_ERASE };
 /* Triggers, properties and opcodes are the numbers of VM.md (§5.2, §2.5,
@@ -115,6 +116,17 @@ typedef struct {
 } sk_g1_config;
 int sk_g1_init_config(const sk_g1_config *config, char *error,
                       size_t error_size);
+/* One-shot, session-bound cancellation; clones share the signal. cancel is
+   thread-safe, free requires no concurrent use of that particular handle.
+   Cancelled work fails; deinit still joins cleanup and invalidates handles. */
+typedef struct sk_g1_cancellation sk_g1_cancellation;
+sk_g1_cancellation *sk_g1_cancellation_new(void);
+sk_g1_cancellation *sk_g1_cancellation_clone(const sk_g1_cancellation *token);
+void sk_g1_cancellation_cancel(sk_g1_cancellation *token);
+int sk_g1_cancellation_cancelled(const sk_g1_cancellation *token);
+void sk_g1_cancellation_free(sk_g1_cancellation *token);
+int sk_g1_init_cancelable(const sk_g1_config *config, const sk_g1_cancellation *token,
+                          char *error, size_t error_size);
 void sk_g1_deinit(void);
 int64_t sk_g1_now_us(void);
 

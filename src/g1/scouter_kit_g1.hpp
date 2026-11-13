@@ -1,9 +1,11 @@
 #pragma once
 
 #include <array>
+#include <atomic>
 #include <compare>
 #include <cstdint>
 #include <initializer_list>
+#include <memory>
 #include <span>
 #include <string>
 #include <string_view>
@@ -555,6 +557,7 @@ enum InitError {
   ERROR_G1_BONDING_ERROR,
   // The arms answered but do not run the scouter firmware (protocol 5).
   ERROR_G1_FIRMWARE,
+  ERROR_CANCELLED,
 };
 
 // The Bluetooth link to both arms (service f3da4d59-…4400). Everything runs
@@ -596,6 +599,21 @@ public:
 // & returns once ready. Error message helps with the retry.
 InitError Init(GrayConfig * = nullptr, std::string *error_message = nullptr,
                const Connection * = nullptr);
+// A one-shot signal bound to one Init/session. Copies share the signal; old
+// tokens never refer to a later session. Cancel is safe from any thread.
+class Cancellation {
+public:
+  Cancellation();
+  void Cancel() const;
+  bool Cancelled() const;
+private:
+  std::shared_ptr<std::atomic<bool>> cancelled_;
+};
+// Cancellation fails pending calls and stops the transport between callbacks.
+// Transport callbacks must return promptly (Poll within its requested bound).
+// Call Deinit after cancellation to join cleanup and release native handles.
+InitError InitCancelable(const Cancellation &, GrayConfig * = nullptr,
+                        std::string *error_message = nullptr, const Connection * = nullptr);
 void Deinit();
 
 // Host clock used with device times (steady clock, µs).

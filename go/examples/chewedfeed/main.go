@@ -336,9 +336,10 @@ func display(ctx context.Context, f demo.Flags, o options, c *client) error {
 // them again; the outcome goes to done. The release is complete (workers
 // joined, Deinit returned) before done receives.
 type hostCommand struct {
-	release bool
-	done    chan<- error
-	ctx     context.Context
+	release      bool
+	done         chan<- error
+	ctx          context.Context
+	cancellation *scouterkit.Cancellation
 }
 
 // Link checks, and reconnects after an unexpected loss (handover contract:
@@ -578,8 +579,14 @@ func dashboard(ctx context.Context, host *glassesHost, o options, c *client, con
 		d.s, batteryUpdates = nil, nil
 		host.Release(lost)
 	}
-	acquire := func(acquireCtx context.Context) error {
-		if err := host.Acquire(acquireCtx); err != nil {
+	acquire := func(acquireCtx context.Context, token *scouterkit.Cancellation) error {
+		var err error
+		if token == nil {
+			err = host.Acquire(acquireCtx)
+		} else {
+			err = host.acquireWithCancellation(acquireCtx, token)
+		}
+		if err != nil {
 			return err
 		}
 		if o.managed && !host.bothConnected() {
@@ -611,7 +618,7 @@ func dashboard(ctx context.Context, host *glassesHost, o options, c *client, con
 				if acquireCtx == nil {
 					acquireCtx = ctx
 				}
-				err = acquire(acquireCtx)
+				err = acquire(acquireCtx, cmd.cancellation)
 			}
 			retryAt, retryDelay = time.Time{}, reconnectFirst
 			cmd.done <- err
@@ -770,7 +777,7 @@ func dashboard(ctx context.Context, host *glassesHost, o options, c *client, con
 			now := time.Now()
 			if d.s == nil && !retryAt.IsZero() && !now.Before(retryAt) {
 				progress("Reconnecting to the glasses")
-				if err := acquire(ctx); err != nil {
+				if err := acquire(ctx, nil); err != nil {
 					if ctx.Err() != nil {
 						continue
 					}

@@ -192,6 +192,20 @@ int main(void) {
   sk_g1_get_state(1, &state);
   CHECK(!state.present);
   sk_g1_deinit();
+  /* Clones share one signal, retain it independently, and never target a later Init. */
+  sk_g1_cancellation *cancel = sk_g1_cancellation_new();
+  sk_g1_cancellation *copy = sk_g1_cancellation_clone(cancel);
+  CHECK(cancel != NULL && copy != NULL && !sk_g1_cancellation_cancelled(copy));
+  sk_g1_cancellation_free(cancel);
+  sk_g1_cancellation_cancel(copy);
+  CHECK(sk_g1_cancellation_cancelled(copy));
+  CHECK(sk_g1_init_cancelable(&config, copy, error, sizeof error) == SK_G1_ERROR_CANCELLED);
+  CHECK(sk_g1_init_config(&config, error, sizeof error) == SK_G1_ERROR_NONE);
+  sk_g1_cancellation_cancel(copy);
+  sk_g1_get_state(0, &state);
+  CHECK(state.connected);
+  sk_g1_deinit();
+  sk_g1_cancellation_free(copy);
   printf("%s (%d failures)\n", failures ? "FAILED" : "C test passed", failures);
   return failures ? 1 : 0;
 }

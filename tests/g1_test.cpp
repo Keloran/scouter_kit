@@ -1396,6 +1396,14 @@ static int Threads() {
   return n;
 }
 
+// join has completed, but /proc can briefly retain the exiting kernel task.
+static bool ThreadsReturned(int expected) {
+  auto end = std::chrono::steady_clock::now() + std::chrono::seconds(1);
+  while (Threads() != expected && std::chrono::steady_clock::now() < end)
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  return Threads() == expected;
+}
+
 namespace {
 struct CountingTransport : g1::EmulatorTransport {
   CountingTransport() : g1::EmulatorTransport("") {}
@@ -1426,6 +1434,7 @@ static void TestLifecycle() {
   };
   std::string error;
   std::thread([] {}).join(); // a runtime's helper threads (a sanitizer's) start with the first thread
+  std::this_thread::sleep_for(std::chrono::milliseconds(100)); // let the dummy's kernel task retire
   int base = Threads();
   for (int cycle = 0; cycle < 5; cycle++) {
     CHECK(g1::Init(nullptr, &error) == g1::ERROR_NONE);
@@ -1439,7 +1448,7 @@ static void TestLifecycle() {
     CHECK(g1::left.Prop(g1::PROP_PANEL, &v) && g1::right.GetState().connected);
     g1::Deinit();
     g1::Deinit(); // idempotent
-    CHECK(Threads() == base);
+    CHECK(ThreadsReturned(base));
     auto t0 = clock::now();
     g1::Event e;
     CHECK(!g1::left.Prop(g1::PROP_PANEL, &v) && !g1::left.NextEvent(&e, 2000) && !g1::right.Stop());
@@ -1451,7 +1460,7 @@ static void TestLifecycle() {
   g1::Connection bad;
   bad.adapter = "hci7";
   for (int i = 0; i < 3; i++) CHECK(g1::Init(nullptr, &error, &bad) == g1::ERROR_BLUETOOTH_ERROR);
-  CHECK(Threads() == base);
+  CHECK(ThreadsReturned(base));
   g1::Connection one;
   one.left = "none";
   for (int i = 0; i < 2; i++) {
@@ -1459,7 +1468,7 @@ static void TestLifecycle() {
     CHECK(!g1::left.GetState().present && g1::right.GetState().connected);
     g1::Deinit();
   }
-  CHECK(Threads() == base);
+  CHECK(ThreadsReturned(base));
 
   // After Deinit the application's transport sees nothing from the old session: no write, poll or reconnect.
   auto own = std::make_unique<CountingTransport>();
@@ -1516,7 +1525,7 @@ static void TestLifecycle() {
     auto t1 = clock::now();
     for (auto &t : users) t.join();
     CHECK(ended == 4 && ms(t1) < 1000);
-    CHECK(Threads() == base);
+    CHECK(ThreadsReturned(base));
   }
 }
 

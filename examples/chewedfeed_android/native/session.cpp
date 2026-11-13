@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cstdio>
+#include <thread>
 
 namespace g1 = scouter_kit::g1;
 namespace sk = scouter_kit;
@@ -18,6 +19,27 @@ g1::Arm &ArmAt(int i) { return i == 0 ? g1::left : g1::right; }
 
 int Value(uint32_t v) { return v == g1::UNKNOWN ? kUnknown : int(int32_t(v)); }
 
+// Bind the fallback to this session's signal, never to a global current session.
+// Join the timer before Stop returns, even when graceful cleanup wins the race.
+class StopDeadline {
+public:
+  explicit StopDeadline(std::optional<g1::Cancellation> token) : worker_([this, token] {
+    std::unique_lock<std::mutex> lock(mutex_);
+    if (!ended_.wait_for(lock, std::chrono::milliseconds(500), [&] { return done_; }) && token)
+      token->Cancel();
+  }) {}
+  ~StopDeadline() {
+    { std::lock_guard<std::mutex> lock(mutex_); done_ = true; }
+    ended_.notify_all();
+    worker_.join();
+  }
+private:
+  std::mutex mutex_;
+  std::condition_variable ended_;
+  bool done_ = false;
+  std::thread worker_;
+};
+
 bool g_trace = false; // the start's log: each step and how long it took (stderr)
 
 void Step(const char *what, std::chrono::steady_clock::time_point &t) {
@@ -31,12 +53,17 @@ void Step(const char *what, std::chrono::steady_clock::time_point &t) {
 } // namespace
 
 StartResult Session::Start(const StartConfig &config, g1::Transport *transport, std::function<void()> on_cancel) {
+  g1::Cancellation token;
   {
     std::lock_guard<std::mutex> lock(mutex_);
     if (starting_ || generation_ != 0) return {0, kBusy, "a session is already running"};
+    {
+      std::lock_guard<std::mutex> guard(cancellation_mutex_);
+      cancellation_ = token;
+      pending_ = true;
+      on_cancel_ = std::move(on_cancel);
+    }
     starting_ = true;
-    cancel_ = false;
-    on_cancel_ = std::move(on_cancel);
   }
   g1::GrayConfig gray{config.dx, config.dy};
   g1::Connection connection;
@@ -48,14 +75,15 @@ StartResult Session::Start(const StartConfig &config, g1::Transport *transport, 
   std::string error;
   g_trace = config.log;
   auto t = std::chrono::steady_clock::now();
-  g1::InitError e = g1::Init(&gray, &error, &connection);
+  g1::InitError e = g1::InitCancelable(token, &gray, &error, &connection);
   Step("Init returned", t);
 
   std::unique_lock<std::mutex> lock(mutex_);
   StartResult result;
   if (e != g1::ERROR_NONE) {
-    result = {0, cancel_ ? kCancelled : int(e), cancel_ ? "cancelled" : error};
-  } else if (cancel_) {
+    bool cancelled = token.Cancelled();
+    result = {0, cancelled ? kCancelled : int(e), cancelled ? "cancelled" : error};
+  } else if (token.Cancelled()) {
     g1::Deinit();
     result = {0, kCancelled, "cancelled"};
   } else {
@@ -74,11 +102,21 @@ StartResult Session::Start(const StartConfig &config, g1::Transport *transport, 
       ArmAt(i).SetBrightness(std::clamp(config.brightness, 0, 42));
       Step(i ? "right: brightness" : "left: brightness", t);
     }
-    generation_ = ++last_generation_;
-    result = {generation_, 0, {}};
+    if (token.Cancelled()) {
+      g1::Deinit();
+      result = {0, kCancelled, "cancelled"};
+    } else {
+      generation_ = ++last_generation_;
+      result = {generation_, 0, {}};
+    }
+  }
+  {
+    std::lock_guard<std::mutex> guard(cancellation_mutex_);
+    pending_ = false;
+    on_cancel_ = nullptr;
+    if (!result.generation) cancellation_.reset();
   }
   starting_ = false;
-  on_cancel_ = nullptr;
   idle_.notify_all();
   return result;
 }
@@ -86,19 +124,29 @@ StartResult Session::Start(const StartConfig &config, g1::Transport *transport, 
 void Session::Cancel() {
   std::function<void()> hook;
   {
-    std::lock_guard<std::mutex> lock(mutex_);
-    if (!starting_) return;
-    cancel_ = true;
+    std::lock_guard<std::mutex> guard(cancellation_mutex_);
+    if (!pending_) return;
+    if (cancellation_) cancellation_->Cancel();
     hook = on_cancel_;
   }
   if (hook) hook();
 }
 
 void Session::Stop() {
+  std::optional<g1::Cancellation> token;
+  {
+    std::lock_guard<std::mutex> guard(cancellation_mutex_);
+    token = cancellation_;
+  }
+  StopDeadline deadline(token);
   Cancel();
   std::unique_lock<std::mutex> lock(mutex_);
   idle_.wait(lock, [&] { return !starting_; });
   Close();
+  {
+    std::lock_guard<std::mutex> guard(cancellation_mutex_);
+    cancellation_.reset();
+  }
 }
 
 void Session::Close() {

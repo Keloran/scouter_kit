@@ -25,6 +25,7 @@ type glassesSession struct {
 	stopBatteries func()
 	pitchSet      bool
 	managed       bool
+	cancellation  *scouterkit.Cancellation
 	missed        map[scouterkit.Arm]int
 }
 
@@ -52,9 +53,11 @@ type glassesHost struct {
 	f demo.Flags
 	o options
 
-	mu      sync.Mutex
-	session *glassesSession
-	status  hostStatus
+	mu                    sync.Mutex
+	session               *glassesSession
+	status                hostStatus
+	pendingCancellation   *scouterkit.Cancellation
+	releasingCancellation *scouterkit.Cancellation
 }
 
 func (h *glassesHost) Status() hostStatus {
@@ -76,11 +79,26 @@ func (h *glassesHost) Acquire(ctx context.Context) error {
 	if h.current() != nil {
 		return nil
 	}
-	s, err := openSession(ctx, h.f, h.o)
+	token, err := scouterkit.NewCancellation()
+	if err != nil {
+		return err
+	}
+	return h.acquireWithCancellation(ctx, token)
+}
+
+func (h *glassesHost) acquireWithCancellation(ctx context.Context, token *scouterkit.Cancellation) error {
+	h.mu.Lock()
+	h.pendingCancellation = token
+	h.mu.Unlock()
+	stopCancel := context.AfterFunc(ctx, token.Cancel)
+	s, err := openSession(ctx, h.f, h.o, token)
+	stopCancel()
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	h.pendingCancellation = nil
 	h.status.Err = err
 	if err != nil {
+		token.Close()
 		return err
 	}
 	h.session = s
@@ -95,15 +113,38 @@ func (h *glassesHost) Release(lost error) {
 	h.mu.Lock()
 	s := h.session
 	h.session = nil
+	if s != nil {
+		h.releasingCancellation = s.cancellation
+	}
 	h.status.State, h.status.Arms, h.status.Err = hostReleased, 0, lost
 	h.status.LeftReady, h.status.RightReady = false, false
 	h.mu.Unlock()
 	if s != nil {
 		s.close()
+		h.mu.Lock()
+		h.releasingCancellation = nil
+		h.mu.Unlock()
 	}
 }
 
-func openSession(ctx context.Context, f demo.Flags, o options) (*glassesSession, error) {
+// Abort signals only the pending, active or releasing session captured here.
+// Its token remains safe if cleanup completes concurrently.
+func (h *glassesHost) Abort() {
+	h.mu.Lock()
+	token := h.releasingCancellation
+	if token == nil {
+		token = h.pendingCancellation
+	}
+	if token == nil && h.session != nil {
+		token = h.session.cancellation
+	}
+	h.mu.Unlock()
+	if token != nil {
+		token.Cancel()
+	}
+}
+
+func openSession(ctx context.Context, f demo.Flags, o options, token *scouterkit.Cancellation) (*glassesSession, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -114,15 +155,14 @@ func openSession(ctx context.Context, f demo.Flags, o options) (*glassesSession,
 	}
 	done := make(chan connected, 1)
 	go func() {
-		cfg, arms, err := connectDisplay(f, o)
+		cfg, arms, err := connectDisplayContext(ctx, f, o, token)
 		done <- connected{cfg, arms, err}
 	}()
 	var c connected
 	select {
 	case c = <-done:
 	case <-ctx.Done():
-		// ponytail: Init cannot be interrupted, so a cancel waits for it (at most
-		// its 30 s scan), then deinitializes. An abortable Init would end this sooner.
+		token.Cancel()
 		c = <-done
 		if c.err == nil {
 			scouterkit.Deinit()
@@ -132,10 +172,17 @@ func openSession(ctx context.Context, f demo.Flags, o options) (*glassesSession,
 	if c.err != nil {
 		return nil, c.err
 	}
-	s := &glassesSession{cfg: c.cfg, arms: c.arms, missed: make(map[scouterkit.Arm]int), managed: o.managed}
+	s := &glassesSession{cfg: c.cfg, arms: c.arms, missed: make(map[scouterkit.Arm]int), managed: o.managed, cancellation: token}
 	if err := s.setup(ctx, o); err != nil {
 		s.close()
 		return nil, err
+	}
+	if ctx.Err() != nil || token.Cancelled() {
+		s.close()
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		return nil, scouterkit.ErrCancelled
 	}
 	return s, nil
 }
@@ -178,6 +225,7 @@ func (s *glassesSession) setup(ctx context.Context, o options) error {
 // close undoes setup in reverse, then deinitializes. The standby program runs
 // on: the arms show "Not connected" and their battery once the link is gone.
 func (s *glassesSession) close() {
+	defer s.cancellation.Close()
 	if s.pitchSet {
 		s.arms[0].SysWrite(scouterkit.PropPitchLo, uint32(pitchLo-1))
 	}

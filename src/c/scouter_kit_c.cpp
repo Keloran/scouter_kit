@@ -11,6 +11,8 @@
 namespace sk = scouter_kit;
 namespace g1 = scouter_kit::g1;
 
+struct sk_g1_cancellation { g1::Cancellation value; };
+
 namespace {
 
 sk::Font *F(sk_font *font) { return reinterpret_cast<sk::Font *>(font); }
@@ -159,6 +161,22 @@ int sk_g1_init(int dx, int dy, const char *left, const char *right, const char *
 }
 
 int sk_g1_init_config(const sk_g1_config *c, char *error, size_t error_size) {
+  return sk_g1_init_cancelable(c, nullptr, error, error_size);
+}
+
+sk_g1_cancellation *sk_g1_cancellation_new(void) {
+  try { return new sk_g1_cancellation; } catch (...) { return nullptr; }
+}
+sk_g1_cancellation *sk_g1_cancellation_clone(const sk_g1_cancellation *token) {
+  if (!token) return nullptr;
+  try { return new sk_g1_cancellation(*token); } catch (...) { return nullptr; }
+}
+void sk_g1_cancellation_cancel(sk_g1_cancellation *token) { if (token) token->value.Cancel(); }
+int sk_g1_cancellation_cancelled(const sk_g1_cancellation *token) { return token && token->value.Cancelled(); }
+void sk_g1_cancellation_free(sk_g1_cancellation *token) { delete token; }
+
+int sk_g1_init_cancelable(const sk_g1_config *c, const sk_g1_cancellation *token,
+                          char *error, size_t error_size) {
   g1::GrayConfig config;
   config.dx = c->dx;
   config.dy = c->dy;
@@ -170,13 +188,15 @@ int sk_g1_init_config(const sk_g1_config *c, char *error, size_t error_size) {
   connection.keep_sessions = c->keep_sessions != 0;
   connection.log = c->log != 0;
   std::string text;
-  g1::InitError e = g1::Init(&config, &text, &connection);
+  g1::InitError e = token ? g1::InitCancelable(token->value, &config, &text, &connection)
+                         : g1::Init(&config, &text, &connection);
   CopyText(text, error, error_size);
   switch (e) {
   case g1::ERROR_NONE: return SK_G1_ERROR_NONE;
   case g1::ERROR_NO_G1_FOUND: return SK_G1_ERROR_NO_G1_FOUND;
   case g1::ERROR_G1_BONDING_ERROR: return SK_G1_ERROR_BONDING;
   case g1::ERROR_G1_FIRMWARE: return SK_G1_ERROR_FIRMWARE;
+  case g1::ERROR_CANCELLED: return SK_G1_ERROR_CANCELLED;
   default: return SK_G1_ERROR_BLUETOOTH;
   }
 }

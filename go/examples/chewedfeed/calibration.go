@@ -32,10 +32,15 @@ type calibrationView struct {
 }
 
 func connectDisplay(f demo.Flags, o options) (scouterkit.Config, []scouterkit.Arm, error) {
+	return connectDisplayContext(context.Background(), f, o, nil)
+}
+
+func connectDisplayContext(ctx context.Context, f demo.Flags, o options, cancellation *scouterkit.Cancellation) (scouterkit.Config, []scouterkit.Arm, error) {
 	cfg := scouterkit.DefaultConfig()
 	cfg.Left, cfg.Right, cfg.Adapter, cfg.Log = f.Left, f.Right, f.Adapter, f.Log
 	cfg.DX, cfg.DY = o.dx, o.dy
-	if err := scouterkit.Init(cfg); err != nil {
+	cfg.Cancellation = cancellation
+	if err := scouterkit.InitContext(ctx, cfg); err != nil {
 		return cfg, nil, err
 	}
 	return cfg, demo.Present(), nil

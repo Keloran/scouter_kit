@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"scouterkit"
 	"scouterkit/examples/internal/demo"
 	h "scouterkit/examples/internal/handover"
 	"scouterkit/examples/internal/localcontrol"
@@ -22,10 +23,10 @@ type dashboardNative struct {
 	done     <-chan struct{}
 }
 
-func (n dashboardNative) command(ctx context.Context, release bool) error {
+func (n dashboardNative) command(ctx context.Context, release bool, token *scouterkit.Cancellation) error {
 	reply := make(chan error, 1)
 	select {
-	case n.commands <- hostCommand{release: release, done: reply, ctx: ctx}:
+	case n.commands <- hostCommand{release: release, done: reply, ctx: ctx, cancellation: token}:
 	case <-ctx.Done():
 		return ctx.Err()
 	case <-n.done:
@@ -41,7 +42,16 @@ func (n dashboardNative) command(ctx context.Context, release bool) error {
 }
 
 func (n dashboardNative) Acquire(ctx context.Context) (h.Arms, error) {
-	err := n.command(ctx, false)
+	token, err := scouterkit.NewCancellation()
+	if err != nil {
+		return h.Arms{}, err
+	}
+	stopCancel := context.AfterFunc(ctx, token.Cancel)
+	err = n.command(ctx, false, token)
+	stopCancel()
+	if err != nil {
+		token.Close()
+	}
 	return n.Readiness(), err
 }
 
@@ -51,8 +61,10 @@ func (n dashboardNative) Release() error {
 		return nil
 	default:
 	}
-	return n.command(context.Background(), true)
+	return n.command(context.Background(), true, nil)
 }
+
+func (n dashboardNative) Abort() { n.host.Abort() }
 
 func (n dashboardNative) Readiness() h.Arms {
 	s := n.host.Status()

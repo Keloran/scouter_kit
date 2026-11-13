@@ -23,6 +23,7 @@ package scouterkit
 import "C"
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"image"
@@ -40,6 +41,7 @@ var (
 	ErrFirmware       = errors.New("scouterkit: the arms do not run the scouter firmware")
 	ErrNotInitialized = errors.New("scouterkit: not initialized")
 	ErrNoReply        = errors.New("scouterkit: no reply from the arm")
+	ErrCancelled      = errors.New("scouterkit: session cancelled")
 )
 
 // mu keeps handles valid: calls that use a handle hold it for reading, calls
@@ -73,6 +75,8 @@ type Config struct {
 	KeepSessions bool
 	// The library logs to stderr.
 	Log bool
+	// Optional one-shot signal for this session; never reused for a later Init.
+	Cancellation *Cancellation
 }
 
 // DefaultConfig returns the user's calibration (DX 100, DY 9: a 740 x 471
@@ -84,11 +88,38 @@ func DefaultConfig() Config {
 // Init connects to the glasses and returns once both arms are ready. The
 // error wraps ErrBluetooth, ErrNoG1Found, ErrBonding or ErrFirmware.
 func Init(cfg Config) error {
-	mu.Lock()
+	return InitContext(context.Background(), cfg)
+}
+
+// InitContext cancels initialization when ctx ends. After it returns, ctx no
+// longer controls the session; Config.Cancellation may still stop its work.
+func InitContext(ctx context.Context, cfg Config) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := lockForInit(ctx); err != nil {
+		return err
+	}
 	defer mu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if initialized {
 		return fmt.Errorf("%w: already initialized", ErrBluetooth)
 	}
+	var token *Cancellation
+	var err error
+	if cfg.Cancellation == nil {
+		token, err = NewCancellation()
+	} else {
+		token, err = cfg.Cancellation.clone()
+	}
+	if err != nil {
+		return err
+	}
+	defer token.dispose()
+	stopCancel := context.AfterFunc(ctx, token.Cancel)
+	defer stopCancel()
 	left := C.CString(cfg.Left)
 	defer C.free(unsafe.Pointer(left))
 	right := C.CString(cfg.Right)
@@ -104,7 +135,18 @@ func Init(cfg Config) error {
 	if cfg.Log {
 		c.log = 1
 	}
-	e := C.sk_g1_init_config(&c, &msg[0], C.size_t(len(msg)))
+	e := C.sk_g1_init_cancelable(&c, token.token, &msg[0], C.size_t(len(msg)))
+	stopCancel()
+	if ctx.Err() != nil || token.Cancelled() || e == C.SK_G1_ERROR_CANCELLED {
+		token.Cancel()
+		if e == C.SK_G1_ERROR_NONE {
+			C.sk_g1_deinit()
+		}
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		return ErrCancelled
+	}
 	if e == C.SK_G1_ERROR_NONE {
 		initialized = true
 		return nil

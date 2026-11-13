@@ -180,7 +180,10 @@ func awaitOwnership(t *testing.T, c *ownershipController, condition func(localco
 	}
 	t.Fatalf("ownership condition not met: %+v", c.Status())
 }
-func startOwnershipTest(t *testing.T, n *ownershipTestNative, enrolled, open bool) (*ownershipController, chan powerEvent, *ownershipTestClock) {
+func startOwnershipTest(t *testing.T, n interface {
+	ownershipNative
+	counts() (int, int, int)
+}, enrolled, open bool) (*ownershipController, chan powerEvent, *ownershipTestClock) {
 	t.Helper()
 	power := make(chan powerEvent, 8)
 	state := powerState{Lid: lidClosed}
@@ -292,6 +295,102 @@ func TestOwnershipSuspendDuringAcquire(t *testing.T) {
 	case <-done:
 	case <-time.After(time.Second):
 		t.Fatal("completed teardown did not drop inhibitor")
+	}
+}
+
+type abortableOwnershipNative struct {
+	*ownershipTestNative
+	once   sync.Once
+	gate   chan struct{}
+	aborts atomic.Int32
+}
+
+func (n *abortableOwnershipNative) Abort() {
+	n.aborts.Add(1)
+	n.once.Do(func() { close(n.gate) })
+}
+
+func TestOwnershipSuspendAbortsStalledRelease(t *testing.T) {
+	gate := make(chan struct{})
+	n := &abortableOwnershipNative{ownershipTestNative: &ownershipTestNative{
+		releaseGate: gate, releaseStarted: make(chan struct{}, 1),
+	}, gate: gate}
+	c, power, clock := startOwnershipTest(t, n, false, true)
+	defer n.Abort()
+	awaitOwnership(t, c, func(s localcontrol.Status) bool { return s.Phase == string(h.Active) })
+	done := make(chan struct{}, 1)
+	power <- powerEvent{Kind: powerSleep, State: powerState{Lid: lidOpen, Sleeping: true}, Done: func() { done <- struct{}{} }}
+	select {
+	case <-n.releaseStarted:
+	case <-time.After(time.Second):
+		t.Fatal("release did not start")
+	}
+	awaitOwnership(t, c, func(s localcontrol.Status) bool { return s.Phase == string(h.Yielding) })
+	clock.advance(499 * time.Millisecond)
+	if n.aborts.Load() != 0 {
+		t.Fatal("aborted before graceful suspend budget")
+	}
+	select {
+	case <-done:
+		t.Fatal("inhibitor dropped before teardown")
+	default:
+	}
+	clock.advance(time.Millisecond)
+	awaitOwnership(t, c, func(s localcontrol.Status) bool { return s.Phase == string(h.Idle) })
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("teardown did not drop inhibitor")
+	}
+	if n.aborts.Load() != 1 {
+		t.Fatal("missing or duplicate forced abort")
+	}
+	power <- powerEvent{Kind: powerResume, State: powerState{Lid: lidOpen}}
+	awaitOwnership(t, c, func(s localcontrol.Status) bool { return s.Phase == string(h.Active) })
+	clock.advance(time.Hour)
+	if n.aborts.Load() != 1 {
+		t.Fatal("old suspend timer affected new owner")
+	}
+}
+
+func TestOwnershipReleaseDeadlineAbortsNative(t *testing.T) {
+	gate := make(chan struct{})
+	n := &abortableOwnershipNative{ownershipTestNative: &ownershipTestNative{
+		releaseGate: gate, releaseStarted: make(chan struct{}, 1),
+	}, gate: gate}
+	c, _, clock := startOwnershipTest(t, n, false, true)
+	defer n.Abort()
+	awaitOwnership(t, c, func(s localcontrol.Status) bool { return s.Phase == string(h.Active) })
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	result := make(chan error, 1)
+	go func() { _, err := c.Release(ctx); result <- err }()
+	select {
+	case <-n.releaseStarted:
+	case <-ctx.Done():
+		t.Fatal("release did not start")
+	}
+	awaitOwnership(t, c, func(s localcontrol.Status) bool { return s.Phase == string(h.Yielding) })
+	clock.advance((h.ReleaseDeadlineMs - 1) * time.Millisecond)
+	if n.aborts.Load() != 0 {
+		t.Fatal("ordinary release aborted early")
+	}
+	select {
+	case <-result:
+		t.Fatal("release returned before teardown")
+	default:
+	}
+	clock.advance(time.Millisecond)
+	select {
+	case err := <-result:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-ctx.Done():
+		t.Fatal("forced release stayed blocked")
+	}
+	if n.aborts.Load() != 1 {
+		t.Fatal("release deadline did not signal native abort")
 	}
 }
 

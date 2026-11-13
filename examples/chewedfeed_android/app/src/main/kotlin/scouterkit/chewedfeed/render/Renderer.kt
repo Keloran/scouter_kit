@@ -136,6 +136,9 @@ class Renderer(private val s: Surface, val layout: Layout) {
         return s.measure(t)
     }
 
+    // The width the footer's middle label gets (MusicStatus scrolls a title wider than this).
+    fun footerWidth() = (layout.w - TEXT_INSET) - (footerSplit() + TEXT_INSET)
+
     private fun footerSplit(): Int {
         val need = TEXT_INSET + s.measure("Page 99/99") + TEXT_INSET
         return minOf(maxOf(layout.w / 3, need), layout.w * 2 / 3)

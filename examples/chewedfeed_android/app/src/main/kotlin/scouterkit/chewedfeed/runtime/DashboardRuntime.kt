@@ -12,6 +12,8 @@ import scouterkit.chewedfeed.dashboard.Navigation
 import scouterkit.chewedfeed.dashboard.Page
 import scouterkit.chewedfeed.dashboard.Screen
 import scouterkit.chewedfeed.dashboard.View
+import scouterkit.chewedfeed.handover.SnapshotBridge
+import scouterkit.chewedfeed.handover.UiSnapshot
 import scouterkit.chewedfeed.notifications.FeedEvent
 import scouterkit.chewedfeed.providers.batteries
 import scouterkit.chewedfeed.render.Batteries
@@ -56,6 +58,8 @@ class DashboardRuntime(
     ) { h -> h.pages(text.width, text.rows, text.measure) }
     var batteries = Batteries()
         private set
+    // Navigation for the next owner, and a transferred one to restore (CF-52's coordinator moves the messages).
+    val bridge = SnapshotBridge { scheduler.post(::restore) }
     private var generation = 0L
     private var running = false
     private var refreshing: Cancellable? = null
@@ -98,7 +102,20 @@ class DashboardRuntime(
 
     fun touch(arm: Int, gesture: Int) {
         if (!running) return
-        if (dashboard.touch(generation, arm, gesture)) render()
+        if (dashboard.touch(generation, arm, gesture)) {
+            bridge.edited() // a transfer requested before this change no longer replaces it
+            render()
+        }
+    }
+
+    // A committed snapshot from the previous owner: its view, page and paused state. This phone's own rotation
+    // and project settings stay (device-local, as saved in Settings).
+    private fun restore() {
+        if (!running) return
+        val s = bridge.take() ?: return
+        s.apply(dashboard.nav, UiSnapshot.Overrides(rotate = true, project = true), app.rotateSeconds * 1000L, app.project)
+        dashboard.invalidate()
+        render()
     }
 
     fun notification(e: FeedEvent) {
@@ -178,6 +195,7 @@ class DashboardRuntime(
     private fun render() {
         if (!running) return
         dashboard.poll()?.let(draw)
+        bridge.publish(UiSnapshot.export(dashboard.nav, app.project, app.rotateSeconds * 1000L, 0))
     }
 
     private fun placeholder(id: String, title: String) =

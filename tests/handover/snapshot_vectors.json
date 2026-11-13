@@ -1,0 +1,9 @@
+{
+  "comment": "Canonical snapshot encodings (Go json.Marshal of uiSnapshot). The Go and Kotlin implementations must each decode every entry and encode it back to the same bytes, so a snapshot survives Go -> Kotlin -> Go unchanged.",
+  "canonical": [
+    "{\"schema_version\":1,\"revision\":7,\"view\":\"ai\",\"page_id\":\"ai/claude\",\"project\":\"alpha\",\"rotation_paused\":true,\"rotation_ms\":15000}",
+    "{\"schema_version\":1,\"revision\":0,\"view\":\"notifications\",\"page_id\":\"notifications/empty\",\"project\":null,\"rotation_paused\":false,\"rotation_ms\":0}",
+    "{\"schema_version\":1,\"revision\":9007199254740991,\"view\":\"stats\",\"page_id\":\"system/cpu\",\"project\":\"a_b-1\",\"rotation_paused\":false,\"rotation_ms\":3600000}",
+    "{\"schema_version\":1,\"revision\":3,\"view\":\"sites\",\"page_id\":\"projects/one/0\",\"project\":null,\"rotation_paused\":false,\"rotation_ms\":1000}"
+  ]
+}

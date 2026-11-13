@@ -94,6 +94,10 @@ func Reduce(s State, e Event) Transition {
 			s.Phase = Idle
 			s.Generation++
 			return done(s, effect(CancelTimers), effect(SendAbort), effect(PublishStatus))
+		case Recovering, Idle:
+			s.Phase = Idle
+			s.Generation++
+			return done(s, effect(CancelTimers), effect(PublishStatus))
 		}
 		return done(s, effect(PublishStatus))
 	}
@@ -122,6 +126,12 @@ func availability(s State, eligible bool, nonce string) Transition {
 	was := s.Eligible
 	s.Eligible = eligible
 	switch {
+	case !eligible && s.Phase == Recovering:
+		// There is no native work to release, but queued recovery callbacks
+		// must not survive a lid close or a later, fresh resume.
+		s.Phase = Idle
+		s.Generation++
+		return done(s, effect(CancelTimers), effect(PublishStatus))
 	case !eligible && (s.Phase == Active || s.Phase == Acquiring):
 		// Lid closed, suspend or app unavailable: release even when pinned or not sleeping.
 		if s.Phase == Acquiring {

@@ -5121,6 +5121,1180 @@
           ]
         }
       ]
+    },
+    {
+      "name": "laptop_stop_retires_idle_timers",
+      "initial": {
+        "role": "laptop",
+        "enrolled": true,
+        "eligible": true,
+        "pinned": false,
+        "phase": "idle",
+        "arms": {
+          "left": false,
+          "right": false
+        },
+        "renderer_ready": false,
+        "generation": 7,
+        "transfer": "11111111111111111111111111111111",
+        "peer_reachable": false,
+        "peer_active": false,
+        "permission": "none",
+        "release_intent": "none",
+        "peer_eligible": false,
+        "peer_pinned": false
+      },
+      "steps": [
+        {
+          "event": {
+            "kind": "stop",
+            "generation": 7,
+            "data": {},
+            "attempt_nonce": null
+          },
+          "expected": {
+            "role": "laptop",
+            "enrolled": true,
+            "eligible": false,
+            "pinned": false,
+            "phase": "idle",
+            "arms": {
+              "left": false,
+              "right": false
+            },
+            "renderer_ready": false,
+            "generation": 8,
+            "transfer": "11111111111111111111111111111111",
+            "peer_reachable": false,
+            "peer_active": false,
+            "permission": "none",
+            "release_intent": "none",
+            "peer_eligible": false,
+            "peer_pinned": false
+          },
+          "effects": [
+            {
+              "kind": "cancel_timers",
+              "generation": 8,
+              "transfer": "11111111111111111111111111111111",
+              "timer": null,
+              "delay_ms": 0
+            },
+            {
+              "kind": "publish_status",
+              "generation": 8,
+              "transfer": "11111111111111111111111111111111",
+              "timer": null,
+              "delay_ms": 0
+            }
+          ]
+        },
+        {
+          "event": {
+            "kind": "timeout",
+            "generation": 7,
+            "data": {
+              "timer": "retry",
+              "elapsed_ms": 60000
+            },
+            "attempt_nonce": "22222222222222222222222222222222"
+          },
+          "expected": {
+            "role": "laptop",
+            "enrolled": true,
+            "eligible": false,
+            "pinned": false,
+            "phase": "idle",
+            "arms": {
+              "left": false,
+              "right": false
+            },
+            "renderer_ready": false,
+            "generation": 8,
+            "transfer": "11111111111111111111111111111111",
+            "peer_reachable": false,
+            "peer_active": false,
+            "permission": "none",
+            "release_intent": "none",
+            "peer_eligible": false,
+            "peer_pinned": false
+          },
+          "effects": [
+            {
+              "kind": "ignore",
+              "generation": 8,
+              "transfer": "11111111111111111111111111111111",
+              "timer": null,
+              "delay_ms": 0
+            }
+          ]
+        },
+        {
+          "event": {
+            "kind": "availability",
+            "generation": 8,
+            "data": {
+              "eligible": true
+            },
+            "attempt_nonce": "22222222222222222222222222222222"
+          },
+          "expected": {
+            "role": "laptop",
+            "enrolled": true,
+            "eligible": true,
+            "pinned": false,
+            "phase": "recovering",
+            "arms": {
+              "left": false,
+              "right": false
+            },
+            "renderer_ready": false,
+            "generation": 8,
+            "transfer": "11111111111111111111111111111111",
+            "peer_reachable": false,
+            "peer_active": false,
+            "permission": "none",
+            "release_intent": "none",
+            "peer_eligible": false,
+            "peer_pinned": false
+          },
+          "effects": [
+            {
+              "kind": "reconcile",
+              "generation": 8,
+              "transfer": "11111111111111111111111111111111",
+              "timer": null,
+              "delay_ms": 0
+            },
+            {
+              "kind": "schedule",
+              "generation": 8,
+              "transfer": "11111111111111111111111111111111",
+              "timer": "stability",
+              "delay_ms": 3000
+            }
+          ]
+        },
+        {
+          "event": {
+            "kind": "timeout",
+            "generation": 7,
+            "data": {
+              "timer": "peer_suspect",
+              "elapsed_ms": 60000
+            },
+            "attempt_nonce": "22222222222222222222222222222222"
+          },
+          "expected": {
+            "role": "laptop",
+            "enrolled": true,
+            "eligible": true,
+            "pinned": false,
+            "phase": "recovering",
+            "arms": {
+              "left": false,
+              "right": false
+            },
+            "renderer_ready": false,
+            "generation": 8,
+            "transfer": "11111111111111111111111111111111",
+            "peer_reachable": false,
+            "peer_active": false,
+            "permission": "none",
+            "release_intent": "none",
+            "peer_eligible": false,
+            "peer_pinned": false
+          },
+          "effects": [
+            {
+              "kind": "ignore",
+              "generation": 8,
+              "transfer": "11111111111111111111111111111111",
+              "timer": null,
+              "delay_ms": 0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "laptop_stop_retires_recovering_timers",
+      "initial": {
+        "role": "laptop",
+        "enrolled": true,
+        "eligible": true,
+        "pinned": false,
+        "phase": "recovering",
+        "arms": {
+          "left": false,
+          "right": false
+        },
+        "renderer_ready": false,
+        "generation": 7,
+        "transfer": "11111111111111111111111111111111",
+        "peer_reachable": false,
+        "peer_active": false,
+        "permission": "none",
+        "release_intent": "none",
+        "peer_eligible": false,
+        "peer_pinned": false
+      },
+      "steps": [
+        {
+          "event": {
+            "kind": "stop",
+            "generation": 7,
+            "data": {},
+            "attempt_nonce": null
+          },
+          "expected": {
+            "role": "laptop",
+            "enrolled": true,
+            "eligible": false,
+            "pinned": false,
+            "phase": "idle",
+            "arms": {
+              "left": false,
+              "right": false
+            },
+            "renderer_ready": false,
+            "generation": 8,
+            "transfer": "11111111111111111111111111111111",
+            "peer_reachable": false,
+            "peer_active": false,
+            "permission": "none",
+            "release_intent": "none",
+            "peer_eligible": false,
+            "peer_pinned": false
+          },
+          "effects": [
+            {
+              "kind": "cancel_timers",
+              "generation": 8,
+              "transfer": "11111111111111111111111111111111",
+              "timer": null,
+              "delay_ms": 0
+            },
+            {
+              "kind": "publish_status",
+              "generation": 8,
+              "transfer": "11111111111111111111111111111111",
+              "timer": null,
+              "delay_ms": 0
+            }
+          ]
+        },
+        {
+          "event": {
+            "kind": "timeout",
+            "generation": 7,
+            "data": {
+              "timer": "retry",
+              "elapsed_ms": 60000
+            },
+            "attempt_nonce": "22222222222222222222222222222222"
+          },
+          "expected": {
+            "role": "laptop",
+            "enrolled": true,
+            "eligible": false,
+            "pinned": false,
+            "phase": "idle",
+            "arms": {
+              "left": false,
+              "right": false
+            },
+            "renderer_ready": false,
+            "generation": 8,
+            "transfer": "11111111111111111111111111111111",
+            "peer_reachable": false,
+            "peer_active": false,
+            "permission": "none",
+            "release_intent": "none",
+            "peer_eligible": false,
+            "peer_pinned": false
+          },
+          "effects": [
+            {
+              "kind": "ignore",
+              "generation": 8,
+              "transfer": "11111111111111111111111111111111",
+              "timer": null,
+              "delay_ms": 0
+            }
+          ]
+        },
+        {
+          "event": {
+            "kind": "availability",
+            "generation": 8,
+            "data": {
+              "eligible": true
+            },
+            "attempt_nonce": "22222222222222222222222222222222"
+          },
+          "expected": {
+            "role": "laptop",
+            "enrolled": true,
+            "eligible": true,
+            "pinned": false,
+            "phase": "recovering",
+            "arms": {
+              "left": false,
+              "right": false
+            },
+            "renderer_ready": false,
+            "generation": 8,
+            "transfer": "11111111111111111111111111111111",
+            "peer_reachable": false,
+            "peer_active": false,
+            "permission": "none",
+            "release_intent": "none",
+            "peer_eligible": false,
+            "peer_pinned": false
+          },
+          "effects": [
+            {
+              "kind": "reconcile",
+              "generation": 8,
+              "transfer": "11111111111111111111111111111111",
+              "timer": null,
+              "delay_ms": 0
+            },
+            {
+              "kind": "schedule",
+              "generation": 8,
+              "transfer": "11111111111111111111111111111111",
+              "timer": "stability",
+              "delay_ms": 3000
+            }
+          ]
+        },
+        {
+          "event": {
+            "kind": "timeout",
+            "generation": 7,
+            "data": {
+              "timer": "peer_suspect",
+              "elapsed_ms": 60000
+            },
+            "attempt_nonce": "22222222222222222222222222222222"
+          },
+          "expected": {
+            "role": "laptop",
+            "enrolled": true,
+            "eligible": true,
+            "pinned": false,
+            "phase": "recovering",
+            "arms": {
+              "left": false,
+              "right": false
+            },
+            "renderer_ready": false,
+            "generation": 8,
+            "transfer": "11111111111111111111111111111111",
+            "peer_reachable": false,
+            "peer_active": false,
+            "permission": "none",
+            "release_intent": "none",
+            "peer_eligible": false,
+            "peer_pinned": false
+          },
+          "effects": [
+            {
+              "kind": "ignore",
+              "generation": 8,
+              "transfer": "11111111111111111111111111111111",
+              "timer": null,
+              "delay_ms": 0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "laptop_availability_retires_recovering_timers",
+      "initial": {
+        "role": "laptop",
+        "enrolled": true,
+        "eligible": true,
+        "pinned": false,
+        "phase": "recovering",
+        "arms": {
+          "left": false,
+          "right": false
+        },
+        "renderer_ready": false,
+        "generation": 7,
+        "transfer": "11111111111111111111111111111111",
+        "peer_reachable": false,
+        "peer_active": false,
+        "permission": "none",
+        "release_intent": "none",
+        "peer_eligible": false,
+        "peer_pinned": false
+      },
+      "steps": [
+        {
+          "event": {
+            "kind": "availability",
+            "generation": 7,
+            "data": {
+              "eligible": false
+            },
+            "attempt_nonce": null
+          },
+          "expected": {
+            "role": "laptop",
+            "enrolled": true,
+            "eligible": false,
+            "pinned": false,
+            "phase": "idle",
+            "arms": {
+              "left": false,
+              "right": false
+            },
+            "renderer_ready": false,
+            "generation": 8,
+            "transfer": "11111111111111111111111111111111",
+            "peer_reachable": false,
+            "peer_active": false,
+            "permission": "none",
+            "release_intent": "none",
+            "peer_eligible": false,
+            "peer_pinned": false
+          },
+          "effects": [
+            {
+              "kind": "cancel_timers",
+              "generation": 8,
+              "transfer": "11111111111111111111111111111111",
+              "timer": null,
+              "delay_ms": 0
+            },
+            {
+              "kind": "publish_status",
+              "generation": 8,
+              "transfer": "11111111111111111111111111111111",
+              "timer": null,
+              "delay_ms": 0
+            }
+          ]
+        },
+        {
+          "event": {
+            "kind": "timeout",
+            "generation": 7,
+            "data": {
+              "timer": "retry",
+              "elapsed_ms": 60000
+            },
+            "attempt_nonce": "22222222222222222222222222222222"
+          },
+          "expected": {
+            "role": "laptop",
+            "enrolled": true,
+            "eligible": false,
+            "pinned": false,
+            "phase": "idle",
+            "arms": {
+              "left": false,
+              "right": false
+            },
+            "renderer_ready": false,
+            "generation": 8,
+            "transfer": "11111111111111111111111111111111",
+            "peer_reachable": false,
+            "peer_active": false,
+            "permission": "none",
+            "release_intent": "none",
+            "peer_eligible": false,
+            "peer_pinned": false
+          },
+          "effects": [
+            {
+              "kind": "ignore",
+              "generation": 8,
+              "transfer": "11111111111111111111111111111111",
+              "timer": null,
+              "delay_ms": 0
+            }
+          ]
+        },
+        {
+          "event": {
+            "kind": "availability",
+            "generation": 8,
+            "data": {
+              "eligible": true
+            },
+            "attempt_nonce": "22222222222222222222222222222222"
+          },
+          "expected": {
+            "role": "laptop",
+            "enrolled": true,
+            "eligible": true,
+            "pinned": false,
+            "phase": "recovering",
+            "arms": {
+              "left": false,
+              "right": false
+            },
+            "renderer_ready": false,
+            "generation": 8,
+            "transfer": "11111111111111111111111111111111",
+            "peer_reachable": false,
+            "peer_active": false,
+            "permission": "none",
+            "release_intent": "none",
+            "peer_eligible": false,
+            "peer_pinned": false
+          },
+          "effects": [
+            {
+              "kind": "reconcile",
+              "generation": 8,
+              "transfer": "11111111111111111111111111111111",
+              "timer": null,
+              "delay_ms": 0
+            },
+            {
+              "kind": "schedule",
+              "generation": 8,
+              "transfer": "11111111111111111111111111111111",
+              "timer": "stability",
+              "delay_ms": 3000
+            }
+          ]
+        },
+        {
+          "event": {
+            "kind": "timeout",
+            "generation": 7,
+            "data": {
+              "timer": "peer_suspect",
+              "elapsed_ms": 60000
+            },
+            "attempt_nonce": "22222222222222222222222222222222"
+          },
+          "expected": {
+            "role": "laptop",
+            "enrolled": true,
+            "eligible": true,
+            "pinned": false,
+            "phase": "recovering",
+            "arms": {
+              "left": false,
+              "right": false
+            },
+            "renderer_ready": false,
+            "generation": 8,
+            "transfer": "11111111111111111111111111111111",
+            "peer_reachable": false,
+            "peer_active": false,
+            "permission": "none",
+            "release_intent": "none",
+            "peer_eligible": false,
+            "peer_pinned": false
+          },
+          "effects": [
+            {
+              "kind": "ignore",
+              "generation": 8,
+              "transfer": "11111111111111111111111111111111",
+              "timer": null,
+              "delay_ms": 0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "phone_stop_retires_idle_timers",
+      "initial": {
+        "role": "phone",
+        "enrolled": true,
+        "eligible": true,
+        "pinned": false,
+        "phase": "idle",
+        "arms": {
+          "left": false,
+          "right": false
+        },
+        "renderer_ready": false,
+        "generation": 7,
+        "transfer": "11111111111111111111111111111111",
+        "peer_reachable": false,
+        "peer_active": false,
+        "permission": "none",
+        "release_intent": "none",
+        "peer_eligible": false,
+        "peer_pinned": false
+      },
+      "steps": [
+        {
+          "event": {
+            "kind": "stop",
+            "generation": 7,
+            "data": {},
+            "attempt_nonce": null
+          },
+          "expected": {
+            "role": "phone",
+            "enrolled": true,
+            "eligible": false,
+            "pinned": false,
+            "phase": "idle",
+            "arms": {
+              "left": false,
+              "right": false
+            },
+            "renderer_ready": false,
+            "generation": 8,
+            "transfer": "11111111111111111111111111111111",
+            "peer_reachable": false,
+            "peer_active": false,
+            "permission": "none",
+            "release_intent": "none",
+            "peer_eligible": false,
+            "peer_pinned": false
+          },
+          "effects": [
+            {
+              "kind": "cancel_timers",
+              "generation": 8,
+              "transfer": "11111111111111111111111111111111",
+              "timer": null,
+              "delay_ms": 0
+            },
+            {
+              "kind": "publish_status",
+              "generation": 8,
+              "transfer": "11111111111111111111111111111111",
+              "timer": null,
+              "delay_ms": 0
+            }
+          ]
+        },
+        {
+          "event": {
+            "kind": "timeout",
+            "generation": 7,
+            "data": {
+              "timer": "retry",
+              "elapsed_ms": 60000
+            },
+            "attempt_nonce": "22222222222222222222222222222222"
+          },
+          "expected": {
+            "role": "phone",
+            "enrolled": true,
+            "eligible": false,
+            "pinned": false,
+            "phase": "idle",
+            "arms": {
+              "left": false,
+              "right": false
+            },
+            "renderer_ready": false,
+            "generation": 8,
+            "transfer": "11111111111111111111111111111111",
+            "peer_reachable": false,
+            "peer_active": false,
+            "permission": "none",
+            "release_intent": "none",
+            "peer_eligible": false,
+            "peer_pinned": false
+          },
+          "effects": [
+            {
+              "kind": "ignore",
+              "generation": 8,
+              "transfer": "11111111111111111111111111111111",
+              "timer": null,
+              "delay_ms": 0
+            }
+          ]
+        },
+        {
+          "event": {
+            "kind": "availability",
+            "generation": 8,
+            "data": {
+              "eligible": true
+            },
+            "attempt_nonce": "22222222222222222222222222222222"
+          },
+          "expected": {
+            "role": "phone",
+            "enrolled": true,
+            "eligible": true,
+            "pinned": false,
+            "phase": "recovering",
+            "arms": {
+              "left": false,
+              "right": false
+            },
+            "renderer_ready": false,
+            "generation": 8,
+            "transfer": "11111111111111111111111111111111",
+            "peer_reachable": false,
+            "peer_active": false,
+            "permission": "none",
+            "release_intent": "none",
+            "peer_eligible": false,
+            "peer_pinned": false
+          },
+          "effects": [
+            {
+              "kind": "reconcile",
+              "generation": 8,
+              "transfer": "11111111111111111111111111111111",
+              "timer": null,
+              "delay_ms": 0
+            },
+            {
+              "kind": "schedule",
+              "generation": 8,
+              "transfer": "11111111111111111111111111111111",
+              "timer": "stability",
+              "delay_ms": 3000
+            }
+          ]
+        },
+        {
+          "event": {
+            "kind": "timeout",
+            "generation": 7,
+            "data": {
+              "timer": "peer_suspect",
+              "elapsed_ms": 60000
+            },
+            "attempt_nonce": "22222222222222222222222222222222"
+          },
+          "expected": {
+            "role": "phone",
+            "enrolled": true,
+            "eligible": true,
+            "pinned": false,
+            "phase": "recovering",
+            "arms": {
+              "left": false,
+              "right": false
+            },
+            "renderer_ready": false,
+            "generation": 8,
+            "transfer": "11111111111111111111111111111111",
+            "peer_reachable": false,
+            "peer_active": false,
+            "permission": "none",
+            "release_intent": "none",
+            "peer_eligible": false,
+            "peer_pinned": false
+          },
+          "effects": [
+            {
+              "kind": "ignore",
+              "generation": 8,
+              "transfer": "11111111111111111111111111111111",
+              "timer": null,
+              "delay_ms": 0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "phone_stop_retires_recovering_timers",
+      "initial": {
+        "role": "phone",
+        "enrolled": true,
+        "eligible": true,
+        "pinned": false,
+        "phase": "recovering",
+        "arms": {
+          "left": false,
+          "right": false
+        },
+        "renderer_ready": false,
+        "generation": 7,
+        "transfer": "11111111111111111111111111111111",
+        "peer_reachable": false,
+        "peer_active": false,
+        "permission": "none",
+        "release_intent": "none",
+        "peer_eligible": false,
+        "peer_pinned": false
+      },
+      "steps": [
+        {
+          "event": {
+            "kind": "stop",
+            "generation": 7,
+            "data": {},
+            "attempt_nonce": null
+          },
+          "expected": {
+            "role": "phone",
+            "enrolled": true,
+            "eligible": false,
+            "pinned": false,
+            "phase": "idle",
+            "arms": {
+              "left": false,
+              "right": false
+            },
+            "renderer_ready": false,
+            "generation": 8,
+            "transfer": "11111111111111111111111111111111",
+            "peer_reachable": false,
+            "peer_active": false,
+            "permission": "none",
+            "release_intent": "none",
+            "peer_eligible": false,
+            "peer_pinned": false
+          },
+          "effects": [
+            {
+              "kind": "cancel_timers",
+              "generation": 8,
+              "transfer": "11111111111111111111111111111111",
+              "timer": null,
+              "delay_ms": 0
+            },
+            {
+              "kind": "publish_status",
+              "generation": 8,
+              "transfer": "11111111111111111111111111111111",
+              "timer": null,
+              "delay_ms": 0
+            }
+          ]
+        },
+        {
+          "event": {
+            "kind": "timeout",
+            "generation": 7,
+            "data": {
+              "timer": "retry",
+              "elapsed_ms": 60000
+            },
+            "attempt_nonce": "22222222222222222222222222222222"
+          },
+          "expected": {
+            "role": "phone",
+            "enrolled": true,
+            "eligible": false,
+            "pinned": false,
+            "phase": "idle",
+            "arms": {
+              "left": false,
+              "right": false
+            },
+            "renderer_ready": false,
+            "generation": 8,
+            "transfer": "11111111111111111111111111111111",
+            "peer_reachable": false,
+            "peer_active": false,
+            "permission": "none",
+            "release_intent": "none",
+            "peer_eligible": false,
+            "peer_pinned": false
+          },
+          "effects": [
+            {
+              "kind": "ignore",
+              "generation": 8,
+              "transfer": "11111111111111111111111111111111",
+              "timer": null,
+              "delay_ms": 0
+            }
+          ]
+        },
+        {
+          "event": {
+            "kind": "availability",
+            "generation": 8,
+            "data": {
+              "eligible": true
+            },
+            "attempt_nonce": "22222222222222222222222222222222"
+          },
+          "expected": {
+            "role": "phone",
+            "enrolled": true,
+            "eligible": true,
+            "pinned": false,
+            "phase": "recovering",
+            "arms": {
+              "left": false,
+              "right": false
+            },
+            "renderer_ready": false,
+            "generation": 8,
+            "transfer": "11111111111111111111111111111111",
+            "peer_reachable": false,
+            "peer_active": false,
+            "permission": "none",
+            "release_intent": "none",
+            "peer_eligible": false,
+            "peer_pinned": false
+          },
+          "effects": [
+            {
+              "kind": "reconcile",
+              "generation": 8,
+              "transfer": "11111111111111111111111111111111",
+              "timer": null,
+              "delay_ms": 0
+            },
+            {
+              "kind": "schedule",
+              "generation": 8,
+              "transfer": "11111111111111111111111111111111",
+              "timer": "stability",
+              "delay_ms": 3000
+            }
+          ]
+        },
+        {
+          "event": {
+            "kind": "timeout",
+            "generation": 7,
+            "data": {
+              "timer": "peer_suspect",
+              "elapsed_ms": 60000
+            },
+            "attempt_nonce": "22222222222222222222222222222222"
+          },
+          "expected": {
+            "role": "phone",
+            "enrolled": true,
+            "eligible": true,
+            "pinned": false,
+            "phase": "recovering",
+            "arms": {
+              "left": false,
+              "right": false
+            },
+            "renderer_ready": false,
+            "generation": 8,
+            "transfer": "11111111111111111111111111111111",
+            "peer_reachable": false,
+            "peer_active": false,
+            "permission": "none",
+            "release_intent": "none",
+            "peer_eligible": false,
+            "peer_pinned": false
+          },
+          "effects": [
+            {
+              "kind": "ignore",
+              "generation": 8,
+              "transfer": "11111111111111111111111111111111",
+              "timer": null,
+              "delay_ms": 0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "phone_availability_retires_recovering_timers",
+      "initial": {
+        "role": "phone",
+        "enrolled": true,
+        "eligible": true,
+        "pinned": false,
+        "phase": "recovering",
+        "arms": {
+          "left": false,
+          "right": false
+        },
+        "renderer_ready": false,
+        "generation": 7,
+        "transfer": "11111111111111111111111111111111",
+        "peer_reachable": false,
+        "peer_active": false,
+        "permission": "none",
+        "release_intent": "none",
+        "peer_eligible": false,
+        "peer_pinned": false
+      },
+      "steps": [
+        {
+          "event": {
+            "kind": "availability",
+            "generation": 7,
+            "data": {
+              "eligible": false
+            },
+            "attempt_nonce": null
+          },
+          "expected": {
+            "role": "phone",
+            "enrolled": true,
+            "eligible": false,
+            "pinned": false,
+            "phase": "idle",
+            "arms": {
+              "left": false,
+              "right": false
+            },
+            "renderer_ready": false,
+            "generation": 8,
+            "transfer": "11111111111111111111111111111111",
+            "peer_reachable": false,
+            "peer_active": false,
+            "permission": "none",
+            "release_intent": "none",
+            "peer_eligible": false,
+            "peer_pinned": false
+          },
+          "effects": [
+            {
+              "kind": "cancel_timers",
+              "generation": 8,
+              "transfer": "11111111111111111111111111111111",
+              "timer": null,
+              "delay_ms": 0
+            },
+            {
+              "kind": "publish_status",
+              "generation": 8,
+              "transfer": "11111111111111111111111111111111",
+              "timer": null,
+              "delay_ms": 0
+            }
+          ]
+        },
+        {
+          "event": {
+            "kind": "timeout",
+            "generation": 7,
+            "data": {
+              "timer": "retry",
+              "elapsed_ms": 60000
+            },
+            "attempt_nonce": "22222222222222222222222222222222"
+          },
+          "expected": {
+            "role": "phone",
+            "enrolled": true,
+            "eligible": false,
+            "pinned": false,
+            "phase": "idle",
+            "arms": {
+              "left": false,
+              "right": false
+            },
+            "renderer_ready": false,
+            "generation": 8,
+            "transfer": "11111111111111111111111111111111",
+            "peer_reachable": false,
+            "peer_active": false,
+            "permission": "none",
+            "release_intent": "none",
+            "peer_eligible": false,
+            "peer_pinned": false
+          },
+          "effects": [
+            {
+              "kind": "ignore",
+              "generation": 8,
+              "transfer": "11111111111111111111111111111111",
+              "timer": null,
+              "delay_ms": 0
+            }
+          ]
+        },
+        {
+          "event": {
+            "kind": "availability",
+            "generation": 8,
+            "data": {
+              "eligible": true
+            },
+            "attempt_nonce": "22222222222222222222222222222222"
+          },
+          "expected": {
+            "role": "phone",
+            "enrolled": true,
+            "eligible": true,
+            "pinned": false,
+            "phase": "recovering",
+            "arms": {
+              "left": false,
+              "right": false
+            },
+            "renderer_ready": false,
+            "generation": 8,
+            "transfer": "11111111111111111111111111111111",
+            "peer_reachable": false,
+            "peer_active": false,
+            "permission": "none",
+            "release_intent": "none",
+            "peer_eligible": false,
+            "peer_pinned": false
+          },
+          "effects": [
+            {
+              "kind": "reconcile",
+              "generation": 8,
+              "transfer": "11111111111111111111111111111111",
+              "timer": null,
+              "delay_ms": 0
+            },
+            {
+              "kind": "schedule",
+              "generation": 8,
+              "transfer": "11111111111111111111111111111111",
+              "timer": "stability",
+              "delay_ms": 3000
+            }
+          ]
+        },
+        {
+          "event": {
+            "kind": "timeout",
+            "generation": 7,
+            "data": {
+              "timer": "peer_suspect",
+              "elapsed_ms": 60000
+            },
+            "attempt_nonce": "22222222222222222222222222222222"
+          },
+          "expected": {
+            "role": "phone",
+            "enrolled": true,
+            "eligible": true,
+            "pinned": false,
+            "phase": "recovering",
+            "arms": {
+              "left": false,
+              "right": false
+            },
+            "renderer_ready": false,
+            "generation": 8,
+            "transfer": "11111111111111111111111111111111",
+            "peer_reachable": false,
+            "peer_active": false,
+            "permission": "none",
+            "release_intent": "none",
+            "peer_eligible": false,
+            "peer_pinned": false
+          },
+          "effects": [
+            {
+              "kind": "ignore",
+              "generation": 8,
+              "transfer": "11111111111111111111111111111111",
+              "timer": null,
+              "delay_ms": 0
+            }
+          ]
+        }
+      ]
     }
   ]
 }

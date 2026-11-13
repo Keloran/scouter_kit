@@ -1,0 +1,1196 @@
+{
+  "version": 1,
+  "synthetic": true,
+  "identities": {
+    "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "session": "cccccccccccccccccccccccccccccccc",
+    "local_session": "dddddddddddddddddddddddddddddddd",
+    "transfer": "11111111111111111111111111111111"
+  },
+  "valid": [
+    {
+      "name": "hello",
+      "message": {
+        "version": 1,
+        "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "session": "cccccccccccccccccccccccccccccccc",
+        "peer_session": null,
+        "seq": 1,
+        "epoch": 0,
+        "transfer": null,
+        "kind": "hello",
+        "body": {
+          "role": "phone",
+          "required_capabilities": [
+            "two_arm_v1",
+            "release_before_acquire_v1"
+          ],
+          "optional_capabilities": [
+            "snapshot_v1",
+            "telemetry_v1"
+          ]
+        }
+      }
+    },
+    {
+      "name": "status",
+      "message": {
+        "version": 1,
+        "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "session": "cccccccccccccccccccccccccccccccc",
+        "peer_session": "dddddddddddddddddddddddddddddddd",
+        "seq": 1,
+        "epoch": 1,
+        "transfer": null,
+        "kind": "status",
+        "body": {
+          "role": "phone",
+          "phase": "active",
+          "eligible": true,
+          "pinned": false,
+          "arms": {
+            "left": true,
+            "right": true
+          },
+          "renderer_ready": true,
+          "transfer": "11111111111111111111111111111111",
+          "ready_epoch": 1
+        }
+      }
+    },
+    {
+      "name": "availability",
+      "message": {
+        "version": 1,
+        "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "session": "cccccccccccccccccccccccccccccccc",
+        "peer_session": "dddddddddddddddddddddddddddddddd",
+        "seq": 1,
+        "epoch": 0,
+        "transfer": null,
+        "kind": "availability",
+        "body": {
+          "eligible": false,
+          "lid": "absent",
+          "awake": true,
+          "reason": "manual"
+        }
+      }
+    },
+    {
+      "name": "request",
+      "message": {
+        "version": 1,
+        "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "session": "cccccccccccccccccccccccccccccccc",
+        "peer_session": "dddddddddddddddddddddddddddddddd",
+        "seq": 1,
+        "epoch": 0,
+        "transfer": "11111111111111111111111111111111",
+        "kind": "request",
+        "body": {
+          "target": "phone",
+          "reason": "preference",
+          "pinned": false
+        }
+      }
+    },
+    {
+      "name": "release",
+      "message": {
+        "version": 1,
+        "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "session": "cccccccccccccccccccccccccccccccc",
+        "peer_session": "dddddddddddddddddddddddddddddddd",
+        "seq": 1,
+        "epoch": 0,
+        "transfer": "11111111111111111111111111111111",
+        "kind": "release",
+        "body": {
+          "target": "laptop",
+          "reason": "preference"
+        }
+      }
+    },
+    {
+      "name": "released",
+      "message": {
+        "version": 1,
+        "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "session": "cccccccccccccccccccccccccccccccc",
+        "peer_session": "dddddddddddddddddddddddddddddddd",
+        "seq": 1,
+        "epoch": 0,
+        "transfer": "11111111111111111111111111111111",
+        "kind": "released",
+        "body": {
+          "target": "laptop",
+          "arms": {
+            "left": false,
+            "right": false
+          },
+          "reconnect_disabled": true,
+          "workers_stopped": true
+        }
+      }
+    },
+    {
+      "name": "acquiring",
+      "message": {
+        "version": 1,
+        "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "session": "cccccccccccccccccccccccccccccccc",
+        "peer_session": "dddddddddddddddddddddddddddddddd",
+        "seq": 1,
+        "epoch": 0,
+        "transfer": "11111111111111111111111111111111",
+        "kind": "acquiring",
+        "body": {
+          "target": "phone",
+          "mode": "released"
+        }
+      }
+    },
+    {
+      "name": "ready",
+      "message": {
+        "version": 1,
+        "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "session": "cccccccccccccccccccccccccccccccc",
+        "peer_session": "dddddddddddddddddddddddddddddddd",
+        "seq": 1,
+        "epoch": 0,
+        "transfer": "11111111111111111111111111111111",
+        "kind": "ready",
+        "body": {
+          "target": "phone",
+          "arms": {
+            "left": true,
+            "right": true
+          },
+          "renderer_ready": true
+        }
+      }
+    },
+    {
+      "name": "abort",
+      "message": {
+        "version": 1,
+        "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "session": "cccccccccccccccccccccccccccccccc",
+        "peer_session": "dddddddddddddddddddddddddddddddd",
+        "seq": 1,
+        "epoch": 0,
+        "transfer": "11111111111111111111111111111111",
+        "kind": "abort",
+        "body": {
+          "reason": "acquire_failed",
+          "released_both": true
+        }
+      }
+    },
+    {
+      "name": "heartbeat",
+      "message": {
+        "version": 1,
+        "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "session": "cccccccccccccccccccccccccccccccc",
+        "peer_session": "dddddddddddddddddddddddddddddddd",
+        "seq": 1,
+        "epoch": 0,
+        "transfer": null,
+        "kind": "heartbeat",
+        "body": {
+          "phase": "idle",
+          "ready_epoch": 2
+        }
+      }
+    },
+    {
+      "name": "snapshot",
+      "message": {
+        "version": 1,
+        "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "session": "cccccccccccccccccccccccccccccccc",
+        "peer_session": "dddddddddddddddddddddddddddddddd",
+        "seq": 1,
+        "epoch": 0,
+        "transfer": "11111111111111111111111111111111",
+        "kind": "snapshot",
+        "body": {
+          "snapshot": {
+            "schema_version": 1,
+            "revision": 3,
+            "view": "sites",
+            "page_id": "summary",
+            "project": null,
+            "rotation_paused": false,
+            "rotation_ms": 12000
+          }
+        }
+      }
+    },
+    {
+      "name": "telemetry",
+      "message": {
+        "version": 1,
+        "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "session": "cccccccccccccccccccccccccccccccc",
+        "peer_session": "dddddddddddddddddddddddddddddddd",
+        "seq": 1,
+        "epoch": 0,
+        "transfer": null,
+        "kind": "telemetry",
+        "body": {
+          "telemetry": {
+            "schema_version": 1,
+            "revision": 4,
+            "source": "system",
+            "sample_unix_ms": 1800000000000,
+            "age_ms": 2000,
+            "status": "fresh",
+            "values": {
+              "cpu_percent": 12.5,
+              "memory_used_bytes": 4096,
+              "memory_total_bytes": 8192,
+              "battery_percent": 75
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "ai_telemetry",
+      "message": {
+        "version": 1,
+        "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "session": "cccccccccccccccccccccccccccccccc",
+        "peer_session": "dddddddddddddddddddddddddddddddd",
+        "seq": 1,
+        "epoch": 0,
+        "transfer": null,
+        "kind": "telemetry",
+        "body": {
+          "telemetry": {
+            "schema_version": 1,
+            "revision": 1,
+            "source": "ai",
+            "sample_unix_ms": 1800000000000,
+            "age_ms": 5000,
+            "status": "stale",
+            "values": [
+              {
+                "provider": "codex",
+                "window": "weekly",
+                "used_percent": 25.5,
+                "reset_unix_ms": null
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "unavailable_telemetry",
+      "message": {
+        "version": 1,
+        "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "session": "cccccccccccccccccccccccccccccccc",
+        "peer_session": "dddddddddddddddddddddddddddddddd",
+        "seq": 1,
+        "epoch": 0,
+        "transfer": null,
+        "kind": "telemetry",
+        "body": {
+          "telemetry": {
+            "schema_version": 1,
+            "revision": 1,
+            "source": "ai",
+            "sample_unix_ms": null,
+            "age_ms": 5000,
+            "status": "unavailable",
+            "values": null
+          }
+        }
+      }
+    },
+    {
+      "name": "unknown_optional_capability",
+      "message": {
+        "version": 1,
+        "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "session": "cccccccccccccccccccccccccccccccc",
+        "peer_session": null,
+        "seq": 1,
+        "epoch": 0,
+        "transfer": null,
+        "kind": "hello",
+        "body": {
+          "role": "phone",
+          "required_capabilities": [
+            "two_arm_v1",
+            "release_before_acquire_v1"
+          ],
+          "optional_capabilities": [
+            "snapshot_v1",
+            "telemetry_v1",
+            "future_feature_v2"
+          ]
+        }
+      }
+    }
+  ],
+  "invalid": [
+    {
+      "name": "unsupported_version",
+      "message": {
+        "version": 2,
+        "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "session": "cccccccccccccccccccccccccccccccc",
+        "peer_session": null,
+        "seq": 1,
+        "epoch": 0,
+        "transfer": null,
+        "kind": "hello",
+        "body": {
+          "role": "phone",
+          "required_capabilities": [
+            "two_arm_v1",
+            "release_before_acquire_v1"
+          ],
+          "optional_capabilities": [
+            "snapshot_v1",
+            "telemetry_v1"
+          ]
+        }
+      }
+    },
+    {
+      "name": "unknown_required_capability",
+      "message": {
+        "version": 1,
+        "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "session": "cccccccccccccccccccccccccccccccc",
+        "peer_session": null,
+        "seq": 1,
+        "epoch": 0,
+        "transfer": null,
+        "kind": "hello",
+        "body": {
+          "role": "phone",
+          "required_capabilities": [
+            "two_arm_v1",
+            "release_before_acquire_v1",
+            "future_required_v2"
+          ],
+          "optional_capabilities": [
+            "snapshot_v1",
+            "telemetry_v1"
+          ]
+        }
+      }
+    },
+    {
+      "name": "missing_required_capability",
+      "message": {
+        "version": 1,
+        "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "session": "cccccccccccccccccccccccccccccccc",
+        "peer_session": null,
+        "seq": 1,
+        "epoch": 0,
+        "transfer": null,
+        "kind": "hello",
+        "body": {
+          "role": "phone",
+          "required_capabilities": [
+            "two_arm_v1"
+          ],
+          "optional_capabilities": [
+            "snapshot_v1",
+            "telemetry_v1"
+          ]
+        }
+      }
+    },
+    {
+      "name": "duplicate_capability",
+      "message": {
+        "version": 1,
+        "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "session": "cccccccccccccccccccccccccccccccc",
+        "peer_session": null,
+        "seq": 1,
+        "epoch": 0,
+        "transfer": null,
+        "kind": "hello",
+        "body": {
+          "role": "phone",
+          "required_capabilities": [
+            "two_arm_v1",
+            "release_before_acquire_v1",
+            "two_arm_v1"
+          ],
+          "optional_capabilities": [
+            "snapshot_v1",
+            "telemetry_v1"
+          ]
+        }
+      }
+    },
+    {
+      "name": "overlapping_capabilities",
+      "message": {
+        "version": 1,
+        "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "session": "cccccccccccccccccccccccccccccccc",
+        "peer_session": null,
+        "seq": 1,
+        "epoch": 0,
+        "transfer": null,
+        "kind": "hello",
+        "body": {
+          "role": "phone",
+          "required_capabilities": [
+            "two_arm_v1",
+            "release_before_acquire_v1"
+          ],
+          "optional_capabilities": [
+            "snapshot_v1",
+            "telemetry_v1",
+            "two_arm_v1"
+          ]
+        }
+      }
+    },
+    {
+      "name": "unknown_envelope_field",
+      "message": {
+        "version": 1,
+        "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "session": "cccccccccccccccccccccccccccccccc",
+        "peer_session": null,
+        "seq": 1,
+        "epoch": 0,
+        "transfer": null,
+        "kind": "hello",
+        "body": {
+          "role": "phone",
+          "required_capabilities": [
+            "two_arm_v1",
+            "release_before_acquire_v1"
+          ],
+          "optional_capabilities": [
+            "snapshot_v1",
+            "telemetry_v1"
+          ]
+        },
+        "credential": "synthetic-must-not-pass"
+      }
+    },
+    {
+      "name": "unknown_body_field",
+      "message": {
+        "version": 1,
+        "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "session": "cccccccccccccccccccccccccccccccc",
+        "peer_session": "dddddddddddddddddddddddddddddddd",
+        "seq": 1,
+        "epoch": 1,
+        "transfer": null,
+        "kind": "status",
+        "body": {
+          "role": "phone",
+          "phase": "active",
+          "eligible": true,
+          "pinned": false,
+          "arms": {
+            "left": true,
+            "right": true
+          },
+          "renderer_ready": true,
+          "transfer": "11111111111111111111111111111111",
+          "ready_epoch": 1,
+          "device_address": "LEFT_ADDR"
+        }
+      }
+    },
+    {
+      "name": "unsafe_sequence",
+      "message": {
+        "version": 1,
+        "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "session": "cccccccccccccccccccccccccccccccc",
+        "peer_session": null,
+        "seq": 9007199254740992,
+        "epoch": 0,
+        "transfer": null,
+        "kind": "hello",
+        "body": {
+          "role": "phone",
+          "required_capabilities": [
+            "two_arm_v1",
+            "release_before_acquire_v1"
+          ],
+          "optional_capabilities": [
+            "snapshot_v1",
+            "telemetry_v1"
+          ]
+        }
+      }
+    },
+    {
+      "name": "negative_epoch",
+      "message": {
+        "version": 1,
+        "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "session": "cccccccccccccccccccccccccccccccc",
+        "peer_session": "dddddddddddddddddddddddddddddddd",
+        "seq": 1,
+        "epoch": -1,
+        "transfer": null,
+        "kind": "status",
+        "body": {
+          "role": "phone",
+          "phase": "active",
+          "eligible": true,
+          "pinned": false,
+          "arms": {
+            "left": true,
+            "right": true
+          },
+          "renderer_ready": true,
+          "transfer": "11111111111111111111111111111111",
+          "ready_epoch": 1
+        }
+      }
+    },
+    {
+      "name": "boolean_sequence",
+      "message": {
+        "version": 1,
+        "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "session": "cccccccccccccccccccccccccccccccc",
+        "peer_session": null,
+        "seq": true,
+        "epoch": 0,
+        "transfer": null,
+        "kind": "hello",
+        "body": {
+          "role": "phone",
+          "required_capabilities": [
+            "two_arm_v1",
+            "release_before_acquire_v1"
+          ],
+          "optional_capabilities": [
+            "snapshot_v1",
+            "telemetry_v1"
+          ]
+        }
+      }
+    },
+    {
+      "name": "missing_recipient_session",
+      "message": {
+        "version": 1,
+        "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "session": "cccccccccccccccccccccccccccccccc",
+        "peer_session": null,
+        "seq": 1,
+        "epoch": 1,
+        "transfer": null,
+        "kind": "status",
+        "body": {
+          "role": "phone",
+          "phase": "active",
+          "eligible": true,
+          "pinned": false,
+          "arms": {
+            "left": true,
+            "right": true
+          },
+          "renderer_ready": true,
+          "transfer": "11111111111111111111111111111111",
+          "ready_epoch": 1
+        }
+      }
+    },
+    {
+      "name": "invalid_nonce",
+      "message": {
+        "version": 1,
+        "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "session": "not-a-nonce",
+        "peer_session": null,
+        "seq": 1,
+        "epoch": 0,
+        "transfer": null,
+        "kind": "hello",
+        "body": {
+          "role": "phone",
+          "required_capabilities": [
+            "two_arm_v1",
+            "release_before_acquire_v1"
+          ],
+          "optional_capabilities": [
+            "snapshot_v1",
+            "telemetry_v1"
+          ]
+        }
+      }
+    },
+    {
+      "name": "control_missing_transfer",
+      "message": {
+        "version": 1,
+        "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "session": "cccccccccccccccccccccccccccccccc",
+        "peer_session": "dddddddddddddddddddddddddddddddd",
+        "seq": 1,
+        "epoch": 0,
+        "transfer": null,
+        "kind": "request",
+        "body": {
+          "target": "phone",
+          "reason": "preference",
+          "pinned": false
+        }
+      }
+    },
+    {
+      "name": "ready_one_arm",
+      "message": {
+        "version": 1,
+        "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "session": "cccccccccccccccccccccccccccccccc",
+        "peer_session": "dddddddddddddddddddddddddddddddd",
+        "seq": 1,
+        "epoch": 0,
+        "transfer": "11111111111111111111111111111111",
+        "kind": "ready",
+        "body": {
+          "target": "phone",
+          "arms": {
+            "left": true,
+            "right": false
+          },
+          "renderer_ready": true
+        }
+      }
+    },
+    {
+      "name": "released_keeps_arm",
+      "message": {
+        "version": 1,
+        "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "session": "cccccccccccccccccccccccccccccccc",
+        "peer_session": "dddddddddddddddddddddddddddddddd",
+        "seq": 1,
+        "epoch": 0,
+        "transfer": "11111111111111111111111111111111",
+        "kind": "released",
+        "body": {
+          "target": "laptop",
+          "arms": {
+            "left": true,
+            "right": false
+          },
+          "reconnect_disabled": true,
+          "workers_stopped": true
+        }
+      }
+    },
+    {
+      "name": "released_reconnect_enabled",
+      "message": {
+        "version": 1,
+        "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "session": "cccccccccccccccccccccccccccccccc",
+        "peer_session": "dddddddddddddddddddddddddddddddd",
+        "seq": 1,
+        "epoch": 0,
+        "transfer": "11111111111111111111111111111111",
+        "kind": "released",
+        "body": {
+          "target": "laptop",
+          "arms": {
+            "left": false,
+            "right": false
+          },
+          "reconnect_disabled": false,
+          "workers_stopped": true
+        }
+      }
+    },
+    {
+      "name": "released_workers_running",
+      "message": {
+        "version": 1,
+        "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "session": "cccccccccccccccccccccccccccccccc",
+        "peer_session": "dddddddddddddddddddddddddddddddd",
+        "seq": 1,
+        "epoch": 0,
+        "transfer": "11111111111111111111111111111111",
+        "kind": "released",
+        "body": {
+          "target": "laptop",
+          "arms": {
+            "left": false,
+            "right": false
+          },
+          "reconnect_disabled": true,
+          "workers_stopped": false
+        }
+      }
+    },
+    {
+      "name": "status_active_without_renderer",
+      "message": {
+        "version": 1,
+        "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "session": "cccccccccccccccccccccccccccccccc",
+        "peer_session": "dddddddddddddddddddddddddddddddd",
+        "seq": 1,
+        "epoch": 1,
+        "transfer": null,
+        "kind": "status",
+        "body": {
+          "role": "phone",
+          "phase": "active",
+          "eligible": true,
+          "pinned": false,
+          "arms": {
+            "left": true,
+            "right": true
+          },
+          "renderer_ready": false,
+          "transfer": "11111111111111111111111111111111",
+          "ready_epoch": 1
+        }
+      }
+    },
+    {
+      "name": "status_active_one_arm",
+      "message": {
+        "version": 1,
+        "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "session": "cccccccccccccccccccccccccccccccc",
+        "peer_session": "dddddddddddddddddddddddddddddddd",
+        "seq": 1,
+        "epoch": 1,
+        "transfer": null,
+        "kind": "status",
+        "body": {
+          "role": "phone",
+          "phase": "active",
+          "eligible": true,
+          "pinned": false,
+          "arms": {
+            "left": false,
+            "right": true
+          },
+          "renderer_ready": true,
+          "transfer": "11111111111111111111111111111111",
+          "ready_epoch": 1
+        }
+      }
+    },
+    {
+      "name": "laptop_pin",
+      "message": {
+        "version": 1,
+        "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "session": "cccccccccccccccccccccccccccccccc",
+        "peer_session": "dddddddddddddddddddddddddddddddd",
+        "seq": 1,
+        "epoch": 1,
+        "transfer": null,
+        "kind": "status",
+        "body": {
+          "role": "laptop",
+          "phase": "active",
+          "eligible": true,
+          "pinned": true,
+          "arms": {
+            "left": true,
+            "right": true
+          },
+          "renderer_ready": true,
+          "transfer": "11111111111111111111111111111111",
+          "ready_epoch": 1
+        }
+      }
+    },
+    {
+      "name": "snapshot_contains_geometry",
+      "message": {
+        "version": 1,
+        "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "session": "cccccccccccccccccccccccccccccccc",
+        "peer_session": "dddddddddddddddddddddddddddddddd",
+        "seq": 1,
+        "epoch": 0,
+        "transfer": "11111111111111111111111111111111",
+        "kind": "snapshot",
+        "body": {
+          "snapshot": {
+            "schema_version": 1,
+            "revision": 3,
+            "view": "sites",
+            "page_id": "summary",
+            "project": null,
+            "rotation_paused": false,
+            "rotation_ms": 12000,
+            "dx": 100
+          }
+        }
+      }
+    },
+    {
+      "name": "snapshot_contains_credential",
+      "message": {
+        "version": 1,
+        "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "session": "cccccccccccccccccccccccccccccccc",
+        "peer_session": "dddddddddddddddddddddddddddddddd",
+        "seq": 1,
+        "epoch": 0,
+        "transfer": "11111111111111111111111111111111",
+        "kind": "snapshot",
+        "body": {
+          "snapshot": {
+            "schema_version": 1,
+            "revision": 3,
+            "view": "sites",
+            "page_id": "summary",
+            "project": null,
+            "rotation_paused": false,
+            "rotation_ms": 12000,
+            "credential": "synthetic-must-not-pass"
+          }
+        }
+      }
+    },
+    {
+      "name": "snapshot_contains_notifications",
+      "message": {
+        "version": 1,
+        "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "session": "cccccccccccccccccccccccccccccccc",
+        "peer_session": "dddddddddddddddddddddddddddddddd",
+        "seq": 1,
+        "epoch": 0,
+        "transfer": "11111111111111111111111111111111",
+        "kind": "snapshot",
+        "body": {
+          "snapshot": {
+            "schema_version": 1,
+            "revision": 3,
+            "view": "sites",
+            "page_id": "summary",
+            "project": null,
+            "rotation_paused": false,
+            "rotation_ms": 12000,
+            "notification_history": []
+          }
+        }
+      }
+    },
+    {
+      "name": "snapshot_notification_page",
+      "message": {
+        "version": 1,
+        "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "session": "cccccccccccccccccccccccccccccccc",
+        "peer_session": "dddddddddddddddddddddddddddddddd",
+        "seq": 1,
+        "epoch": 0,
+        "transfer": "11111111111111111111111111111111",
+        "kind": "snapshot",
+        "body": {
+          "snapshot": {
+            "schema_version": 1,
+            "revision": 3,
+            "view": "notifications",
+            "page_id": "notifications/1/0",
+            "project": null,
+            "rotation_paused": false,
+            "rotation_ms": 12000
+          }
+        }
+      }
+    },
+    {
+      "name": "snapshot_fast_rotation",
+      "message": {
+        "version": 1,
+        "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "session": "cccccccccccccccccccccccccccccccc",
+        "peer_session": "dddddddddddddddddddddddddddddddd",
+        "seq": 1,
+        "epoch": 0,
+        "transfer": "11111111111111111111111111111111",
+        "kind": "snapshot",
+        "body": {
+          "snapshot": {
+            "schema_version": 1,
+            "revision": 3,
+            "view": "sites",
+            "page_id": "summary",
+            "project": null,
+            "rotation_paused": false,
+            "rotation_ms": 999
+          }
+        }
+      }
+    },
+    {
+      "name": "snapshot_control_character",
+      "message": {
+        "version": 1,
+        "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "session": "cccccccccccccccccccccccccccccccc",
+        "peer_session": "dddddddddddddddddddddddddddddddd",
+        "seq": 1,
+        "epoch": 0,
+        "transfer": "11111111111111111111111111111111",
+        "kind": "snapshot",
+        "body": {
+          "snapshot": {
+            "schema_version": 1,
+            "revision": 3,
+            "view": "sites",
+            "page_id": "summary\nprivate",
+            "project": null,
+            "rotation_paused": false,
+            "rotation_ms": 12000
+          }
+        }
+      }
+    },
+    {
+      "name": "telemetry_source_mismatch",
+      "message": {
+        "version": 1,
+        "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "session": "cccccccccccccccccccccccccccccccc",
+        "peer_session": "dddddddddddddddddddddddddddddddd",
+        "seq": 1,
+        "epoch": 0,
+        "transfer": null,
+        "kind": "telemetry",
+        "body": {
+          "telemetry": {
+            "schema_version": 1,
+            "revision": 4,
+            "source": "ai",
+            "sample_unix_ms": 1800000000000,
+            "age_ms": 2000,
+            "status": "fresh",
+            "values": {
+              "cpu_percent": 12.5,
+              "memory_used_bytes": 4096,
+              "memory_total_bytes": 8192,
+              "battery_percent": 75
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "telemetry_invented_unavailable_values",
+      "message": {
+        "version": 1,
+        "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "session": "cccccccccccccccccccccccccccccccc",
+        "peer_session": "dddddddddddddddddddddddddddddddd",
+        "seq": 1,
+        "epoch": 0,
+        "transfer": null,
+        "kind": "telemetry",
+        "body": {
+          "telemetry": {
+            "schema_version": 1,
+            "revision": 4,
+            "source": "system",
+            "sample_unix_ms": 1800000000000,
+            "age_ms": 2000,
+            "status": "unavailable",
+            "values": {
+              "cpu_percent": 12.5,
+              "memory_used_bytes": 4096,
+              "memory_total_bytes": 8192,
+              "battery_percent": 75
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "telemetry_no_timestamp",
+      "message": {
+        "version": 1,
+        "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "session": "cccccccccccccccccccccccccccccccc",
+        "peer_session": "dddddddddddddddddddddddddddddddd",
+        "seq": 1,
+        "epoch": 0,
+        "transfer": null,
+        "kind": "telemetry",
+        "body": {
+          "telemetry": {
+            "schema_version": 1,
+            "revision": 4,
+            "source": "system",
+            "sample_unix_ms": null,
+            "age_ms": 2000,
+            "status": "fresh",
+            "values": {
+              "cpu_percent": 12.5,
+              "memory_used_bytes": 4096,
+              "memory_total_bytes": 8192,
+              "battery_percent": 75
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "telemetry_private_metadata",
+      "message": {
+        "version": 1,
+        "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "session": "cccccccccccccccccccccccccccccccc",
+        "peer_session": "dddddddddddddddddddddddddddddddd",
+        "seq": 1,
+        "epoch": 0,
+        "transfer": null,
+        "kind": "telemetry",
+        "body": {
+          "telemetry": {
+            "schema_version": 1,
+            "revision": 4,
+            "source": "system",
+            "sample_unix_ms": 1800000000000,
+            "age_ms": 2000,
+            "status": "fresh",
+            "values": {
+              "cpu_percent": 12.5,
+              "memory_used_bytes": 4096,
+              "memory_total_bytes": 8192,
+              "battery_percent": 75,
+              "command_line": "synthetic-must-not-pass"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "telemetry_memory_exceeds_total",
+      "message": {
+        "version": 1,
+        "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "session": "cccccccccccccccccccccccccccccccc",
+        "peer_session": "dddddddddddddddddddddddddddddddd",
+        "seq": 1,
+        "epoch": 0,
+        "transfer": null,
+        "kind": "telemetry",
+        "body": {
+          "telemetry": {
+            "schema_version": 1,
+            "revision": 4,
+            "source": "system",
+            "sample_unix_ms": 1800000000000,
+            "age_ms": 2000,
+            "status": "fresh",
+            "values": {
+              "cpu_percent": 12.5,
+              "memory_used_bytes": 8193,
+              "memory_total_bytes": 8192,
+              "battery_percent": 75
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "telemetry_battery_out_of_range",
+      "message": {
+        "version": 1,
+        "sender": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "recipient": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "session": "cccccccccccccccccccccccccccccccc",
+        "peer_session": "dddddddddddddddddddddddddddddddd",
+        "seq": 1,
+        "epoch": 0,
+        "transfer": null,
+        "kind": "telemetry",
+        "body": {
+          "telemetry": {
+            "schema_version": 1,
+            "revision": 4,
+            "source": "system",
+            "sample_unix_ms": 1800000000000,
+            "age_ms": 2000,
+            "status": "fresh",
+            "values": {
+              "cpu_percent": 12.5,
+              "memory_used_bytes": 4096,
+              "memory_total_bytes": 8192,
+              "battery_percent": 101
+            }
+          }
+        }
+      }
+    }
+  ]
+}

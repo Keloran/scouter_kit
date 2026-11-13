@@ -1,0 +1,176 @@
+{
+  "version": 1,
+  "wire": {
+    "framing": "u32be_length_then_utf8_json",
+    "max_frame_bytes": 65536,
+    "max_depth": 16,
+    "max_snapshot_bytes": 8192,
+    "max_telemetry_bytes": 32768,
+    "number_max": 9007199254740991,
+    "unknown_fields": "reject",
+    "duplicate_keys": "reject",
+    "nonfinite_numbers": "reject",
+    "required_capabilities": [
+      "two_arm_v1",
+      "release_before_acquire_v1"
+    ],
+    "optional_capabilities": [
+      "snapshot_v1",
+      "telemetry_v1"
+    ],
+    "unicode": "reject_unpaired_surrogates_and_control_characters_in_keys_and_values",
+    "capabilities": "negotiated_intersection_of_both_hellos; unknown_optional_ignored"
+  },
+  "identity": {
+    "peer_id": "sha256_of_enrolled_public_key_spki_lower_hex",
+    "session": "fresh_128_bit_random_lower_hex_per_authenticated_handshake",
+    "transfer": "fresh_128_bit_random_lower_hex_per_attempt",
+    "authentication": "authenticate_enrolled_sender_and_recipient_before_parsing_application_messages",
+    "enrollment": "out_of_band_256_bit_single_use_invitation_expires_300000_ms_with_peer_key_confirmation",
+    "relay": "opaque_end_to_end_authenticated_encrypted_peer_messages; relay_has_no_ownership_authority"
+  },
+  "ordering": {
+    "sequence": "strictly_increasing_per_sender_session_across_routes; serialized_send_allocator",
+    "epoch": "nondecreasing_per_sender_session; increment_before_new_acquire_or_release; never_compare_between_hosts",
+    "recipient_session": "equals_local_current_session_except_first_hello",
+    "new_session": "authenticated_handshake_only; first_message_hello; retired_sessions_rejected; reconcile_before_ownership",
+    "transfer_binding": "identity_session_epoch_transfer_target; release_notice_records_owner_epoch; released_matches_pending_request_and_that_release_epoch; snapshot_uses_current_transfer_nonce",
+    "watermarks": "reject_without_mutating_seq_or_epoch_on_any_validation_failure",
+    "hello": "once_per_authenticated_connection; required_caps_include_both_baseline_caps; reject_unknown_required_accept_unknown_optional"
+  },
+  "timers_ms": {
+    "heartbeat": 3000,
+    "peer_suspect": 15000,
+    "laptop_stability": 3000,
+    "release_target": 2000,
+    "release_deadline": 5000,
+    "suspend_cleanup_budget": 1000,
+    "acquire_deadline": 30000,
+    "partial_arms_deadline": 2000,
+    "phone_cold_start_delay": 2000,
+    "laptop_cold_start_delay": 0,
+    "retry_initial": 5000,
+    "retry_max": 60000,
+    "telemetry_stale": 90000,
+    "ai_stale": 300000
+  },
+  "timing": {
+    "clock": "local_monotonic_elapsed_only; sender_wall_times_are_display_metadata",
+    "acquire": "30000_total_including_native_init_and_render; partial_arms_2000_starts_at_first_arm_ready",
+    "release": "5000_adapter_deadline_not_native_Deinit_guarantee; timeout_forces_disconnect_but_never_synthesizes_released",
+    "suspend": "at_most_1000_or_shorter_logind_budget; no_ack_without_confirmed_release; reconcile_after_resume",
+    "retry": "exponential_to_60000_plus_0_to_20_percent_positive_jitter; phone_adds_2000_to_suspect_and_retry_probe_delays; reset_on_success"
+  },
+  "ownership": {
+    "unit": "both_bonded_arms; never_automatically_repair_or_disconnect_other_host",
+    "eligible_laptop": "app_ready_bluetooth_enabled_awake_lid_open_or_absent; unknown_lid_not_preferred",
+    "eligible_phone": "app_running_required_permissions_bluetooth_enabled_user_not_stopped",
+    "preference": "laptop_eligible_3000_continuous_ms_requests_phone_release; matching_released_required_before_normal_acquire",
+    "pin": "phone_pin_persisted_preference_not_grant; idle_pinned_phone_requests_manual_release; laptop_yields_to_authenticated_phone_manual_request_with_peer_pin; phone_refuses_preference_release_while_pinned; local_stop_or_unavailability_still_releases",
+    "manual_release": "local_eligibility_false_until_resume; resume_does_not_clear_phone_pin",
+    "active": "both_arms_ready_fresh_renderer_initialized_current_generation",
+    "release_order": "invalidate_renderer_disable_reconnect_cancel_and_join_workers_close_both_then_ack",
+    "acquire_order": "permission_acquire_both_new_resources_full_repaint_then_ready; no_restoring_previous_host_mirror",
+    "transfer_flow": [
+      "requester_request",
+      "owner_release_notification_and_release_both",
+      "owner_confirm_both_down_workers_stopped_reconnect_disabled",
+      "owner_released",
+      "requester_acquiring",
+      "requester_acquire_both_and_initialize",
+      "requester_redraw_then_ready"
+    ],
+    "transfer_epoch": "request_uses_requester_current_epoch; release_and_released_use_owner_incremented_epoch; remember_that_owner_epoch_at_release; reject_mismatch",
+    "snapshot": "optional_before_release_ack; lost_snapshot_never_blocks_handover",
+    "partition": "healthy_active_owner_keeps_links; reachable_active_peer_requires_confirmed_release; no_control_path_means_no_preemption",
+    "failed_owner": "no_route_for_peer_suspect_plus_phone_delay_allows_only_bounded_nonpreemptive_probe; not_release_or_proof_of_death; existing_BLE_connection_cannot_be_stolen",
+    "cold_start": "laptop_probe_0_phone_probe_2000; each_releases_partial_acquisition_after_2000; retry_backoff_reduces_race_not_atomicity",
+    "rollback": "release_both_and_disable_reconnect_before_abort_released_both_true; former_owner_waits_for_reconcile_not_immediate_reconnect",
+    "restart": "discard_inflight_grants_and_fresh_session_nonce; reconcile_peer_before_acquire",
+    "single_host": "unenrolled_desktop_preserves_automatic_start; standalone_phone_allowed; no_peer_listener_required",
+    "limitations": [
+      "one_connection_per_arm_does_not_fence_global_owner",
+      "no_control_path_cannot_preempt_connected_phone",
+      "temporary_split_arm_connections_possible_until_bounded_rollback",
+      "Android_force_stop_or_background_limits_can_prevent_automatic_takeover",
+      "current_native_Deinit_waits_3s_plus_up_to_30s_assets; CF-30_must_supply_bounded_release_or_report_failure"
+    ],
+    "cooperative_cold_start": "reachable_peers_with_no_owner_still_use_request_release_released; preferred_laptop_requests_idle_phone; phone_requests_idle_laptop_only_when_laptop_ineligible_or_phone_pinned"
+  },
+  "interfaces": {
+    "go_package": "scouterkit/examples/internal/handover",
+    "kotlin_package": "scouterkit.chewedfeed.handover",
+    "reducer": "Reduce(State, Event) -> Transition{State, Effects}; pure; Event.attempt_nonce injects random ID before reduction; explicit monotonic timeout events",
+    "state_schema": "controller.schema.json#/$defs/state",
+    "event_schema": "controller.schema.json#/$defs/event",
+    "effect_schema": "controller.schema.json#/$defs/effect",
+    "session_adapter": [
+      "Acquire(context,generation,transfer) emits arms_changed/initialized/failed",
+      "Release(context,generation) emits release_complete only after both_down/workers_stopped/reconnect_disabled",
+      "ForceDisconnect(generation) emits release_complete or failed; never_fake_ack",
+      "Status() readiness_tagged_generation"
+    ],
+    "transport_adapter": [
+      "Send(envelope) serialized_seq_allocator",
+      "Receive(authenticated_peer,envelope) validates_before_event",
+      "Close() cancels_queues; reconnect_fresh_authenticated_session"
+    ],
+    "power_adapter": "level_availability_event_initial_read_plus_changes; eligibility_false_cancels_acquisition",
+    "local_control": "status/release/resume/pin_feed_same_serialized_controller; no_direct_BLE",
+    "generation": "local_attempt_fence_increment_before_acquire_or_release; async_callbacks_tagged; ignore_old_generation",
+    "fixture_scope": "contract.py_checks_schema_stream_guards_and_fixture_invariants_only; production_reducers_belong_to_CF-33_and_CF-49"
+  },
+  "snapshot": {
+    "allow": [
+      "schema_version",
+      "revision",
+      "view",
+      "page_id",
+      "project",
+      "rotation_paused",
+      "rotation_ms"
+    ],
+    "forbid": [
+      "credentials",
+      "device_addresses",
+      "geometry",
+      "font_scale",
+      "host_paths",
+      "notification_contents",
+      "notification_history",
+      "raw_api_data"
+    ],
+    "conflicts": "revision_is_per_authenticated_sender_session; accept_only_current_transfer_and_no_local_edit_since_request; do_not_compare_cross_host_revisions",
+    "missing_page": "same_view_first_page_else_sites_first_page",
+    "geometry": "device_local_explicit_settings_win",
+    "rotation_ms": "0_disables_rotation_else_at_least_1000"
+  },
+  "telemetry": {
+    "sources": [
+      "ai",
+      "system"
+    ],
+    "disabled_by_default": true,
+    "process_summaries": "excluded_v1; needs_separate_version_and_opt_in",
+    "privacy": "no_identifiers_account_metadata_commands_credentials_notifications_or_paths",
+    "staleness": "sender_age_plus_local_monotonic_elapsed_since_receipt; never_wall_clock",
+    "unavailable": "values_null; fresh_sample_needs_timestamp_and_values",
+    "sharing_disabled": "stop_publication_and_clear_imported_source",
+    "transport": "negotiated_capability_authenticated_peer; never_changes_ownership"
+  },
+  "controller": {
+    "transfer_id": "Event.attempt_nonce is fresh random 128-bit input when a local transition starts a new transfer; peer-originated events use data.transfer; no random generation inside reducer",
+    "ignored": "stale_generation_or_invalid_event_returns_unchanged_state_and_ignore_effect",
+    "effects": "effect_order_is_significant; schedule_delay_ms_is_relative_monotonic",
+    "ready": "arms_changed_both_ready_does_not_alone_make_active; initialized_renderer_ready_required",
+    "release_timeout": "degraded_keep_current_arms_unknown_until_release_complete; force_disconnect_no_ack",
+    "unknown_peer": "reconcile_before_probe; peer_suspect_timeout_allows_probe_only_if_not_reachable",
+    "cooperative_start": "peer_status_inactive_and_reachable_is_not_release_permission_for_known_active_owner; reconcile_explicit_transfer",
+    "release_intent": "handover_ack_after_teardown; rollback_abort_after_teardown; local_stop_no_peer_ack; none_otherwise",
+    "request_mapping": "request.target_is_sender_role; request.pinned_is_phone_pin_in_same_packet; release_request_event_maps_reason_target_and_peer_pinned_from_authenticated_request",
+    "effect_execution": "execute_in_list_order_on_controller_worker; redraw_means_full_flush; failure_cancels_remaining_effects_including_send_ready_and_emits_failed_for_current_generation",
+    "new_transfer": "local_Event.attempt_nonce_required_if_transfer_changes; generation_is_local_and_never_compared_between_hosts",
+    "peer_status": "authenticated_status_maps_phase_active_eligible_pinned_and_route_reachable; unknown_or_stale_peer_eligibility_never_overrides_a_known_owner",
+    "pin_event": "phone_pin_true_requests_release_if_peer_reachable_and_local_not_owner; pin_false_publishes_status_and_restarts_laptop_stability_preference"
+  }
+}

@@ -1,0 +1,1320 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Chewedfeed authenticated host coordination v1; not the glasses VM protocol",
+  "description": "u32be payload byte length then UTF-8 JSON, max 65536 bytes and depth 16. Reject duplicate keys/nonfinite numbers. Authentication and semantic checks are specified in policy.json and contract.py.",
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "version": {
+          "const": 1
+        },
+        "sender": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "recipient": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "session": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{32}$"
+        },
+        "peer_session": {
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{32}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "seq": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "epoch": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "transfer": {
+          "type": "null"
+        },
+        "kind": {
+          "const": "hello"
+        },
+        "body": {
+          "$ref": "#/$defs/hello"
+        }
+      },
+      "required": [
+        "version",
+        "sender",
+        "recipient",
+        "session",
+        "peer_session",
+        "seq",
+        "epoch",
+        "transfer",
+        "kind",
+        "body"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "version": {
+          "const": 1
+        },
+        "sender": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "recipient": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "session": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{32}$"
+        },
+        "peer_session": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{32}$"
+        },
+        "seq": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "epoch": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "transfer": {
+          "type": "null"
+        },
+        "kind": {
+          "const": "status"
+        },
+        "body": {
+          "$ref": "#/$defs/status"
+        }
+      },
+      "required": [
+        "version",
+        "sender",
+        "recipient",
+        "session",
+        "peer_session",
+        "seq",
+        "epoch",
+        "transfer",
+        "kind",
+        "body"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "version": {
+          "const": 1
+        },
+        "sender": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "recipient": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "session": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{32}$"
+        },
+        "peer_session": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{32}$"
+        },
+        "seq": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "epoch": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "transfer": {
+          "type": "null"
+        },
+        "kind": {
+          "const": "availability"
+        },
+        "body": {
+          "$ref": "#/$defs/availability"
+        }
+      },
+      "required": [
+        "version",
+        "sender",
+        "recipient",
+        "session",
+        "peer_session",
+        "seq",
+        "epoch",
+        "transfer",
+        "kind",
+        "body"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "version": {
+          "const": 1
+        },
+        "sender": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "recipient": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "session": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{32}$"
+        },
+        "peer_session": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{32}$"
+        },
+        "seq": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "epoch": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "transfer": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{32}$"
+        },
+        "kind": {
+          "const": "request"
+        },
+        "body": {
+          "$ref": "#/$defs/request"
+        }
+      },
+      "required": [
+        "version",
+        "sender",
+        "recipient",
+        "session",
+        "peer_session",
+        "seq",
+        "epoch",
+        "transfer",
+        "kind",
+        "body"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "version": {
+          "const": 1
+        },
+        "sender": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "recipient": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "session": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{32}$"
+        },
+        "peer_session": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{32}$"
+        },
+        "seq": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "epoch": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "transfer": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{32}$"
+        },
+        "kind": {
+          "const": "release"
+        },
+        "body": {
+          "$ref": "#/$defs/release"
+        }
+      },
+      "required": [
+        "version",
+        "sender",
+        "recipient",
+        "session",
+        "peer_session",
+        "seq",
+        "epoch",
+        "transfer",
+        "kind",
+        "body"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "version": {
+          "const": 1
+        },
+        "sender": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "recipient": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "session": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{32}$"
+        },
+        "peer_session": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{32}$"
+        },
+        "seq": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "epoch": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "transfer": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{32}$"
+        },
+        "kind": {
+          "const": "released"
+        },
+        "body": {
+          "$ref": "#/$defs/released"
+        }
+      },
+      "required": [
+        "version",
+        "sender",
+        "recipient",
+        "session",
+        "peer_session",
+        "seq",
+        "epoch",
+        "transfer",
+        "kind",
+        "body"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "version": {
+          "const": 1
+        },
+        "sender": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "recipient": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "session": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{32}$"
+        },
+        "peer_session": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{32}$"
+        },
+        "seq": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "epoch": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "transfer": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{32}$"
+        },
+        "kind": {
+          "const": "acquiring"
+        },
+        "body": {
+          "$ref": "#/$defs/acquiring"
+        }
+      },
+      "required": [
+        "version",
+        "sender",
+        "recipient",
+        "session",
+        "peer_session",
+        "seq",
+        "epoch",
+        "transfer",
+        "kind",
+        "body"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "version": {
+          "const": 1
+        },
+        "sender": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "recipient": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "session": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{32}$"
+        },
+        "peer_session": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{32}$"
+        },
+        "seq": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "epoch": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "transfer": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{32}$"
+        },
+        "kind": {
+          "const": "ready"
+        },
+        "body": {
+          "$ref": "#/$defs/ready"
+        }
+      },
+      "required": [
+        "version",
+        "sender",
+        "recipient",
+        "session",
+        "peer_session",
+        "seq",
+        "epoch",
+        "transfer",
+        "kind",
+        "body"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "version": {
+          "const": 1
+        },
+        "sender": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "recipient": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "session": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{32}$"
+        },
+        "peer_session": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{32}$"
+        },
+        "seq": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "epoch": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "transfer": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{32}$"
+        },
+        "kind": {
+          "const": "abort"
+        },
+        "body": {
+          "$ref": "#/$defs/abort"
+        }
+      },
+      "required": [
+        "version",
+        "sender",
+        "recipient",
+        "session",
+        "peer_session",
+        "seq",
+        "epoch",
+        "transfer",
+        "kind",
+        "body"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "version": {
+          "const": 1
+        },
+        "sender": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "recipient": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "session": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{32}$"
+        },
+        "peer_session": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{32}$"
+        },
+        "seq": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "epoch": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "transfer": {
+          "type": "null"
+        },
+        "kind": {
+          "const": "heartbeat"
+        },
+        "body": {
+          "$ref": "#/$defs/heartbeat"
+        }
+      },
+      "required": [
+        "version",
+        "sender",
+        "recipient",
+        "session",
+        "peer_session",
+        "seq",
+        "epoch",
+        "transfer",
+        "kind",
+        "body"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "version": {
+          "const": 1
+        },
+        "sender": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "recipient": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "session": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{32}$"
+        },
+        "peer_session": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{32}$"
+        },
+        "seq": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "epoch": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "transfer": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{32}$"
+        },
+        "kind": {
+          "const": "snapshot"
+        },
+        "body": {
+          "$ref": "#/$defs/snapshot_message"
+        }
+      },
+      "required": [
+        "version",
+        "sender",
+        "recipient",
+        "session",
+        "peer_session",
+        "seq",
+        "epoch",
+        "transfer",
+        "kind",
+        "body"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "version": {
+          "const": 1
+        },
+        "sender": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "recipient": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "session": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{32}$"
+        },
+        "peer_session": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{32}$"
+        },
+        "seq": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "epoch": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "transfer": {
+          "type": "null"
+        },
+        "kind": {
+          "const": "telemetry"
+        },
+        "body": {
+          "$ref": "#/$defs/telemetry_message"
+        }
+      },
+      "required": [
+        "version",
+        "sender",
+        "recipient",
+        "session",
+        "peer_session",
+        "seq",
+        "epoch",
+        "transfer",
+        "kind",
+        "body"
+      ],
+      "additionalProperties": false
+    }
+  ],
+  "$defs": {
+    "snapshot": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "view": {
+          "enum": [
+            "sites",
+            "ai",
+            "notifications",
+            "stats"
+          ]
+        },
+        "page_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "project": {
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "rotation_paused": {
+          "type": "boolean"
+        },
+        "rotation_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3600000
+        }
+      },
+      "required": [
+        "schema_version",
+        "revision",
+        "view",
+        "page_id",
+        "project",
+        "rotation_paused",
+        "rotation_ms"
+      ],
+      "additionalProperties": false
+    },
+    "telemetry": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "source": {
+          "enum": [
+            "ai",
+            "system"
+          ]
+        },
+        "sample_unix_ms": {
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "age_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "status": {
+          "enum": [
+            "fresh",
+            "stale",
+            "unavailable"
+          ]
+        },
+        "values": {
+          "oneOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "provider": {
+                    "enum": [
+                      "codex",
+                      "claude"
+                    ]
+                  },
+                  "window": {
+                    "enum": [
+                      "short",
+                      "weekly",
+                      "other"
+                    ]
+                  },
+                  "used_percent": {
+                    "oneOf": [
+                      {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 100000
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "reset_unix_ms": {
+                    "oneOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "provider",
+                  "window",
+                  "used_percent",
+                  "reset_unix_ms"
+                ],
+                "additionalProperties": false
+              },
+              "maxItems": 8
+            },
+            {
+              "type": "object",
+              "properties": {
+                "cpu_percent": {
+                  "oneOf": [
+                    {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 100
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "memory_used_bytes": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "memory_total_bytes": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "battery_percent": {
+                  "oneOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 100
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "cpu_percent",
+                "memory_used_bytes",
+                "memory_total_bytes",
+                "battery_percent"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "schema_version",
+        "revision",
+        "source",
+        "sample_unix_ms",
+        "age_ms",
+        "status",
+        "values"
+      ],
+      "additionalProperties": false
+    },
+    "arms": {
+      "type": "object",
+      "properties": {
+        "left": {
+          "type": "boolean"
+        },
+        "right": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "left",
+        "right"
+      ],
+      "additionalProperties": false
+    },
+    "hello": {
+      "type": "object",
+      "properties": {
+        "role": {
+          "enum": [
+            "laptop",
+            "phone"
+          ]
+        },
+        "required_capabilities": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{0,63}$"
+          },
+          "maxItems": 16
+        },
+        "optional_capabilities": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{0,63}$"
+          },
+          "maxItems": 16
+        }
+      },
+      "required": [
+        "role",
+        "required_capabilities",
+        "optional_capabilities"
+      ],
+      "additionalProperties": false
+    },
+    "status": {
+      "type": "object",
+      "properties": {
+        "role": {
+          "enum": [
+            "laptop",
+            "phone"
+          ]
+        },
+        "phase": {
+          "enum": [
+            "idle",
+            "requesting",
+            "yielding",
+            "acquiring",
+            "active",
+            "recovering",
+            "degraded"
+          ]
+        },
+        "eligible": {
+          "type": "boolean"
+        },
+        "pinned": {
+          "type": "boolean"
+        },
+        "arms": {
+          "type": "object",
+          "properties": {
+            "left": {
+              "type": "boolean"
+            },
+            "right": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "left",
+            "right"
+          ],
+          "additionalProperties": false
+        },
+        "renderer_ready": {
+          "type": "boolean"
+        },
+        "transfer": {
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{32}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "ready_epoch": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "role",
+        "phase",
+        "eligible",
+        "pinned",
+        "arms",
+        "renderer_ready",
+        "transfer",
+        "ready_epoch"
+      ],
+      "additionalProperties": false
+    },
+    "availability": {
+      "type": "object",
+      "properties": {
+        "eligible": {
+          "type": "boolean"
+        },
+        "lid": {
+          "enum": [
+            "open",
+            "closed",
+            "absent",
+            "unknown"
+          ]
+        },
+        "awake": {
+          "type": "boolean"
+        },
+        "reason": {
+          "enum": [
+            "startup",
+            "lid_closed",
+            "suspend",
+            "resume",
+            "preference",
+            "manual",
+            "peer_lost",
+            "acquire_failed",
+            "partial_arms",
+            "timeout",
+            "stopped",
+            "protocol_error"
+          ]
+        }
+      },
+      "required": [
+        "eligible",
+        "lid",
+        "awake",
+        "reason"
+      ],
+      "additionalProperties": false
+    },
+    "request": {
+      "type": "object",
+      "properties": {
+        "target": {
+          "enum": [
+            "laptop",
+            "phone"
+          ]
+        },
+        "reason": {
+          "enum": [
+            "startup",
+            "lid_closed",
+            "suspend",
+            "resume",
+            "preference",
+            "manual",
+            "peer_lost",
+            "acquire_failed",
+            "partial_arms",
+            "timeout",
+            "stopped",
+            "protocol_error"
+          ]
+        },
+        "pinned": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "target",
+        "reason",
+        "pinned"
+      ],
+      "additionalProperties": false
+    },
+    "release": {
+      "type": "object",
+      "properties": {
+        "target": {
+          "enum": [
+            "laptop",
+            "phone"
+          ]
+        },
+        "reason": {
+          "enum": [
+            "startup",
+            "lid_closed",
+            "suspend",
+            "resume",
+            "preference",
+            "manual",
+            "peer_lost",
+            "acquire_failed",
+            "partial_arms",
+            "timeout",
+            "stopped",
+            "protocol_error"
+          ]
+        }
+      },
+      "required": [
+        "target",
+        "reason"
+      ],
+      "additionalProperties": false
+    },
+    "released": {
+      "type": "object",
+      "properties": {
+        "target": {
+          "enum": [
+            "laptop",
+            "phone"
+          ]
+        },
+        "arms": {
+          "type": "object",
+          "properties": {
+            "left": {
+              "type": "boolean"
+            },
+            "right": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "left",
+            "right"
+          ],
+          "additionalProperties": false
+        },
+        "reconnect_disabled": {
+          "const": true
+        },
+        "workers_stopped": {
+          "const": true
+        }
+      },
+      "required": [
+        "target",
+        "arms",
+        "reconnect_disabled",
+        "workers_stopped"
+      ],
+      "additionalProperties": false
+    },
+    "acquiring": {
+      "type": "object",
+      "properties": {
+        "target": {
+          "enum": [
+            "laptop",
+            "phone"
+          ]
+        },
+        "mode": {
+          "enum": [
+            "released",
+            "probe",
+            "standalone"
+          ]
+        }
+      },
+      "required": [
+        "target",
+        "mode"
+      ],
+      "additionalProperties": false
+    },
+    "ready": {
+      "type": "object",
+      "properties": {
+        "target": {
+          "enum": [
+            "laptop",
+            "phone"
+          ]
+        },
+        "arms": {
+          "type": "object",
+          "properties": {
+            "left": {
+              "type": "boolean"
+            },
+            "right": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "left",
+            "right"
+          ],
+          "additionalProperties": false
+        },
+        "renderer_ready": {
+          "const": true
+        }
+      },
+      "required": [
+        "target",
+        "arms",
+        "renderer_ready"
+      ],
+      "additionalProperties": false
+    },
+    "abort": {
+      "type": "object",
+      "properties": {
+        "reason": {
+          "enum": [
+            "startup",
+            "lid_closed",
+            "suspend",
+            "resume",
+            "preference",
+            "manual",
+            "peer_lost",
+            "acquire_failed",
+            "partial_arms",
+            "timeout",
+            "stopped",
+            "protocol_error"
+          ]
+        },
+        "released_both": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "reason",
+        "released_both"
+      ],
+      "additionalProperties": false
+    },
+    "heartbeat": {
+      "type": "object",
+      "properties": {
+        "phase": {
+          "enum": [
+            "idle",
+            "requesting",
+            "yielding",
+            "acquiring",
+            "active",
+            "recovering",
+            "degraded"
+          ]
+        },
+        "ready_epoch": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "phase",
+        "ready_epoch"
+      ],
+      "additionalProperties": false
+    },
+    "snapshot_message": {
+      "type": "object",
+      "properties": {
+        "snapshot": {
+          "$ref": "#/$defs/snapshot"
+        }
+      },
+      "required": [
+        "snapshot"
+      ],
+      "additionalProperties": false
+    },
+    "telemetry_message": {
+      "type": "object",
+      "properties": {
+        "telemetry": {
+          "$ref": "#/$defs/telemetry"
+        }
+      },
+      "required": [
+        "telemetry"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

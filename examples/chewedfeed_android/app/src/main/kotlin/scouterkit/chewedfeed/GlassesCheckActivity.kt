@@ -47,6 +47,7 @@ class GlassesCheckActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        actionBar?.setDisplayHomeAsUpEnabled(true)
         list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(32, 32, 32, 32) }
         state = TextView(this)
         list.addView(TextView(this).apply {
@@ -165,6 +166,12 @@ class GlassesCheckActivity : Activity() {
                 }
             }
         }
+    }
+
+    // The title bar's back arrow: the same as Back.
+    override fun onNavigateUp(): Boolean {
+        finish()
+        return true
     }
 
     private fun stopSession() {

@@ -60,7 +60,15 @@ func Reduce(s State, e Event) Transition {
 		return timeout(s, d.Timer, d.ElapsedMs, e.AttemptNonce)
 	case RouteLost:
 		s.PeerReachable = false
-		return done(s, effect(PublishStatus), schedule(PeerSuspect, PeerSuspectMs))
+		fx := []Effect{}
+		if s.Eligible && (s.Phase == Requesting || s.Phase == Idle) {
+			// Retire the request: its late release cannot authorize a new attempt.
+			// Only the suspect deadline permits a non-preemptive probe now.
+			s.Phase = Recovering
+			s.Generation++
+			fx = append(fx, effect(CancelTimers))
+		}
+		return done(s, append(fx, effect(PublishStatus), schedule(PeerSuspect, probeDelay(s.Role, PeerSuspectMs)))...)
 	case RouteRestored:
 		s.PeerReachable = true
 		if s.Phase == Acquiring && s.PeerActive {
@@ -82,6 +90,10 @@ func Reduce(s State, e Event) Transition {
 			return rollback(s)
 		case Active:
 			return yield(s, s.Transfer, LocalStop, s.Enrolled)
+		case Requesting:
+			s.Phase = Idle
+			s.Generation++
+			return done(s, effect(CancelTimers), effect(SendAbort), effect(PublishStatus))
 		}
 		return done(s, effect(PublishStatus))
 	}
@@ -245,7 +257,7 @@ func releaseComplete(s State, d EventData) Transition {
 	switch {
 	case intent == Rollback && s.Eligible:
 		s.Phase = Recovering
-		return done(s, effect(SendAbort), schedule(RetryTimer, RetryInitialMs))
+		return done(s, effect(SendAbort), schedule(RetryTimer, probeDelay(s.Role, RetryInitialMs)))
 	case intent == Rollback:
 		s.Phase = Idle
 		return done(s, effect(SendAbort))
@@ -353,6 +365,14 @@ func coldStartMs(r Role) int64 {
 		return PhoneColdStartMs
 	}
 	return LaptopColdStartMs
+}
+
+// A scheduled probe must include the same phone delay checked by timeout.
+func probeDelay(r Role, ms int64) int64 {
+	if r == Phone {
+		return ms + PhoneProbeExtraMs
+	}
+	return ms
 }
 
 func effect(kind EffectKind) Effect { return Effect{Kind: kind} }

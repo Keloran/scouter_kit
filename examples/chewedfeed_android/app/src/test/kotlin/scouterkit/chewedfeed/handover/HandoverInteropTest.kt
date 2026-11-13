@@ -96,4 +96,48 @@ class HandoverInteropTest {
         val wrong = memoryStore(phone.identity(), listOf(Peer("0".repeat(64), "laptop", 0)))
         assertThrows(IOException::class.java) { PeerConn.dial(wrong, route, "0".repeat(64), PeerOptions("phone")) }
     }
+
+    // The full handover against the Go laptop: the phone's real coordinator and listener, fake glasses. The laptop's
+    // lid closes (the phone requests, gets release and released, acquires, says ready), then it wakes and asks back
+    // (the phone releases its glasses first, then says released). Go's stream checks every phone message.
+    @Test
+    fun handoverWithTheGoLaptop() {
+        val exec = java.util.concurrent.Executors.newSingleThreadScheduledExecutor()
+        val scheduler = object : scouterkit.chewedfeed.bluetooth.Scheduler {
+            override fun post(task: () -> Unit) { exec.execute(task) }
+            override fun postDelayed(ms: Long, task: () -> Unit): scouterkit.chewedfeed.bluetooth.Cancellable {
+                val f = exec.schedule(task, ms, TimeUnit.MILLISECONDS)
+                return object : scouterkit.chewedfeed.bluetooth.Cancellable { override fun cancel() { f.cancel(false) } }
+            }
+        }
+        val calls = java.util.Collections.synchronizedList(mutableListOf<String>())
+        val glasses = object : OwnershipNative {
+            override fun acquire(done: (Boolean) -> Unit) { calls += "acquire"; exec.schedule({ done(true) }, 200, TimeUnit.MILLISECONDS) }
+            override fun release(done: () -> Unit) { calls += "release"; exec.schedule({ calls += "released"; done() }, 200, TimeUnit.MILLISECONDS) }
+            override fun abort() { calls += "abort" }
+        }
+        val phone = memoryStore()
+        val enroller = Enroller(phone)
+        lateinit var coordinator: Coordinator
+        exec.submit { coordinator = Coordinator(true, glasses, scheduler, { System.nanoTime() / 1_000_000 }, SnapshotBridge()) }.get()
+        val server = PeerServer(phone, PeerOptions("phone", heartbeat = { coordinator.heartbeat() }), enroller,
+            { c -> val link = ConnLink(c); exec.execute { coordinator.linkUp(link) }; { m -> exec.execute { coordinator.message(link, m) } } },
+            port = 0, bind = InetAddress.getLoopbackAddress())
+        try {
+            exec.submit { coordinator.start(eligible = true, pinned = false) }.get()
+            val inv = enroller.invite("phone", listOf("127.0.0.1:${server.port}"))
+            val (p, out) = go("-invitation", inv.encode(), "-script", "handover")
+            line(out) // the enrollment code
+            val got = generateSequence { out.readLine() }.map { (StrictJson.parse(it.toByteArray(), 8192) as Map<*, *>)["got"] as String }.toList()
+            assertTrue(p.waitFor(30, TimeUnit.SECONDS))
+            assertEquals("the Go laptop finished its script; got $got", 0, p.exitValue())
+            val k = got.filter { it != "status" && it != "heartbeat" }
+            assertEquals(listOf("request", "acquiring", "ready", "release", "released"), k)
+            assertEquals(listOf("acquire", "release", "released"), calls.toList()) // released only after the glasses were down
+            exec.submit { assertEquals(Phase.IDLE, coordinator.state.phase) }.get()
+        } finally {
+            server.stop()
+            exec.shutdownNow()
+        }
+    }
 }

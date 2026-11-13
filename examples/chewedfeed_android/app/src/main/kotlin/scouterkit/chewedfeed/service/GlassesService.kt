@@ -20,6 +20,14 @@ import android.content.pm.ServiceInfo
 import android.net.ConnectivityManager
 import android.net.Network
 import android.os.Handler
+import scouterkit.chewedfeed.settings.OwnerMode
+import scouterkit.chewedfeed.handover.SnapshotBridge
+import scouterkit.chewedfeed.handover.PeerConn
+import scouterkit.chewedfeed.handover.OwnershipNative
+import scouterkit.chewedfeed.handover.Message
+import scouterkit.chewedfeed.handover.Coordinator
+import scouterkit.chewedfeed.handover.ConnLink
+import scouterkit.chewedfeed.handover.AndroidPeers
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.Executors
 import scouterkit.chewedfeed.settings.Prefs
@@ -70,6 +78,41 @@ class GlassesService : Service(), LifecycleActions {
     private var retry: Runnable? = null
     private var conn: Connection? = null
     private var foreground = false
+    // Ownership with the laptop (handover): the coordinator decides; acquire and release go through Lifecycle.
+    private val hub by lazy { AndroidPeers.hub(this) }
+    private val snapshots = SnapshotBridge { main.post { conn?.restoreSnapshot() } }
+    private var coordinator: Coordinator? = null
+    private val links = java.util.concurrent.ConcurrentHashMap<PeerConn, ConnLink>()
+    private var acquireDone: ((Boolean) -> Unit)? = null
+    private var releaseDone: (() -> Unit)? = null
+    private var eligibleSent: Boolean? = null
+    private var listening = false
+
+    // The glasses as the coordinator drives them. Acquire ends when the dashboard drew its first full frame
+    // (Connection.opened); release ends when the session stopped (blank, deinit, GATT closed).
+    private val glasses = object : OwnershipNative {
+        override fun acquire(done: (Boolean) -> Unit) {
+            acquireDone = done
+            lifecycle.ownership(true)
+        }
+
+        override fun release(done: () -> Unit) {
+            acquireDone?.let { acquireDone = null; it(false) }
+            releaseDone = done
+            lifecycle.ownership(false)
+            if (conn == null) finishRelease()
+        }
+
+        override fun abort() {
+            conn?.stop {}
+            conn = null
+            finishRelease()
+        }
+    }
+
+    private fun finishRelease() {
+        releaseDone?.let { releaseDone = null; it() }
+    }
 
     private val bluetoothReceiver = object : BroadcastReceiver() {
         override fun onReceive(c: Context, i: Intent) = refresh()
@@ -94,7 +137,11 @@ class GlassesService : Service(), LifecycleActions {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
-            ACTION_STOP -> lifecycle.userStop()
+            ACTION_STOP -> {
+                coordinator?.stop() // releases and tells the laptop
+                lifecycle.userStop()
+            }
+            ACTION_RELOAD -> if (foreground) reloaded()
             ACTION_PRESENT -> if (enterForeground()) { // the glasses came into range (GlassesPresence)
                 if (lifecycle.phase == Phase.STOPPED) lifecycle.restored(prefs().getBoolean("wanted", false))
                 refresh()
@@ -127,6 +174,9 @@ class GlassesService : Service(), LifecycleActions {
     }
 
     override fun onDestroy() {
+        coordinator?.close()
+        coordinator = null
+        unlisten()
         disconnect()
         cancelRetry()
         runCatching { unregisterReceiver(bluetoothReceiver) }
@@ -155,9 +205,71 @@ class GlassesService : Service(), LifecycleActions {
         }
     }
 
-    // ponytail: no coordinator yet (CF-52): this device takes ownership once its conditions allow. The
-    // coordinator replaces this with the peer's answer.
-    private fun reconcile() = lifecycle.ownership(true)
+    // Starts the ownership coordinator (once per service): standalone without a paired laptop; with one, it
+    // listens for the laptop and learns its state before touching the glasses (a cold start or process death
+    // reconciles with the peer first).
+    private fun reconcile() {
+        if (coordinator != null) return syncAvailability()
+        val enrolled = hub.laptopEnrolled()
+        val c = Coordinator(enrolled, glasses, mainScheduler, SystemClock::elapsedRealtime, snapshots, { st ->
+            State.owner = st.owner; State.laptop = if (!st.enrolled) "none" else if (st.laptopConnected) "connected" else "unreachable"
+            State.changed()
+        })
+        coordinator = c
+        if (enrolled) listen()
+        eligibleSent = lifecycle.eligible
+        c.start(lifecycle.eligible, AppSettings.load(Prefs(this, "app")).owner == OwnerMode.KEEP_ON_PHONE)
+    }
+
+    // The laptop's connections reach the coordinator on the main thread.
+    private fun listen() {
+        hub.heartbeat = { coordinator?.heartbeat() ?: linkedMapOf("phase" to "idle", "ready_epoch" to 0) }
+        hub.onConn = { pc ->
+            val link = ConnLink(pc)
+            links[pc] = link
+            main.post { coordinator?.linkUp(link) ?: link.close() }
+            val handler: (Message) -> Unit = { m -> main.post { coordinator?.message(link, m) } }
+            handler
+        }
+        hub.onClosed = { pc -> links.remove(pc)?.let { link -> main.post { coordinator?.linkDown(link) } } }
+        listening = runCatching { hub.open("service") }.isSuccess
+    }
+
+    private fun unlisten() {
+        if (!listening) return
+        listening = false
+        hub.onConn = null
+        hub.onClosed = null
+        hub.close("service")
+        links.keys.forEach { it.close() }
+        links.clear()
+    }
+
+    // The phone's own conditions, as availability for the coordinator (only when they change).
+    private fun syncAvailability(why: String = "resume") {
+        val e = lifecycle.eligible
+        if (e == eligibleSent) return
+        eligibleSent = e
+        coordinator?.availability(e, why)
+    }
+
+    // Pairing or the owner mode changed (Setup, the main screen).
+    private fun reloaded() {
+        val c = coordinator ?: return
+        if (c.state.enrolled != hub.laptopEnrolled()) {
+            // A laptop was paired or forgotten: start over with the glasses released.
+            c.close()
+            coordinator = null
+            unlisten()
+            acquireDone = null
+            lifecycle.ownership(false)
+            finishRelease()
+            eligibleSent = null
+            reconcile()
+        } else {
+            c.pin(AppSettings.load(Prefs(this, "app")).owner == OwnerMode.KEEP_ON_PHONE)
+        }
+    }
 
     private fun permitted() = checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
 
@@ -171,7 +283,10 @@ class GlassesService : Service(), LifecycleActions {
     }
 
     private fun refresh() {
-        main.post { lifecycle.conditions(adapter?.isEnabled == true, permitted(), saved() != null) }
+        main.post {
+            lifecycle.conditions(adapter?.isEnabled == true, permitted(), saved() != null)
+            syncAvailability()
+        }
     }
 
     private fun prefs() = getSharedPreferences("service", Context.MODE_PRIVATE)
@@ -184,8 +299,9 @@ class GlassesService : Service(), LifecycleActions {
     }
 
     override fun disconnect() {
-        conn?.stop()
+        val c = conn ?: return finishRelease()
         conn = null
+        c.stop { main.post(::finishRelease) } // released only once the session is fully down
     }
 
     override fun schedule(ms: Long, attempt: Long) {
@@ -199,7 +315,14 @@ class GlassesService : Service(), LifecycleActions {
     }
 
     override fun phase(p: Phase, detail: String) {
+        val was = State.phase
         State.phase = p; State.detail = detail; State.changed()
+        if (p in setOf(Phase.RETRY_WAIT, Phase.FAILED, Phase.NEEDS_SETUP, Phase.WAITING_BLUETOOTH, Phase.NEEDS_PERMISSION)) {
+            // The coordinator decides about retries: an acquire that failed, or a held session that was lost.
+            val pending = acquireDone
+            acquireDone = null
+            if (pending != null) pending(false) else if (was == Phase.ACTIVE) coordinator?.lost()
+        }
         if (foreground) getSystemService(NotificationManager::class.java).notify(NOTIFICATION, notification(p.text))
     }
 
@@ -280,11 +403,12 @@ class GlassesService : Service(), LifecycleActions {
             // Measuring uses the session font from the main thread: native calls take the session lock.
             val area = TextArea(l.textW, l.rows, g.renderer.footerWidth()) { t -> g.measure(t) }
             val r = DashboardRuntime(settings, AppSettings.load(Prefs(this@GlassesService, "app")), area, mainScheduler,
-                SystemClock::elapsedRealtime, System::currentTimeMillis, sites, ::draw)
+                SystemClock::elapsedRealtime, System::currentTimeMillis, sites, ::draw, bridge = snapshots)
             runtime = r
             lifecycle.connected(attempt)
             r.network(State.online)
             r.start(gen)
+            acquireDone?.let { acquireDone = null; it(true) } // both arms up and the first frame drawn
             Hub.attach(mainExecutor) { e -> if (conn === this) runtime?.notification(e) }
             phone.start()
             media.start()
@@ -293,6 +417,8 @@ class GlassesService : Service(), LifecycleActions {
         }
 
         fun network(online: Boolean) = runtime?.network(online)
+
+        fun restoreSnapshot() = runtime?.restoreSnapshot()
 
         // Head angle, case and batteries, read on the session thread; then what to show.
         private fun sample() {
@@ -320,8 +446,8 @@ class GlassesService : Service(), LifecycleActions {
             }
         }
 
-        // Blank, deinitialize (closes GATT, ends reconnects), then free the link's thread.
-        fun stop() {
+        // Blank, deinitialize (closes GATT, ends reconnects), then free the link's thread; done after all of it.
+        fun stop(done: () -> Unit) {
             Hub.detach()
             main.removeCallbacks(tick)
             media.stop()
@@ -332,6 +458,7 @@ class GlassesService : Service(), LifecycleActions {
                 watch.stop()
                 sched.quit()
                 session.close()
+                done()
             }
         }
     }
@@ -364,6 +491,8 @@ class GlassesService : Service(), LifecycleActions {
         @Volatile var phase = Phase.STOPPED
         @Volatile var detail = ""
         @Volatile var online = false
+        @Volatile var owner = "none"    // the coordinator's view: this, peer, unknown, none
+        @Volatile var laptop = "none"   // none (not paired), connected, unreachable
         var listener: (() -> Unit)? = null
         fun changed() { listener?.let { Handler(Looper.getMainLooper()).post(it) } }
     }
@@ -372,12 +501,17 @@ class GlassesService : Service(), LifecycleActions {
         const val ACTION_START = "scouterkit.chewedfeed.START"
         const val ACTION_STOP = "scouterkit.chewedfeed.STOP"
         const val ACTION_PRESENT = "scouterkit.chewedfeed.PRESENT"
+        const val ACTION_RELOAD = "scouterkit.chewedfeed.RELOAD"
         private const val CHANNEL = "glasses"
         private const val NOTIFICATION = 1
         private const val TICK_MS = 500L // the desktop's head-angle interval
 
         fun start(c: Context) = c.startForegroundService(Intent(c, GlassesService::class.java).setAction(ACTION_START))
         fun present(c: Context) = c.startForegroundService(Intent(c, GlassesService::class.java).setAction(ACTION_PRESENT))
+        // Pairing or the owner mode changed: picked up if the service runs (otherwise at its next start).
+        fun reload(c: Context) {
+            if (State.phase != Phase.STOPPED) runCatching { c.startService(Intent(c, GlassesService::class.java).setAction(ACTION_RELOAD)) }
+        }
         fun stop(c: Context) = c.startService(Intent(c, GlassesService::class.java).setAction(ACTION_STOP))
     }
 }

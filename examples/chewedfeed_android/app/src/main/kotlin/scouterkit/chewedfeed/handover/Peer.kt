@@ -581,6 +581,7 @@ class PeerServer(
     private val onConn: (PeerConn) -> ((Message) -> Unit),
     private val onEnrolled: (Peer, String) -> Unit = { _, _ -> },
     port: Int = DEFAULT_PORT,
+    private val onClosed: (PeerConn, Throwable) -> Unit = { _, _ -> },
     bind: java.net.InetAddress? = null, // null: every interface
 ) {
     private val server = java.net.ServerSocket().apply {
@@ -605,7 +606,7 @@ class PeerServer(
             val c = PeerConn.accept(raw, store, opts, enroller)
             if (!running) return c.close()
             conns += c
-            c.start(onConn(c)) { conns -= c }
+            c.start(onConn(c)) { why -> conns -= c; onClosed(c, why) }
         } catch (e: Enrolled) {
             onEnrolled(e.peer, e.code)
         } catch (e: Exception) {

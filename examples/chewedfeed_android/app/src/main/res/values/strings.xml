@@ -57,9 +57,12 @@
     <string name="calibrate_no_pattern">Connected, but the pattern could not be shown (needs both arms)</string>
     <string name="owner_prefer_laptop">Prefer the laptop while it is awake (hand over automatically)</string>
     <string name="owner_keep_phone">Keep the glasses on this phone</string>
-    <string name="laptop_handover_unset">Laptop handover: not set up yet (comes with automatic handover)</string>
+    <string name="laptop_handover_unset">Laptop handover: no laptop paired (Set up glasses → Pair with the laptop)</string>
+    <string name="laptop_link_connected">Laptop handover: connected</string>
+    <string name="laptop_link_unreachable">Laptop handover: paired, but the laptop is not reachable now</string>
     <string name="holder_phone">The glasses are on this phone</string>
-    <string name="holder_other">Another device has the glasses</string>
+    <string name="holder_other">The laptop has the glasses</string>
+    <string name="holder_unknown">The laptop may have the glasses (not reachable): waiting before taking them</string>
     <string name="holder_nobody">Nothing has the glasses from this phone</string>
     <string name="progress_requested">Requested: starting…</string>
     <string name="progress_ready">Ready</string>
@@ -100,6 +103,8 @@
     <string name="laptop_enrolled">Laptop paired. Code %1$s: the laptop shows the same.</string>
     <string name="laptop_forgotten">Laptop forgotten: it can no longer connect</string>
     <string name="laptop_rotated">New phone key: pair the laptop again</string>
+    <string name="phone_address">For the laptop (this phone on this Wi-Fi): %1$s</string>
+    <string name="phone_address_none">For the laptop: connect this phone to the same Wi-Fi as the laptop</string>
     <string name="save">Save</string>
     <string name="saved">Saved: used the next time the glasses connect</string>
 </resources>

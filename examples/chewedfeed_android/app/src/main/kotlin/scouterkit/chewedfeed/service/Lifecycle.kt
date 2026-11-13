@@ -32,6 +32,10 @@ interface LifecycleActions {
 class Lifecycle(private val a: LifecycleActions, private val maxAttempts: Int = 8) {
     var phase = Phase.STOPPED
         private set
+
+    // Whether this phone may hold the glasses at all: started by the user, Nearby devices granted, Bluetooth on,
+    // glasses paired. Ownership (who of laptop and phone) is decided on top of this (handover.Coordinator).
+    val eligible get() = wanted && permission && bluetooth && paired
     private var wanted = false
     private var bluetooth = false
     private var permission = false

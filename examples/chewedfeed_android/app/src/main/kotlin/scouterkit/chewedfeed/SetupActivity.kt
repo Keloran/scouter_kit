@@ -21,8 +21,8 @@ import scouterkit.chewedfeed.bluetooth.PairFinder
 import scouterkit.chewedfeed.bluetooth.PairScan
 import scouterkit.chewedfeed.handover.AndroidPeers
 import scouterkit.chewedfeed.handover.Enroller
+import scouterkit.chewedfeed.handover.PhoneAddress
 import scouterkit.chewedfeed.handover.Peer
-import scouterkit.chewedfeed.handover.PeerOptions
 import scouterkit.chewedfeed.handover.PeerServer
 import scouterkit.chewedfeed.service.GlassesCompanion
 import scouterkit.chewedfeed.service.GlassesService
@@ -69,7 +69,8 @@ class SetupActivity : Activity() {
         setContentView(ScrollView(this).apply { addView(list) })
     }
 
-    private val peers by lazy { AndroidPeers.open(this) }
+    private val hub by lazy { AndroidPeers.hub(this) }
+    private val peers get() = hub.store
     private val laptopState by lazy { TextView(this) }
     private val invitationText by lazy { TextView(this).apply { setTextIsSelectable(true); visibility = android.view.View.GONE } }
     private val copyButton by lazy {
@@ -84,8 +85,7 @@ class SetupActivity : Activity() {
             }
         }
     }
-    private var pairing: PeerServer? = null
-    private var enroller: Enroller? = null
+    private var pairing = false
 
     private fun showLaptop() {
         val laptop = peers.peers().firstOrNull { it.role == "laptop" }
@@ -95,17 +95,17 @@ class SetupActivity : Activity() {
     // Listens for the laptop and shows a single-use invitation for this phone's Wi-Fi address(es), valid 5 minutes.
     private fun pairLaptop() {
         stopPairing()
-        val addresses = lanAddresses()
-        if (addresses.isEmpty()) return show(getString(R.string.laptop_no_network))
-        val e = Enroller(peers)
-        val server = try {
-            PeerServer(peers, PeerOptions("phone"), e, { c -> c.close(); { } }, { peer, code -> main.post { paired(peer, code) } })
+        val endpoints = PhoneAddress.endpoints(this)
+        if (endpoints.isEmpty()) return show(getString(R.string.laptop_no_network))
+        hub.onEnrolled = { peer, code -> main.post { paired(peer, code) } }
+        try {
+            hub.open("pairing") // shared with the glasses service's listener
         } catch (x: java.io.IOException) {
+            hub.onEnrolled = null
             return show(getString(R.string.laptop_listen_failed, x.message))
         }
-        enroller = e
-        pairing = server
-        val inv = e.invite("phone", addresses.map { "$it:${server.port}" })
+        pairing = true
+        val inv = hub.enroller.invite("phone", endpoints)
         window.addFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE) // no screenshots while the secret shows
         invitationText.text = inv.encode()
         invitationText.visibility = android.view.View.VISIBLE
@@ -116,15 +116,18 @@ class SetupActivity : Activity() {
 
     private fun paired(peer: Peer, code: String) {
         stopPairing()
+        GlassesService.reload(this) // listens for the laptop and coordinates with it from now on
         showLaptop()
         show(getString(R.string.laptop_enrolled, code))
     }
 
     private fun stopPairing() {
-        enroller?.withdraw()
-        pairing?.stop()
-        pairing = null
-        enroller = null
+        if (pairing) {
+            hub.enroller.withdraw()
+            hub.onEnrolled = null
+            hub.close("pairing")
+            pairing = false
+        }
         invitationText.text = ""
         invitationText.visibility = android.view.View.GONE
         copyButton.visibility = android.view.View.GONE
@@ -133,6 +136,7 @@ class SetupActivity : Activity() {
 
     private fun forgetLaptop() {
         peers.peers().filter { it.role == "laptop" }.forEach { peers.revoke(it.id) }
+        GlassesService.reload(this) // an open connection ends at its next message; the listener closes
         showLaptop()
         show(getString(R.string.laptop_forgotten))
     }
@@ -140,20 +144,11 @@ class SetupActivity : Activity() {
     private fun newPhoneKey() {
         stopPairing()
         peers.rotate()
+        GlassesService.reload(this)
         showLaptop()
         show(getString(R.string.laptop_rotated))
     }
 
-    // This phone's IPv4 addresses on its current network (Wi-Fi or Ethernet; not cellular, where the laptop
-    // cannot reach it).
-    private fun lanAddresses(): List<String> {
-        val cm = getSystemService(android.net.ConnectivityManager::class.java)
-        val net = cm.activeNetwork ?: return emptyList()
-        val caps = cm.getNetworkCapabilities(net) ?: return emptyList()
-        if (!caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI) && !caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_ETHERNET)) return emptyList()
-        return cm.getLinkProperties(net)?.linkAddresses.orEmpty().map { it.address }
-            .filter { it is java.net.Inet4Address && !it.isLoopbackAddress }.mapNotNull { it.hostAddress }
-    }
 
     override fun onResume() {
         super.onResume()

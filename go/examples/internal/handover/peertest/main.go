@@ -5,6 +5,11 @@
 // {"code": "123456"}), dial the phone, send one availability message, print {"got": "<kind>"} for the
 // phone's first message, then exit.
 //
+// With -script handover (and -invitation), after connecting it plays the laptop's side of a handover:
+// lid closed (availability not eligible), answer the phone's request with release and released, then
+// awake again with its own request, and prints {"got": "<kind>"} for every phone message until the
+// phone's released; then exits.
+//
 // As a host (no -invitation): listen on loopback, open one invitation and print
 // {"invitation": "CFE1....", "id": "<host key ID>"}; enroll the guest that proves it and give every
 // enrolled peer a protocol connection that sends one availability message and answers each heartbeat
@@ -27,6 +32,7 @@ func main() {
 	dir := flag.String("dir", "", "a fresh directory for this peer's key and enrolled peers")
 	stay := flag.Duration("for", time.Minute, "how long to serve")
 	invitation := flag.String("invitation", "", "a phone's invitation: enroll as the laptop and dial it")
+	script := flag.String("script", "", `with -invitation: "handover" plays a laptop handing the glasses over and back`)
 	flag.Parse()
 	if *dir == "" {
 		fmt.Fprintln(os.Stderr, "peertest: -dir is required")
@@ -38,7 +44,7 @@ func main() {
 		os.Exit(1)
 	}
 	if *invitation != "" {
-		if err := guest(store, *invitation, *stay); err != nil {
+		if err := guest(store, *invitation, *stay, *script); err != nil {
 			fmt.Fprintln(os.Stderr, "peertest:", err)
 			os.Exit(1)
 		}
@@ -87,7 +93,7 @@ func serve(ctx context.Context, raw net.Conn, store *handover.Store, enroller *h
 	}
 }
 
-func guest(store *handover.Store, text string, stay time.Duration) error {
+func guest(store *handover.Store, text string, stay time.Duration, script string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), stay)
 	defer cancel()
 	inv, err := handover.ParseInvitation(text, time.Now())
@@ -106,6 +112,9 @@ func guest(store *handover.Store, text string, stay time.Duration) error {
 		return err
 	}
 	defer c.Close()
+	if script == "handover" {
+		return handoverScript(ctx, c, out)
+	}
 	if err := c.Send("availability", 0, "", handover.AvailabilityBody{Eligible: true, Lid: "open", Awake: true, Reason: "resume"}); err != nil {
 		return err
 	}
@@ -119,4 +128,59 @@ func guest(store *handover.Store, text string, stay time.Duration) error {
 	case <-ctx.Done():
 		return ctx.Err()
 	}
+}
+
+// handoverScript: the laptop's lid closes (the phone takes the glasses), then it wakes and asks for them back.
+func handoverScript(ctx context.Context, c *handover.Conn, out *json.Encoder) error {
+	next := func() (handover.Message, error) {
+		select {
+		case m, ok := <-c.Recv():
+			if !ok {
+				return m, fmt.Errorf("connection ended: %v", c.Err())
+			}
+			out.Encode(map[string]string{"got": m.Kind})
+			return m, nil
+		case <-ctx.Done():
+			return handover.Message{}, ctx.Err()
+		}
+	}
+	until := func(kind string) (handover.Message, error) {
+		for {
+			m, err := next()
+			if err != nil || m.Kind == kind {
+				return m, err
+			}
+		}
+	}
+	// Lid closed: not eligible. The phone asks for the glasses.
+	if err := c.Send("availability", 0, "", handover.AvailabilityBody{Eligible: false, Lid: "closed", Awake: true, Reason: "lid_closed"}); err != nil {
+		return err
+	}
+	req, err := until("request")
+	if err != nil {
+		return err
+	}
+	t := *req.Transfer
+	c.Expect(t)
+	if err := c.Send("release", req.Epoch, t, handover.ReleaseBody{Target: handover.Phone, Reason: "lid_closed"}); err != nil {
+		return err
+	}
+	if err := c.Send("released", req.Epoch, t, handover.ReleasedBody{Target: handover.Phone, ReconnectDisabled: true, WorkersStopped: true}); err != nil {
+		return err
+	}
+	ready, err := until("ready")
+	if err != nil {
+		return err
+	}
+	// Awake again: the laptop asks for the glasses back.
+	back := handover.NewNonce()
+	c.Expect(back)
+	if err := c.Send("availability", ready.Epoch, "", handover.AvailabilityBody{Eligible: true, Lid: "open", Awake: true, Reason: "resume"}); err != nil {
+		return err
+	}
+	if err := c.Send("request", ready.Epoch, back, handover.RequestBody{Target: handover.Laptop, Reason: "resume"}); err != nil {
+		return err
+	}
+	_, err = until("released")
+	return err
 }

@@ -17,6 +17,10 @@ import javax.security.auth.x500.X500Principal
 // exclude everything anyway). Rotating deletes the key, makes a new one and forgets every peer.
 object AndroidPeers {
     private const val ALIAS = "chewedfeed-peer"
+    private var hub: LaptopHub? = null
+
+    // The process's one store and listener (Setup and the glasses service share them).
+    @Synchronized fun hub(context: Context): LaptopHub = hub ?: LaptopHub(open(context.applicationContext)).also { hub = it }
 
     fun open(context: Context): PeerStore {
         val file = File(context.noBackupFilesDir, "peers.json")

@@ -29,6 +29,10 @@ class MainActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             addView(status)
             addView(settings)
+            if (BuildConfig.FLAVOR == "glasses") addView(Button(this@MainActivity).apply {
+                setText(R.string.glasses_check)
+                setOnClickListener { startActivity(Intent(this@MainActivity, GlassesCheckActivity::class.java)) }
+            })
         })
         if (BuildConfig.FLAVOR == "emulated") {
             val s = GlassesSession(callbacks = { it.run() }, onEvents = { _, _ -> })

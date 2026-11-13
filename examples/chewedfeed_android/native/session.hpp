@@ -21,6 +21,7 @@ struct StartConfig {
   std::string left, right; // bonded addresses; "" any bonded G1, "none" leave the arm out
   int dx = 0, dy = 0;      // eye alignment
   int brightness = 21;     // 0..42
+  bool log = false;        // the library's log on stderr (jni.cpp forwards it to logcat)
 };
 
 struct StartResult {

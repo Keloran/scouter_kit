@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cstdio>
 #include <thread>
 
 namespace g1 = scouter_kit::g1;
@@ -39,6 +40,16 @@ private:
   std::thread worker_;
 };
 
+bool g_trace = false; // the start's log: each step and how long it took (stderr)
+
+void Step(const char *what, std::chrono::steady_clock::time_point &t) {
+  if (!g_trace) return;
+  auto now = std::chrono::steady_clock::now();
+  std::fprintf(stderr, "[chewedfeed session] %s (%lld ms)\n", what,
+               (long long)std::chrono::duration_cast<std::chrono::milliseconds>(now - t).count());
+  t = now;
+}
+
 } // namespace
 
 StartResult Session::Start(const StartConfig &config, g1::Transport *transport, std::function<void()> on_cancel) {
@@ -59,9 +70,13 @@ StartResult Session::Start(const StartConfig &config, g1::Transport *transport, 
   connection.left = config.left;
   connection.right = config.right;
   connection.transport = transport;
+  connection.log = config.log;
   connection.keep_sessions = false; // a fresh session: never adopt the previous host's program or memory
   std::string error;
+  g_trace = config.log;
+  auto t = std::chrono::steady_clock::now();
   g1::InitError e = g1::InitCancelable(token, &gray, &error, &connection);
+  Step("Init returned", t);
 
   std::unique_lock<std::mutex> lock(mutex_);
   StartResult result;
@@ -81,8 +96,11 @@ StartResult Session::Start(const StartConfig &config, g1::Transport *transport, 
 #endif
       // The previous host's image may still be on the panel: off until our first full frame.
       ArmAt(i).SetPanel(false);
+      Step(i ? "right: panel off" : "left: panel off", t);
       ArmAt(i).ReportInputs(1u << g1::TRIGGER_TOUCH | 1u << g1::TRIGGER_CASE);
+      Step(i ? "right: inputs" : "left: inputs", t);
       ArmAt(i).SetBrightness(std::clamp(config.brightness, 0, 42));
+      Step(i ? "right: brightness" : "left: brightness", t);
     }
     if (token.Cancelled()) {
       g1::Deinit();
@@ -247,7 +265,10 @@ Status Session::GetStatus(uint64_t gen) {
     if (!a.present) continue;
     a.connected = ArmAt(i).GetState().connected;
     uint32_t v[5];
-    if (!a.connected || !ArmAt(i).Props(ids, v)) continue;
+    auto t = std::chrono::steady_clock::now();
+    bool ok = a.connected && ArmAt(i).Props(ids, v);
+    Step(i ? "right: status props" : "left: status props", t);
+    if (!ok) continue;
     a.battery = Value(v[0]);
     a.in_case = Value(v[1]);
     if (s.pitch == kUnknown) s.pitch = Value(v[2]), s.roll = Value(v[3]); // both arms report the same angles

@@ -19,6 +19,11 @@ import android.widget.ScrollView
 import android.widget.TextView
 import scouterkit.chewedfeed.bluetooth.PairFinder
 import scouterkit.chewedfeed.bluetooth.PairScan
+import scouterkit.chewedfeed.handover.AndroidPeers
+import scouterkit.chewedfeed.handover.Enroller
+import scouterkit.chewedfeed.handover.Peer
+import scouterkit.chewedfeed.handover.PeerOptions
+import scouterkit.chewedfeed.handover.PeerServer
 import scouterkit.chewedfeed.service.GlassesCompanion
 import scouterkit.chewedfeed.service.GlassesService
 import scouterkit.chewedfeed.service.Phase
@@ -52,13 +57,108 @@ class SetupActivity : Activity() {
             setText(R.string.calibrate)
             setOnClickListener { startActivity(Intent(this@SetupActivity, CalibrationActivity::class.java)) }
         })
+        // Laptop handover: this phone hosts; the laptop enrolls with the invitation shown here and then dials in.
+        list.addView(TextView(this).apply { setText(R.string.laptop_section) })
+        list.addView(laptopState)
+        list.addView(Button(this).apply { setText(R.string.laptop_pair); setOnClickListener { pairLaptop() } })
+        list.addView(invitationText)
+        list.addView(copyButton)
+        list.addView(Button(this).apply { setText(R.string.laptop_forget); setOnClickListener { forgetLaptop() } })
+        list.addView(Button(this).apply { setText(R.string.laptop_new_key); setOnClickListener { newPhoneKey() } })
         list.addView(state)
         setContentView(ScrollView(this).apply { addView(list) })
+    }
+
+    private val peers by lazy { AndroidPeers.open(this) }
+    private val laptopState by lazy { TextView(this) }
+    private val invitationText by lazy { TextView(this).apply { setTextIsSelectable(true); visibility = android.view.View.GONE } }
+    private val copyButton by lazy {
+        Button(this).apply {
+            setText(R.string.laptop_copy)
+            visibility = android.view.View.GONE
+            setOnClickListener {
+                val clip = android.content.ClipData.newPlainText("invitation", invitationText.text)
+                // The invitation's secret: kept out of clipboard previews (Android 13+).
+                clip.description.extras = android.os.PersistableBundle().apply { putBoolean("android.content.extra.IS_SENSITIVE", true) }
+                getSystemService(android.content.ClipboardManager::class.java).setPrimaryClip(clip)
+            }
+        }
+    }
+    private var pairing: PeerServer? = null
+    private var enroller: Enroller? = null
+
+    private fun showLaptop() {
+        val laptop = peers.peers().firstOrNull { it.role == "laptop" }
+        laptopState.text = if (laptop == null) getString(R.string.laptop_none) else getString(R.string.laptop_paired, laptop.id.take(8))
+    }
+
+    // Listens for the laptop and shows a single-use invitation for this phone's Wi-Fi address(es), valid 5 minutes.
+    private fun pairLaptop() {
+        stopPairing()
+        val addresses = lanAddresses()
+        if (addresses.isEmpty()) return show(getString(R.string.laptop_no_network))
+        val e = Enroller(peers)
+        val server = try {
+            PeerServer(peers, PeerOptions("phone"), e, { c -> c.close(); { } }, { peer, code -> main.post { paired(peer, code) } })
+        } catch (x: java.io.IOException) {
+            return show(getString(R.string.laptop_listen_failed, x.message))
+        }
+        enroller = e
+        pairing = server
+        val inv = e.invite("phone", addresses.map { "$it:${server.port}" })
+        window.addFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE) // no screenshots while the secret shows
+        invitationText.text = inv.encode()
+        invitationText.visibility = android.view.View.VISIBLE
+        copyButton.visibility = android.view.View.VISIBLE
+        show(getString(R.string.laptop_invite_help))
+        main.postDelayed(::stopPairing, Enroller.TTL_MS)
+    }
+
+    private fun paired(peer: Peer, code: String) {
+        stopPairing()
+        showLaptop()
+        show(getString(R.string.laptop_enrolled, code))
+    }
+
+    private fun stopPairing() {
+        enroller?.withdraw()
+        pairing?.stop()
+        pairing = null
+        enroller = null
+        invitationText.text = ""
+        invitationText.visibility = android.view.View.GONE
+        copyButton.visibility = android.view.View.GONE
+        window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
+    }
+
+    private fun forgetLaptop() {
+        peers.peers().filter { it.role == "laptop" }.forEach { peers.revoke(it.id) }
+        showLaptop()
+        show(getString(R.string.laptop_forgotten))
+    }
+
+    private fun newPhoneKey() {
+        stopPairing()
+        peers.rotate()
+        showLaptop()
+        show(getString(R.string.laptop_rotated))
+    }
+
+    // This phone's IPv4 addresses on its current network (Wi-Fi or Ethernet; not cellular, where the laptop
+    // cannot reach it).
+    private fun lanAddresses(): List<String> {
+        val cm = getSystemService(android.net.ConnectivityManager::class.java)
+        val net = cm.activeNetwork ?: return emptyList()
+        val caps = cm.getNetworkCapabilities(net) ?: return emptyList()
+        if (!caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI) && !caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_ETHERNET)) return emptyList()
+        return cm.getLinkProperties(net)?.linkAddresses.orEmpty().map { it.address }
+            .filter { it is java.net.Inet4Address && !it.isLoopbackAddress }.mapNotNull { it.hostAddress }
     }
 
     override fun onResume() {
         super.onResume()
         showPaired()
+        showLaptop()
     }
 
     private val companion by lazy { TextView(this) }
@@ -93,6 +193,7 @@ class SetupActivity : Activity() {
     }
 
     override fun onDestroy() {
+        stopPairing()
         scan?.stop()
         main.removeCallbacksAndMessages(null)
         super.onDestroy()

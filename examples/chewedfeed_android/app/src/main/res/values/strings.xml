@@ -87,6 +87,19 @@
     <string name="companion_waiting">Confirm in Android\'s dialog (the glasses must be out of their case and not connected)…</string>
     <string name="companion_done">Done: Android will start the connection when the glasses are near</string>
     <string name="companion_failed">Not set up: %1$s</string>
+    <string name="laptop_section">Laptop handover: this phone and your laptop hand the glasses to each other</string>
+    <string name="laptop_none">Laptop: not paired</string>
+    <string name="laptop_paired">Laptop: paired (key %1$s…)</string>
+    <string name="laptop_pair">Pair with the laptop</string>
+    <string name="laptop_copy">Copy the invitation</string>
+    <string name="laptop_forget">Forget the laptop</string>
+    <string name="laptop_new_key">New phone key (every laptop pairs again)</string>
+    <string name="laptop_no_network">Connect the phone to the same Wi-Fi as the laptop first</string>
+    <string name="laptop_listen_failed">Cannot listen for the laptop: %1$s</string>
+    <string name="laptop_invite_help">On the laptop, within 5 minutes: save this text to a file and run chewedfeed with -enroll-invitation FILE. It works once.</string>
+    <string name="laptop_enrolled">Laptop paired. Code %1$s: the laptop shows the same.</string>
+    <string name="laptop_forgotten">Laptop forgotten: it can no longer connect</string>
+    <string name="laptop_rotated">New phone key: pair the laptop again</string>
     <string name="save">Save</string>
     <string name="saved">Saved: used the next time the glasses connect</string>
 </resources>

@@ -2,7 +2,7 @@
 # Fetches FreedomCoder-dev/g1-fw at the pinned commit into $G1_WORK/g1-fw: its Renode models, nRF5340
 # platform, FICR/UICR images and settings-seed generator, which the emulator uses. g1-fw has no licence,
 # so none of it is redistributed here. Checks the files used (emulator/g1-fw.sha256) and writes
-# $G1_WORK/models/ with this project's changes to seven of its models (emulator/models/patches/*.ed:
+# $G1_WORK/models/ with this project's changes to eight of its models (emulator/models/patches/*.ed:
 # ed scripts holding only the changed lines), checked against patches/SHA256SUMS.
 # G1FW_URL=URL_OR_PATH clones from elsewhere (e.g. an existing local clone).
 # Usage: scripts/fetch_g1fw.sh

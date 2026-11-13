@@ -25,7 +25,8 @@ target_link_libraries(chewedfeed_core PUBLIC scouter_kit)
 if(ANDROID)
   add_library(chewedfeed SHARED jni.cpp link_transport.cpp)
   target_link_libraries(chewedfeed PRIVATE chewedfeed_core log)
-  target_link_options(chewedfeed PRIVATE -Wl,--gc-sections)
+  # 16 KB-aligned LOAD segments: devices with 16 KB pages (Android 15+) refuse 4 KB-aligned libraries.
+  target_link_options(chewedfeed PRIVATE -Wl,--gc-sections -Wl,-z,max-page-size=16384)
 else()
   # Host tests: cmake -S native -B BUILD && cmake --build BUILD && ctest --test-dir BUILD
   enable_testing()

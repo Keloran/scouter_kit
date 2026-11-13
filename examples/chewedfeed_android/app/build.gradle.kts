@@ -1,3 +1,5 @@
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import java.util.Properties
 
 plugins {
@@ -104,4 +106,32 @@ tasks.named("preBuild") { dependsOn(copyAssets) }
 dependencies {
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20240303") // the JVM tests read the shared handover fixtures
+}
+
+// Devices with 16 KB memory pages (Android 15+) refuse native libraries whose LOAD segments are aligned to less:
+// every packaged .so is checked after it is stripped (native/CMakeLists.txt links with max-page-size=16384).
+abstract class CheckPageAlignment : DefaultTask() {
+    @get:InputFiles abstract val libraries: ConfigurableFileCollection
+
+    @TaskAction
+    fun check() {
+        for (f in libraries.asFileTree.matching { include("**/*.so") }) {
+            val b = ByteBuffer.wrap(f.readBytes()).order(ByteOrder.LITTLE_ENDIAN)
+            require(b.getInt(0) == 0x464c457f && b.get(4).toInt() == 2) { "$f: not a 64-bit ELF file" }
+            val phoff = b.getLong(0x20).toInt()
+            val size = b.getShort(0x36).toInt()
+            for (i in 0 until b.getShort(0x38).toInt()) {
+                val ph = phoff + i * size
+                val align = b.getLong(ph + 0x30)
+                if (b.getInt(ph) == 1 && align < 16384) throw GradleException("$f: LOAD segment aligned to $align bytes, not 16 KB")
+            }
+        }
+    }
+}
+android.applicationVariants.all {
+    val variant = name.replaceFirstChar { it.uppercase() }
+    val check = tasks.register<CheckPageAlignment>("check${variant}PageAlignment") {
+        libraries.from(tasks.named("strip${variant}DebugSymbols"))
+    }
+    tasks.named("assemble$variant") { dependsOn(check) }
 }

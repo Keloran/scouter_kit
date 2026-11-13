@@ -61,7 +61,16 @@ func TestWriteGlassesStatus(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, want := string(b), `{"left":57,"right":null,"updated":1700000000}`+"\n"; got != want {
+	if got, want := string(b), `{"case":null,"left":57,"right":null,"updated":1700000000}`+"\n"; got != want {
+		t.Fatalf("got %q, want %q", got, want)
+	}
+	c := 80
+	s.casePct, s.caseAt = &c, time.Unix(1699999000, 0)
+	if err := writeGlassesStatus(path, s, time.Unix(1700000000, 0)); err != nil {
+		t.Fatal(err)
+	}
+	b, _ = os.ReadFile(path)
+	if got, want := string(b), `{"case":80,"case_updated":1699999000,"left":57,"right":null,"updated":1700000000}`+"\n"; got != want {
 		t.Fatalf("got %q, want %q", got, want)
 	}
 }

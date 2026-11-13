@@ -22,6 +22,9 @@ type armBattery struct {
 type batteryStatus struct {
 	host *int
 	arms []armBattery
+	// The case reports its battery only while an arm is in it: the last value seen.
+	casePct *int
+	caseAt  time.Time
 }
 
 // Only system batteries count: peripherals can also appear in power_supply.
@@ -77,6 +80,12 @@ func readBatteries(root string, arms []scouterkit.Arm) batteryStatus {
 			}
 		}
 		s.arms = append(s.arms, reading)
+		if s.casePct == nil && arm.State().Connected {
+			if v, err := arm.Props(scouterkit.PropCaseBattPct); err == nil && v[0] <= 100 {
+				n := int(v[0])
+				s.casePct, s.caseAt = &n, time.Now()
+			}
+		}
 	}
 	return s
 }
@@ -91,8 +100,14 @@ func monitorBatteries(parent context.Context, arms []scouterkit.Arm) (<-chan bat
 		defer close(updates)
 		ticker := time.NewTicker(30 * time.Second)
 		defer ticker.Stop()
+		var lastCase *int
+		var lastCaseAt time.Time
 		for {
 			s := readBatteries("/sys/class/power_supply", arms)
+			if s.casePct == nil {
+				s.casePct, s.caseAt = lastCase, lastCaseAt
+			}
+			lastCase, lastCaseAt = s.casePct, s.caseAt
 			select {
 			case updates <- s:
 			case <-ctx.Done():
@@ -133,7 +148,10 @@ func (s batteryStatus) glassesText() string {
 // Published for the Omarchy bar plugin, which cannot reach the glasses itself.
 // Arms without a reading are null; the plugin treats an old "updated" as stale.
 func writeGlassesStatus(path string, s batteryStatus, now time.Time) error {
-	out := map[string]any{"left": nil, "right": nil, "updated": now.Unix()}
+	out := map[string]any{"left": nil, "right": nil, "case": nil, "updated": now.Unix()}
+	if s.casePct != nil {
+		out["case"], out["case_updated"] = *s.casePct, s.caseAt.Unix()
+	}
 	for _, b := range s.arms {
 		name := "left"
 		if b.arm == scouterkit.Right {

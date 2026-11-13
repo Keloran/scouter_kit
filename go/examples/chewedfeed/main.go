@@ -226,9 +226,14 @@ func newScreenScale(cfg scouterkit.Config, scale float64) (*screen, error) {
 	vw, vh := scouterkit.Size()
 	w := min(600, vw-2*max(cfg.DX, -cfg.DX)-16)
 	h := min(400, vh-40)
-	fetchW, _ := (&screen{footerFont: footer}).iconSize("download")
+	icons := &screen{footerFont: footer}
+	fetchW, _ := icons.iconSize("download")
 	fetchW += footer.Measure(" 00:00").Width + 2*textInset // the Sites fetch time under the mode icon
-	statusW := max(90, w/7, fetchW)
+	batteryW, _ := icons.iconSize("computer")
+	warnW, _ := icons.iconSize("warning")
+	// case and computer rows: "100%", or a low "20%" with its warning icon
+	batteryW += max(footer.Measure(" 100%").Width, footer.Measure(" 20% ").Width+warnW) + 2*textInset
+	statusW := max(90, w/7, fetchW, batteryW)
 	contentW := w - statusW - 1
 	progress("Allocating dashboard display (%dx%d)", w, h)
 	b, err := scouterkit.CreateBitmap(w, h)
@@ -547,6 +552,9 @@ func display(ctx context.Context, f demo.Flags, o options, c *client) error {
 			if !ok {
 				batteryUpdates = nil
 				continue
+			}
+			if c := batteries.casePct; c != nil && (s.batteries.casePct == nil || *c != *s.batteries.casePct) {
+				progress("Case battery: %d%%", *c)
 			}
 			s.batteries = batteries
 			redraw = true

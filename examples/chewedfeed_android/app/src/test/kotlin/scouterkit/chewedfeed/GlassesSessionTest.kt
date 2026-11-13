@@ -129,6 +129,19 @@ class GlassesSessionTest {
         session.close()
     }
 
+    // A callback running on the session thread may draw and wait for it (it once deadlocked).
+    @Test
+    fun drawFromTheSessionThreadDoesNotDeadlock() {
+        val bridge = FakeBridge()
+        val session = GlassesSession(bridge, { it.run() }, { _, _ -> })
+        val drawn = LinkedBlockingQueue<Boolean>()
+        session.start(StartConfig(), null) { outcome ->
+            if (outcome is StartOutcome.Ready) drawn.put(session.draw { it.text(0, "from the callback", 0, 10) }.get(2, TimeUnit.SECONDS) == true)
+        }
+        assertEquals(true, drawn.poll(5, TimeUnit.SECONDS))
+        session.close()
+    }
+
     @Test
     fun statusLayout() {
         val s = GlassesStatus.parse(intArrayOf(600, 400, Int.MIN_VALUE, 0, 55, 1, 0, Int.MIN_VALUE, 1, 0, 0, 0, 0))!!

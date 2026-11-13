@@ -18,6 +18,8 @@ object Native {
     // link null: the emulated arms (emulated flavor).
     @JvmStatic external fun start(link: ArmLink?, left: String, right: String, dx: Int, dy: Int, brightness: Int): Long
     @JvmStatic external fun lastError(): String
+    // The library's own log for the next starts, in logcat under the tag scouterkit (debugging).
+    @JvmStatic external fun setLog(on: Boolean)
     @JvmStatic external fun cancel()
     // Blank, panels off, then release: threads joined and reconnects stopped before it returns.
     @JvmStatic external fun stop()

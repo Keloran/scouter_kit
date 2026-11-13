@@ -1,5 +1,6 @@
 package scouterkit.chewedfeed
 
+import java.util.concurrent.CompletableFuture
 import java.util.concurrent.Executor
 import java.util.concurrent.Executors
 import java.util.concurrent.Future
@@ -139,8 +140,9 @@ class GlassesSession(
     private val onEvents: (generation: Long, events: List<GlassesEvent>) -> Unit,
     private val pollMs: Long = 50,
 ) {
+    @Volatile private var workerThread: Thread? = null
     private val worker: ScheduledExecutorService =
-        Executors.newSingleThreadScheduledExecutor { Thread(it, "glasses-session").apply { isDaemon = true } }
+        Executors.newSingleThreadScheduledExecutor { r -> Thread(r, "glasses-session").apply { isDaemon = true; workerThread = this } }
     @Volatile var generation = 0L
         private set
     private var poll: Future<*>? = null
@@ -169,10 +171,15 @@ class GlassesSession(
         if (events.isNotEmpty()) callbacks.execute { if (gen == generation) onEvents(gen, events) }
     }
 
-    // Runs block with this generation's Frame on the session thread; null when stopped.
-    fun <T> draw(block: (Frame) -> T): Future<T?> = worker.submit<T?> {
-        val gen = generation
-        if (gen == 0L) null else block(Frame(bridge, gen))
+    // Runs block with this generation's Frame on the session thread; null when stopped. Called from the session
+    // thread itself (a callback run on it), it runs at once: queueing would wait for itself.
+    fun <T> draw(block: (Frame) -> T): Future<T?> {
+        val run = {
+            val gen = generation
+            if (gen == 0L) null else block(Frame(bridge, gen))
+        }
+        if (Thread.currentThread() === workerThread) return CompletableFuture.completedFuture(run())
+        return worker.submit<T?>(run)
     }
 
     // Cancels a start in progress at once, then releases the glasses on the session thread; done after

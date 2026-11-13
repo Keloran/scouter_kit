@@ -23,6 +23,8 @@ interface GlassesBridge {
     fun text(generation: Long, font: Int, utf8: ByteArray, x: Int, baseline: Int, align: Int, gray: Int): Boolean
     fun present(generation: Long, x: Int, y: Int): Boolean
     fun blank(generation: Long): Boolean
+    fun calibrationShow(generation: Long, blob: ByteArray?, scale: Int, major: Int): Boolean = false
+    fun calibrationMove(generation: Long, dx: Int, dy: Int): Boolean = false
     fun status(generation: Long): IntArray?
     fun events(generation: Long): IntArray
 }
@@ -45,6 +47,8 @@ object NativeBridge : GlassesBridge {
         Native.text(generation, font, utf8, x, baseline, align, gray)
     override fun present(generation: Long, x: Int, y: Int) = Native.present(generation, x, y)
     override fun blank(generation: Long) = Native.blank(generation)
+    override fun calibrationShow(generation: Long, blob: ByteArray?, scale: Int, major: Int) = Native.calibrationShow(generation, blob, scale, major)
+    override fun calibrationMove(generation: Long, dx: Int, dy: Int) = Native.calibrationMove(generation, dx, dy)
     override fun status(generation: Long) = Native.status(generation)
     override fun events(generation: Long) = Native.events(generation)
 }
@@ -125,6 +129,8 @@ class Frame internal constructor(private val bridge: GlassesBridge, val generati
         bridge.text(generation, font, text.toByteArray(Charsets.UTF_8), x, baseline, align, gray)
     fun present(x: Int, y: Int) = bridge.present(generation, x, y)
     fun blank() = bridge.blank(generation)
+    fun calibrationShow(blob: ByteArray?, scale: Int, major: Int) = bridge.calibrationShow(generation, blob, scale, major)
+    fun calibrationMove(dx: Int, dy: Int) = bridge.calibrationMove(generation, dx, dy)
     fun status() = bridge.status(generation)?.let(GlassesStatus::parse)
 
     companion object {

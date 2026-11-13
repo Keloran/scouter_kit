@@ -13,6 +13,8 @@
 
 #include "g1/scouter_kit_g1.hpp"
 
+namespace g1 = scouter_kit::g1;
+
 namespace chewedfeed {
 
 constexpr int kUnknown = INT32_MIN; // a value the arm did not report
@@ -96,6 +98,14 @@ public:
   // Black and off, until the next Present.
   bool Blank(uint64_t gen);
 
+  // Calibration (desktop calibration.go): the left eye shows a pixel ruler, the right a crosshair, each drawn by a
+  // small program on its arm, the left held fixed. CalibrationMove(dx, dy) moves the right image as those offsets
+  // would, without restarting the session; the user reads where the crosshair sits on the ruler. The ruler's
+  // numbers use the dashboard's size: numbers_blob (a scaled font blob, or empty for the built-in one) at scale;
+  // major: px between numbered marks.
+  bool CalibrationShow(uint64_t gen, const std::vector<uint8_t> &numbers_blob, int scale, int major);
+  bool CalibrationMove(uint64_t gen, int dx, int dy);
+
   Status GetStatus(uint64_t gen);
   // Events since the last call, oldest first (at most max).
   std::vector<InputEvent> Events(uint64_t gen, size_t max);
@@ -116,7 +126,13 @@ private:
   std::vector<scouter_kit::Font *> fonts_;
   scouter_kit::gray::Bitmap *canvas_ = nullptr;
   bool present_[2] = {false, false};
-  int pitch_arm_ = -1;                   // the arm whose pitch window we narrowed
+  int pitch_arm_ = -1;
+  int dx_ = 0, dy_ = 0;                  // the session's offsets (StartConfig)
+  struct Calibration {
+    bool on = false;
+    g1::Address base = 0;
+    int dx = 0, dy = 0, x = 0, y = 0;    // the right image's offsets and its position
+  } calibration_;                   // the arm whose pitch window we narrowed
   static constexpr int32_t kPitchLo = -89; // desktop session.go pitchLo
 };
 

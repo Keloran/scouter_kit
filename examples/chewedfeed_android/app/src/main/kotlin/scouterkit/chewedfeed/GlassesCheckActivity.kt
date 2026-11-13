@@ -3,12 +3,7 @@ package scouterkit.chewedfeed
 import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Activity
-import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
-import android.content.BroadcastReceiver
-import android.content.Context
-import android.content.Intent
-import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.os.Handler
@@ -23,8 +18,6 @@ import scouterkit.chewedfeed.bluetooth.ArmsLink
 import scouterkit.chewedfeed.bluetooth.BluetoothWatch
 import scouterkit.chewedfeed.bluetooth.HandlerScheduler
 import scouterkit.chewedfeed.bluetooth.NativeEvents
-import scouterkit.chewedfeed.bluetooth.PairFinder
-import scouterkit.chewedfeed.bluetooth.PairScan
 import scouterkit.chewedfeed.dashboard.Notification
 import scouterkit.chewedfeed.dashboard.Page
 import scouterkit.chewedfeed.notifications.FeedEvent
@@ -33,16 +26,14 @@ import scouterkit.chewedfeed.render.Batteries
 import scouterkit.chewedfeed.render.GlassesScreen
 import scouterkit.chewedfeed.render.MusicStatus
 
-// Hardware check for the glasses link (until setup, CF-45): scan for pairs by their pair record, bond the chosen
-// pair only on the user's tap (the glasses in the open case), connect both arms through the native session and
-// draw a test frame. Nothing here pairs or connects by itself.
+// Hardware check for the glasses link: connects both saved arms (paired in Setup) through the native session and
+// draws a test frame. Nothing here pairs or connects by itself.
 @SuppressLint("MissingPermission", "SetTextI18n")
 class GlassesCheckActivity : Activity() {
     private val main = Handler(Looper.getMainLooper())
     private lateinit var state: TextView
     private lateinit var list: LinearLayout
     private val adapter by lazy { getSystemService(BluetoothManager::class.java).adapter }
-    private var scan: PairScan? = null
     private var scheduler: HandlerScheduler? = null
     private var link: ArmsLink? = null
     private var watch: BluetoothWatch? = null
@@ -58,7 +49,6 @@ class GlassesCheckActivity : Activity() {
                 "3 bond slots (the oldest is replaced)."
         })
         list.addView(state)
-        list.addView(Button(this).apply { text = "Scan for glasses (15 s)"; setOnClickListener { scanPairs() } })
         list.addView(Button(this).apply { text = "Connect saved glasses"; setOnClickListener { saved()?.let { start(it.first, it.second) } } })
         list.addView(Button(this).apply { text = "Stop"; setOnClickListener { stopSession() } })
         setContentView(ScrollView(this).apply { addView(list) })
@@ -66,7 +56,6 @@ class GlassesCheckActivity : Activity() {
     }
 
     override fun onDestroy() {
-        scan?.stop()
         stopSession()
         super.onDestroy()
     }
@@ -84,59 +73,7 @@ class GlassesCheckActivity : Activity() {
         Log.i(TAG, "check: $text")
     }
 
-    private fun saved(): Pair<String, String>? {
-        val p = getSharedPreferences("glasses", Context.MODE_PRIVATE)
-        val l = p.getString("left", null) ?: return null.also { show("no saved glasses: scan first") }
-        return l to (p.getString("right", null) ?: return null)
-    }
-
-    private fun scanPairs() {
-        if (!permissions()) return
-        if (!adapter.isEnabled) return show("Bluetooth is off").let {}
-        val buttons = mutableMapOf<String, Button>()
-        val s = PairScan(adapter) { pairs ->
-            main.post {
-                for (p in pairs) {
-                    val b = buttons.getOrPut(p.pairId) {
-                        Button(this).also { list.addView(it) }
-                    }
-                    b.text = "Glasses ${p.pairId}: ${if (p.left != null) "left" else "no left"}, ${if (p.right != null) "right" else "no right"}"
-                    b.isEnabled = p.complete
-                    b.setOnClickListener { scan?.stop(); bondPair(p) }
-                }
-            }
-        }
-        scan = s
-        s.start()
-        show("scanning…")
-        main.postDelayed({ s.stop(); if (buttons.isEmpty()) show("no glasses found: is the case open?") else show("tap the glasses to pair") }, 15000)
-    }
-
-    // Bonds both arms (only those not bonded yet), one after the other, then connects.
-    private fun bondPair(p: PairFinder.Pair) {
-        getSharedPreferences("glasses", Context.MODE_PRIVATE).edit().putString("left", p.left).putString("right", p.right).apply()
-        val todo = listOf(p.left!!, p.right!!).map { adapter.getRemoteDevice(it) }.filter { it.bondState != BluetoothDevice.BOND_BONDED }
-        bondNext(todo, p)
-    }
-
-    private fun bondNext(todo: List<BluetoothDevice>, p: PairFinder.Pair) {
-        val d = todo.firstOrNull() ?: return start(p.left!!, p.right!!)
-        val name = if (d.address == p.left) "left" else "right"
-        val receiver = object : BroadcastReceiver() {
-            override fun onReceive(c: Context, i: Intent) {
-                @Suppress("DEPRECATION")
-                val dev = i.getParcelableExtra<BluetoothDevice>(BluetoothDevice.EXTRA_DEVICE) ?: return
-                if (dev.address != d.address) return
-                when (i.getIntExtra(BluetoothDevice.EXTRA_BOND_STATE, -1)) {
-                    BluetoothDevice.BOND_BONDED -> { unregisterReceiver(this); show("$name arm paired"); bondNext(todo.drop(1), p) }
-                    BluetoothDevice.BOND_NONE -> { unregisterReceiver(this); show("pairing the $name arm failed: is the case open?") }
-                }
-            }
-        }
-        registerReceiver(receiver, IntentFilter(BluetoothDevice.ACTION_BOND_STATE_CHANGED))
-        show("pairing the $name arm…")
-        if (!d.createBond()) { unregisterReceiver(receiver); show("cannot pair the $name arm") }
-    }
+    private fun saved(): Pair<String, String>? = Pairing.saved(this) ?: null.also { show("no saved glasses: pair them in Setup") }
 
     private fun start(left: String, right: String) {
         if (!permissions() || session != null) return

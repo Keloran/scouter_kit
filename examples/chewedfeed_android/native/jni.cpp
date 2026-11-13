@@ -208,6 +208,21 @@ JNIEXPORT jboolean JNICALL Java_scouterkit_chewedfeed_Native_present(JNIEnv *, j
   return g_session.Present(Gen(gen), x, y);
 }
 
+JNIEXPORT jboolean JNICALL Java_scouterkit_chewedfeed_Native_calibrationShow(JNIEnv *env, jclass, jlong gen, jbyteArray blob,
+                                                                             jint scale, jint major) {
+  std::vector<uint8_t> bytes;
+  if (blob) {
+    bytes.resize(static_cast<size_t>(env->GetArrayLength(blob)));
+    env->GetByteArrayRegion(blob, 0, jsize(bytes.size()), reinterpret_cast<jbyte *>(bytes.data()));
+    if (env->ExceptionCheck()) return false;
+  }
+  return g_session.CalibrationShow(Gen(gen), bytes, scale, major);
+}
+
+JNIEXPORT jboolean JNICALL Java_scouterkit_chewedfeed_Native_calibrationMove(JNIEnv *, jclass, jlong gen, jint dx, jint dy) {
+  return g_session.CalibrationMove(Gen(gen), dx, dy);
+}
+
 JNIEXPORT jboolean JNICALL Java_scouterkit_chewedfeed_Native_blank(JNIEnv *, jclass, jlong gen) {
   return g_session.Blank(Gen(gen));
 }

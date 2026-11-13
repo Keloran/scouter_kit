@@ -130,6 +130,24 @@ int main() {
   CHECK(sk::free_memory == sk::total_memory);
   s.Stop();
 
+  // Calibration: a ruler on the left, a crosshair on the right, the right moved without a restart.
+  r = s.Start({.dx = -10, .dy = -8}, nullptr);
+  {
+    CHECK(!s.CalibrationMove(r.generation, 0, 0)); // nothing shown yet
+    CHECK(s.CalibrationShow(r.generation, {}, 2, 80));
+    CHECK(Eventually([] { return Lit(0) > 1000 && Lit(1) > 0; })); // the ruler has far more ink than the plus
+    CHECK(Lit(0) > Lit(1));
+    CHECK(s.CalibrationMove(r.generation, 20, -16));
+    CHECK(!s.CalibrationMove(r.generation, 241, 0) && !s.CalibrationMove(r.generation, 0, -121));
+    CHECK(!s.CalibrationShow(r.generation, {}, 2, 80)); // once per session
+    uint64_t gen = r.generation;
+    s.Stop();
+    CHECK(!s.CalibrationMove(gen, 0, 0));
+  }
+  r = s.Start({}, nullptr);
+  CHECK(sk::free_memory == sk::total_memory); // the patterns and programs went with the session
+  s.Stop();
+
   // One arm only.
   r = s.Start({"", "none"}, nullptr);
   CHECK(r.generation != 0);

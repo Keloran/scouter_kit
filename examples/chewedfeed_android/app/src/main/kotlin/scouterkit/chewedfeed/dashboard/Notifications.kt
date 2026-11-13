@@ -4,18 +4,23 @@ data class Notification(val app: String, val summary: String, val body: String =
 
 // The last five notifications, newest first, in memory only: never logged or stored.
 class NotificationHistory {
-    private class Entry(val id: Long, val note: Notification, val receivedLabel: String)
+    private class Entry(val id: Long, val note: Notification, val receivedLabel: String, val key: String?)
 
     private var sequence = 0L
     private val entries = ArrayDeque<Entry>()
 
     val size get() = entries.size
 
-    // receivedLabel: the time shown in the status line ("13 Nov 12:30").
-    fun add(note: Notification, receivedLabel: String) {
-        entries.addFirst(Entry(++sequence, note, receivedLabel))
+    // receivedLabel: the time shown in the status line ("13 Nov 12:30"). key: the source's identity for it (an
+    // Android notification key); an update with the same key replaces the old entry.
+    fun add(note: Notification, receivedLabel: String, key: String? = null) {
+        if (key != null) remove(key)
+        entries.addFirst(Entry(++sequence, note, receivedLabel, key))
         while (entries.size > LIMIT) entries.removeLast()
     }
+
+    // The source dismissed it: gone from the history. False when it was not kept.
+    fun remove(key: String): Boolean = entries.removeAll { it.key == key }
 
     // One or more pages per notification, ids stable while it is kept.
     fun pages(width: Int, rows: Int, measure: (String) -> Int): List<Page> {

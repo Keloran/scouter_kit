@@ -25,5 +25,15 @@
         </activity>
         <activity android:name=".SettingsActivity" android:exported="false" />
         <activity android:name=".GlassesCheckActivity" android:exported="false" />
+        <!-- Optional: the user grants notification access in Android's settings. -->
+        <service
+            android:name=".notifications.PhoneNotifications"
+            android:exported="true"
+            android:label="@string/notification_listener"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
     </application>
 </manifest>

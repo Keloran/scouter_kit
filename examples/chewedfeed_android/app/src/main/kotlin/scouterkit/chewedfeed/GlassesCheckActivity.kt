@@ -25,7 +25,10 @@ import scouterkit.chewedfeed.bluetooth.HandlerScheduler
 import scouterkit.chewedfeed.bluetooth.NativeEvents
 import scouterkit.chewedfeed.bluetooth.PairFinder
 import scouterkit.chewedfeed.bluetooth.PairScan
+import scouterkit.chewedfeed.dashboard.Notification
 import scouterkit.chewedfeed.dashboard.Page
+import scouterkit.chewedfeed.notifications.FeedEvent
+import scouterkit.chewedfeed.notifications.Hub
 import scouterkit.chewedfeed.render.Batteries
 import scouterkit.chewedfeed.render.GlassesScreen
 import scouterkit.chewedfeed.render.MusicStatus
@@ -154,13 +157,28 @@ class GlassesCheckActivity : Activity() {
                 is StartOutcome.Failed -> show("start failed (${outcome.code}): ${outcome.message}; link ${l.status} ${l.reason}")
                 is StartOutcome.Ready -> {
                     val st = outcome.status
-                    val drawn = s.draw { f ->
-                        // A sample dashboard frame, drawn as the dashboard will be: the configured text scale and offsets.
-                        val screen = GlassesScreen.open(f, st.width, st.height, dx, scale, Native::departureMono) ?: return@draw false
-                        val page = Page("check", "Chewedfeed", listOf("phone link OK ✓", "Text scale $scale, dx $dx, dy $dy"), "Unavailable")
-                        val clock = MusicStatus()
-                        screen.show(page, 0, 1, true, null, Batteries(st.left.battery, st.right.battery), { w -> clock.line(System.currentTimeMillis(), w, screen::measure) })
-                    }.get()
+                    var screen: GlassesScreen? = null
+                    val page = Page("check", "Chewedfeed", listOf("phone link OK ✓", "Text scale $scale, dx $dx, dy $dy"), "Unavailable")
+                    val clock = MusicStatus()
+                    // The sample frame, or a notification popup over it.
+                    val frame = { popup: Notification? ->
+                        s.draw { f ->
+                            val g = screen ?: GlassesScreen.open(f, st.width, st.height, dx, scale, Native::departureMono)?.also { screen = it }
+                            g?.show(page, 0, 1, true, popup, Batteries(st.left.battery, st.right.battery)) { w -> clock.line(System.currentTimeMillis(), w, g::measure) } ?: false
+                        }
+                    }
+                    val drawn = frame(null).get()
+                    // Phone notifications as 5 s popups while connected (with notification access).
+                    val ui = Handler(Looper.getMainLooper())
+                    val clear = Runnable { if (session === s) frame(null) }
+                    Hub.attach(mainExecutor) { e ->
+                        if (session !== s) return@attach
+                        ui.removeCallbacks(clear)
+                        if (e is FeedEvent.Show) {
+                            frame(e.note)
+                            ui.postDelayed(clear, 5000)
+                        } else frame(null)
+                    }
                     show("connected (dx $dx, dy $dy, scale $scale): generation ${outcome.generation}, left ${st.left.battery}% right ${st.right.battery}%, " +
                         "in case ${st.left.inCase}/${st.right.inCase}, frame ${if (drawn == true) "drawn" else "FAILED"}")
                 }
@@ -175,6 +193,7 @@ class GlassesCheckActivity : Activity() {
     }
 
     private fun stopSession() {
+        Hub.detach()
         val s = session ?: return
         session = null
         s.stop {

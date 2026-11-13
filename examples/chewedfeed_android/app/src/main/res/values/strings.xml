@@ -11,6 +11,13 @@
     <string name="tilt_settings">Head tilt: the dashboard shows when you look up or down past these angles, and hides in between</string>
     <string name="show_above_label">Show when looking up past, degrees (−90 to 90)</string>
     <string name="show_below_label">Show when looking down past, degrees (−90 to 90)</string>
+    <string name="notifications_settings">Notifications on the glasses: shown as short popups and kept (last five) only in memory, never sent to the laptop</string>
+    <string name="notification_access">Notification access…</string>
+    <string name="notification_access_on">Notification access: allowed</string>
+    <string name="notification_access_off">Notification access: not allowed (everything else still works)</string>
+    <string name="mirror_notifications">Mirror notifications to the glasses</string>
+    <string name="excluded_apps">Apps not to mirror (package names, comma separated)</string>
+    <string name="notification_listener">Chewedfeed glasses notifications</string>
     <string name="save">Save</string>
     <string name="saved">Saved: used the next time the glasses connect</string>
 </resources>

@@ -24,6 +24,7 @@ type glassesSession struct {
 	batteries     <-chan batteryStatus
 	stopBatteries func()
 	pitchSet      bool
+	managed       bool
 	missed        map[scouterkit.Arm]int
 }
 
@@ -38,10 +39,11 @@ const (
 )
 
 type hostStatus struct {
-	State      hostState
-	Generation uint64 // bumped by each successful Acquire
-	Arms       int
-	Err        error // why the last Acquire failed, or why the last session was lost
+	State                 hostState
+	Generation            uint64 // bumped by each successful Acquire
+	Arms                  int
+	Err                   error // why the last Acquire failed, or why the last session was lost
+	LeftReady, RightReady bool
 }
 
 // glassesHost owns at most one session (scouterkit is process-global).
@@ -94,6 +96,7 @@ func (h *glassesHost) Release(lost error) {
 	s := h.session
 	h.session = nil
 	h.status.State, h.status.Arms, h.status.Err = hostReleased, 0, lost
+	h.status.LeftReady, h.status.RightReady = false, false
 	h.mu.Unlock()
 	if s != nil {
 		s.close()
@@ -129,7 +132,7 @@ func openSession(ctx context.Context, f demo.Flags, o options) (*glassesSession,
 	if c.err != nil {
 		return nil, c.err
 	}
-	s := &glassesSession{cfg: c.cfg, arms: c.arms, missed: make(map[scouterkit.Arm]int)}
+	s := &glassesSession{cfg: c.cfg, arms: c.arms, missed: make(map[scouterkit.Arm]int), managed: o.managed}
 	if err := s.setup(ctx, o); err != nil {
 		s.close()
 		return nil, err
@@ -184,5 +187,47 @@ func (s *glassesSession) close() {
 	for _, arm := range s.arms {
 		arm.ReportInputs(0)
 	}
+	if s.managed {
+		for _, arm := range s.arms {
+			arm.Stop()
+		}
+		if s.screen != nil {
+			s.screen.hide(s.arms)
+			scouterkit.Flush() // the privacy blank must be shown before Deinit
+		} else {
+			for _, arm := range s.arms {
+				arm.SetPanel(false)
+			}
+		}
+	}
 	scouterkit.Deinit()
+}
+
+// Called only by the dashboard, after full rendering and on each loop tick.
+func (h *glassesHost) updateReadiness() {
+	s := h.current()
+	left, right := false, false
+	if s != nil {
+		for _, arm := range s.arms {
+			state := arm.State()
+			ready := state.Connected && !state.SafeMode && state.Errors == 0 && state.ShownUpdate > 0
+			if arm == scouterkit.Left {
+				left = ready
+			}
+			if arm == scouterkit.Right {
+				right = ready
+			}
+		}
+	}
+	h.mu.Lock()
+	h.status.LeftReady, h.status.RightReady = left, right
+	h.mu.Unlock()
+}
+
+func (h *glassesHost) bothConnected() bool {
+	s := h.current()
+	if s == nil || len(s.arms) != 2 {
+		return false
+	}
+	return scouterkit.Left.State().Connected && scouterkit.Right.State().Connected
 }

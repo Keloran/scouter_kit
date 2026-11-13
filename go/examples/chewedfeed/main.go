@@ -28,6 +28,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 	"unicode/utf8"
@@ -51,6 +52,8 @@ type options struct {
 	saveConfig              bool
 	showAbove, showBelow    int
 	alwaysNotes             bool
+	ownership               ownershipSettings
+	managed                 bool // coordinator owns acquisition and reconnect policy
 }
 
 var stages = log.New(os.Stderr, "chewedfeed: ", log.Ltime|log.Lmicroseconds)
@@ -61,6 +64,7 @@ func main() {
 	var f demo.Flags
 	f.Register()
 	var o options
+	o.ownership.register(flag.CommandLine)
 	flag.StringVar(&o.api, "api", "https://api.chewedfeed.com", "Chewedfeed API base URL")
 	flag.StringVar(&o.tokenFile, "token-file", "", "file containing the session-cookie JWT for private views")
 	flag.StringVar(&o.project, "project", "", "only this project slug (summary remains portfolio-wide)")
@@ -100,6 +104,9 @@ func main() {
 	flag.Visit(func(f *flag.Flag) { explicit[f.Name] = true })
 	var err error
 	o, err = configureDisplay(o, explicit)
+	if err == nil {
+		o.ownership, err = configureOwnership(o.ownership, explicit)
+	}
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "chewedfeed: %v\n", err)
 		os.Exit(1)
@@ -122,7 +129,7 @@ func run(f demo.Flags, o options) error {
 	if o.dx < -240 || o.dx > 240 || o.dy < -120 || o.dy > 120 {
 		return errors.New("use -dx between -240 and 240, and -dy between -120 and 120")
 	}
-	if o.calibrate {
+	if o.calibrate && !o.preview {
 		return calibrate(f, o)
 	}
 	if o.refresh < 30*time.Second || o.rotate < 0 || (o.rotate > 0 && o.rotate < time.Second) || o.stay < 0 {
@@ -187,6 +194,9 @@ func run(f demo.Flags, o options) error {
 			}
 		}
 		return errors.New("no API data available")
+	}
+	if o.ownership.Enabled {
+		return coordinatedDisplay(ctx, f, o, c)
 	}
 	return display(ctx, f, o, c)
 }
@@ -328,6 +338,7 @@ func display(ctx context.Context, f demo.Flags, o options, c *client) error {
 type hostCommand struct {
 	release bool
 	done    chan<- error
+	ctx     context.Context
 }
 
 // Link checks, and reconnects after an unexpected loss (handover contract:
@@ -406,22 +417,34 @@ func (d *dashState) hide() {
 // arm stayed unreachable) without losing the data or the selected page.
 func dashboard(ctx context.Context, host *glassesHost, o options, c *client, control <-chan hostCommand) error {
 	started := time.Now()
-	progress("Looking for glasses and connecting over Bluetooth")
-	if err := host.Acquire(ctx); err != nil {
-		if ctx.Err() != nil {
-			return nil
+	if o.managed {
+		progress("Waiting for glasses ownership")
+	} else {
+		progress("Looking for glasses and connecting over Bluetooth")
+	}
+	if !o.managed {
+		if err := host.Acquire(ctx); err != nil {
+			if ctx.Err() != nil {
+				return nil
+			}
+			return fmt.Errorf("connecting to glasses: %w", err)
 		}
-		return fmt.Errorf("connecting to glasses: %w", err)
 	}
 	defer func() {
-		progress("Stopping dashboard; the glasses keep their standby screen")
+		if o.managed {
+			progress("Stopping dashboard and releasing glasses")
+		} else {
+			progress("Stopping dashboard; the glasses keep their standby screen")
+		}
 		host.Release(nil)
 		progress("Stopped")
 	}()
 	s := host.current()
-	progress("Glasses connected: %d arms (%s)", len(s.arms), time.Since(started).Round(time.Millisecond))
-	for _, arm := range s.arms {
-		progress("%s arm ready: firmware %s", arm, arm.State().Firmware)
+	if s != nil {
+		progress("Glasses connected: %d arms (%s)", len(s.arms), time.Since(started).Round(time.Millisecond))
+		for _, arm := range s.arms {
+			progress("%s arm ready: firmware %s", arm, arm.State().Firmware)
+		}
 	}
 
 	loading := []page{{id: "loading", title: "Chewedfeed", lines: []string{"Loading dashboard..."}, status: "Connecting to API"}}
@@ -435,7 +458,8 @@ func dashboard(ctx context.Context, host *glassesHost, o options, c *client, con
 	}
 
 	workerCtx, stopWorker := context.WithCancel(ctx)
-	defer stopWorker()
+	var workers sync.WaitGroup
+	defer func() { stopWorker(); workers.Wait() }()
 	var notes <-chan notification
 	var noteErrors <-chan error
 	if o.notifications {
@@ -450,14 +474,20 @@ func dashboard(ctx context.Context, host *glassesHost, o options, c *client, con
 	} else {
 		d.notesOff = []page{{id: "notifications/empty", title: "Notifications", lines: []string{"Notification listening disabled"}, status: "Disabled"}}
 	}
-	progress("Sending loading screen to glasses")
-	d.attach(s)
-	batteryUpdates := s.batteries
+	var batteryUpdates <-chan batteryStatus
+	if s != nil {
+		progress("Sending loading screen to glasses")
+		d.attach(s)
+		host.updateReadiness()
+		batteryUpdates = s.batteries
+	}
 	progress("Started: Sites, AI, Notifications and Stats screens; system refresh every 2s, API refresh every %s, page rotation every %s (paused: %t)", o.refresh, rotation, d.nav.paused)
 
 	updates := make(chan snapshot, 1)
 	musicUpdates := make(chan string, 1)
+	workers.Add(3)
 	go func() {
+		defer workers.Done()
 		ticker := time.NewTicker(musicRefresh)
 		defer ticker.Stop()
 		for {
@@ -479,9 +509,21 @@ func dashboard(ctx context.Context, host *glassesHost, o options, c *client, con
 		defer os.Remove(statusPath)
 	}
 	systemUpdates := monitorSystem(workerCtx, "/proc")
+	defer func() {
+		stopWorker()
+		if systemUpdates != nil {
+			for range systemUpdates {
+			}
+		}
+		if notes != nil {
+			for range notes {
+			}
+		}
+	}()
 	lastSystemError := ""
 	aiUpdates := make(chan []page, 1)
 	go func() {
+		defer workers.Done()
 		previous := ai
 		ticker := time.NewTicker(o.aiRefresh)
 		defer ticker.Stop()
@@ -500,6 +542,7 @@ func dashboard(ctx context.Context, host *glassesHost, o options, c *client, con
 		}
 	}()
 	go func() {
+		defer workers.Done()
 		var previous snapshot
 		for {
 			previous = c.fetch(workerCtx, previous)
@@ -535,12 +578,20 @@ func dashboard(ctx context.Context, host *glassesHost, o options, c *client, con
 		d.s, batteryUpdates = nil, nil
 		host.Release(lost)
 	}
-	acquire := func() error {
-		if err := host.Acquire(ctx); err != nil {
+	acquire := func(acquireCtx context.Context) error {
+		if err := host.Acquire(acquireCtx); err != nil {
 			return err
+		}
+		if o.managed && !host.bothConnected() {
+			host.Release(errors.New("both arms are required for handover"))
+			return errors.New("both arms are required for handover")
 		}
 		if d.s == nil {
 			d.attach(host.current())
+			if o.managed {
+				scouterkit.Flush() // wait for the fresh full frame to be shown
+			}
+			host.updateReadiness()
 			batteryUpdates = d.s.batteries
 			next = time.Now().Add(rotation)
 		}
@@ -556,7 +607,11 @@ func dashboard(ctx context.Context, host *glassesHost, o options, c *client, con
 				release(nil)
 			} else {
 				progress("Acquiring the glasses")
-				err = acquire()
+				acquireCtx := cmd.ctx
+				if acquireCtx == nil {
+					acquireCtx = ctx
+				}
+				err = acquire(acquireCtx)
 			}
 			retryAt, retryDelay = time.Time{}, reconnectFirst
 			cmd.done <- err
@@ -683,6 +738,10 @@ func dashboard(ctx context.Context, host *glassesHost, o options, c *client, con
 				lastWarnings = w
 			}
 		case <-linkCheck.C:
+			if o.managed {
+				host.updateReadiness()
+				continue
+			}
 			if d.s == nil {
 				continue
 			}
@@ -705,10 +764,13 @@ func dashboard(ctx context.Context, host *glassesHost, o options, c *client, con
 			}
 			continue
 		case <-tick.C:
+			if o.managed {
+				host.updateReadiness()
+			}
 			now := time.Now()
 			if d.s == nil && !retryAt.IsZero() && !now.Before(retryAt) {
 				progress("Reconnecting to the glasses")
-				if err := acquire(); err != nil {
+				if err := acquire(ctx); err != nil {
 					if ctx.Err() != nil {
 						continue
 					}

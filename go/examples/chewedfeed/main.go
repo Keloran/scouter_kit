@@ -108,7 +108,8 @@ func main() {
 	var err error
 	o, err = configureDisplay(o, explicit)
 	if err == nil {
-		o.ownership, err = configureOwnership(o.ownership, explicit)
+		configDir, _ := os.UserConfigDir()
+		o.ownership, err = configureOwnership(withUserPeerEndpoint(o.ownership, explicit, configDir), explicit)
 	}
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "chewedfeed: %v\n", err)

@@ -33,6 +33,29 @@ func (s *ownershipSettings) register(f *flag.FlagSet) {
 	f.StringVar(&s.Invitation, "enroll-invitation", "", "file containing a phone's single-use enrollment invitation")
 }
 
+// withUserPeerEndpoint takes peer_endpoint from the user config (<user config>/chewedfeed/config or config.json,
+// the file that holds the display settings) when neither -peer-endpoint nor -handover-config was given, so a
+// launcher can start the dashboard with its phone handover and no flags. -handover=false still disables it.
+func withUserPeerEndpoint(s ownershipSettings, explicit map[string]bool, configDir string) ownershipSettings {
+	if s.Endpoint != "" || s.config != "" || explicit["peer-endpoint"] || explicit["handover-config"] ||
+		explicit["handover"] && !s.Enabled || configDir == "" {
+		return s
+	}
+	for _, name := range []string{"config", "config.json"} {
+		b, err := os.ReadFile(filepath.Join(configDir, "chewedfeed", name))
+		if err != nil || len(b) > 16384 {
+			continue
+		}
+		var f struct {
+			PeerEndpoint string `json:"peer_endpoint"`
+		}
+		if json.Unmarshal(b, &f) == nil && f.PeerEndpoint != "" {
+			s.Endpoint = f.PeerEndpoint // checked by configureOwnership like the flag
+		}
+	}
+	return s
+}
+
 func configureOwnership(flags ownershipSettings, explicit map[string]bool) (ownershipSettings, error) {
 	s := flags
 	if flags.config != "" {

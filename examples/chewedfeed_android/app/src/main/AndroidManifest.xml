@@ -5,6 +5,11 @@
     <uses-feature android:name="android.hardware.bluetooth_le" android:required="false" />
 
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <!-- The glasses service: keeps the session with the screen off (connectedDevice), shows its status. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission
         android:name="android.permission.BLUETOOTH_SCAN"
         android:usesPermissionFlags="neverForLocation" />
@@ -25,6 +30,10 @@
         </activity>
         <activity android:name=".SettingsActivity" android:exported="false" />
         <activity android:name=".GlassesCheckActivity" android:exported="false" />
+        <service
+            android:name=".service.GlassesService"
+            android:exported="false"
+            android:foregroundServiceType="connectedDevice" />
         <!-- Optional: the user grants notification access in Android's settings. -->
         <service
             android:name=".notifications.PhoneNotifications"

@@ -18,6 +18,16 @@
     <string name="mirror_notifications">Mirror notifications to the glasses</string>
     <string name="excluded_apps">Apps not to mirror (package names, comma separated)</string>
     <string name="notification_listener">Chewedfeed glasses notifications</string>
+    <string name="service_channel">Glasses connection</string>
+    <string name="stop">Stop</string>
+    <string name="glasses_state">Glasses: %1$s%2$s%3$s</string>
+    <string name="glasses_detail">" (%1$s)"</string>
+    <string name="offline">" · offline"</string>
+    <string name="start_glasses">Start glasses connection</string>
+    <string name="stop_glasses">Stop glasses connection</string>
+    <string name="battery_settings">Battery settings…</string>
+    <string name="battery_unrestricted">Battery: unrestricted. Android can still end the connection (e.g. force-stop).</string>
+    <string name="battery_optimised">Battery: optimised. Android may pause or end the connection with the screen off; choose Unrestricted for this app if it drops.</string>
     <string name="save">Save</string>
     <string name="saved">Saved: used the next time the glasses connect</string>
 </resources>

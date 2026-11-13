@@ -16,6 +16,10 @@ var statusIcons = map[string][]string{
 		" ########### ", " #         # ", " #         # ", " #         # ",
 		" #         # ", " ########### ", "     ###     ", "  #########  ",
 	},
+	"case": {
+		"  #########  ", " #         # ", "#############", "#           #",
+		"#     #     #", "#           #", " #         # ", "  #########  ",
+	},
 	"glasses": {
 		"#           #", "#           #", " ##### ##### ", " #   ###   # ",
 		" #   # #   # ", " #   # #   # ", " ##### ##### ",
@@ -132,14 +136,22 @@ func sourceIndicator(status string) footerSource {
 	return footerSource{icon: "unknown", text: status, stale: stale}
 }
 
+// footerSplit is the divider after "Page N/M": a third of the width, or wider
+// when the font needs it.
+func (s *screen) footerSplit() int {
+	need := textInset + s.footerFont.Measure("Page 99/99").Width + textInset
+	return min(max(s.w/3, need), s.w*2/3)
+}
+
 func (s *screen) drawNavigationRow(index, total int) {
 	baseline := s.footerBaseline
 	footerTop := baseline - s.footerFont.Ascent - 5
 	footerBottom := baseline + s.footerFont.Descent
-	s.bitmap.Fill(image.Rect(s.w/3, footerTop, s.w/3+1, footerBottom), 153)
-	left := footerRow{screen: s, x: textInset, baseline: baseline, limit: s.w / 3}
+	split := s.footerSplit()
+	s.bitmap.Fill(image.Rect(split, footerTop, split+1, footerBottom), 153)
+	left := footerRow{screen: s, x: textInset, baseline: baseline, limit: split}
 	left.text(fmt.Sprintf("Page %d/%d", index+1, total))
-	middle := footerRow{screen: s, x: s.w/3 + textInset, baseline: baseline, limit: s.w - textInset}
+	middle := footerRow{screen: s, x: split + textInset, baseline: baseline, limit: s.w - textInset}
 	statusWidth := middle.limit - middle.x
 	label := s.status.line(time.Now(), statusWidth, func(text string) int { return s.footerFont.Measure(text).Width })
 	middleWidth := s.footerFont.Measure(label).Width
@@ -149,7 +161,9 @@ func (s *screen) drawNavigationRow(index, total int) {
 	middle.text(label)
 }
 
-func (s *screen) drawStatusPanel(paused bool) {
+const fetchGap = 10 // px between the mode icon and the fetch time
+
+func (s *screen) drawStatusPanel(paused bool, status string) {
 	divider := s.statusX - 1
 	footerTop := s.footerBaseline - s.footerFont.Ascent - 5
 	s.bitmap.Fill(image.Rect(divider, 0, divider+1, footerTop), 153)
@@ -164,28 +178,40 @@ func (s *screen) drawStatusPanel(paused bool) {
 	s.bitmap.Fill(image.Rect(s.statusX, panelLower, s.w, panelLower+1), 153)
 
 	s.drawIconAt("glasses", iconX, iconBaseline, 255)
-	s.drawBatteryValue("L", s.batteryValue(scouterkit.Left), iconBaseline+s.footerFont.LineSpacing, false)
-	s.drawBatteryValue("R", s.batteryValue(scouterkit.Right), rightBaseline, false)
+	s.drawBatteryValue("L", s.batteryValue(scouterkit.Left), iconBaseline+s.footerFont.LineSpacing)
+	s.drawBatteryValue("R", s.batteryValue(scouterkit.Right), rightBaseline)
 
-	computerW, computerH := s.iconSize("computer")
-	middleHeight := panelLower - panelMid
-	middleContentHeight := computerH + s.footerFont.LineSpacing
-	middleTop := panelMid + (middleHeight-middleContentHeight)/2
-	computerBaseline := middleTop + computerH + 2
-	computerX := s.statusX + (s.statusW-computerW)/2
-	s.drawIconAt("computer", computerX, computerBaseline, 255)
-	s.drawBatteryValue("", s.batteries.host, computerBaseline+s.footerFont.LineSpacing, true)
+	// Case and computer: icon, then the battery, one row each.
+	middleTop := panelMid + (panelLower-panelMid-2*s.footerFont.LineSpacing)/2
+	caseBaseline := middleTop + s.footerFont.Ascent
+	s.drawIconBattery("case", s.batteries.casePct, caseBaseline)
+	s.drawIconBattery("computer", s.batteries.host, caseBaseline+s.footerFont.LineSpacing)
 
 	modeIcon := "refresh"
 	if paused {
 		modeIcon = "hand"
 	}
+	// Fetched data (Sites download, AI cache): its time under the mode icon.
+	src := sourceIndicator(status)
+	fetched := src.icon == "download" || src.icon == "cache"
 	bottomHeight := footerTop - panelLower
 	modeW, modeH := s.iconSize(modeIcon)
+	content, gap := modeH, min(fetchGap, max(0, bottomHeight-modeH-s.footerFont.LineSpacing))
+	if fetched {
+		content += gap + s.footerFont.LineSpacing
+	}
 	modeX := s.statusX + (s.statusW-modeW)/2
-	modeTop := panelLower + (bottomHeight-modeH)/2
+	modeTop := panelLower + (bottomHeight-content)/2
 	modeBaseline := modeTop + modeH - min(s.footerFont.Descent, s.footerFont.LineSpacing-s.footerFont.Ascent)
 	s.drawIconAt(modeIcon, modeX, modeBaseline, 255)
+	if fetched {
+		iconW, _ := s.iconSize(src.icon)
+		space := s.footerFont.Measure(" ").Width
+		x := s.statusX + (s.statusW-iconW-space-s.footerFont.Measure(src.text).Width)/2
+		baseline := modeBaseline + gap + s.footerFont.LineSpacing
+		x += s.drawIconAt(src.icon, x, baseline, 255) + space
+		s.footerFont.DrawLine(s.bitmap, src.text, x, baseline, scouterkit.AlignLeft, 255)
+	}
 }
 
 func (s *screen) batteryFor(arm scouterkit.Arm) string {
@@ -208,25 +234,22 @@ func (s *screen) batteryValue(arm scouterkit.Arm) *int {
 	return nil
 }
 
-func (s *screen) drawBatteryValue(label string, percent *int, baseline int, centered bool) {
-	text := batteryPercent(percent)
-	if label != "" {
-		text = label + " " + text
-	}
-	textWidth := s.footerFont.Measure(text).Width
-	warning := percent != nil && *percent <= lowBatteryAt
-	warningWidth := 0
-	gap := 0
-	if warning {
-		warningWidth, _ = s.iconSize("warning")
-		gap = s.footerFont.Measure(" ").Width
-	}
+func (s *screen) drawBatteryValue(label string, percent *int, baseline int) {
 	x := s.statusX + textInset
-	if centered {
-		x = s.statusX + (s.statusW-textWidth-warningWidth-gap)/2
-	}
-	s.footerFont.DrawLine(s.bitmap, text, x, baseline, scouterkit.AlignLeft, 255)
-	if warning {
-		s.drawIconAt("warning", x+textWidth+gap, baseline, 255)
+	x += s.footerFont.DrawLine(s.bitmap, label+" ", x, baseline, scouterkit.AlignLeft, 255)
+	s.drawPercent(x, percent, baseline)
+}
+
+func (s *screen) drawIconBattery(icon string, percent *int, baseline int) {
+	x := s.statusX + textInset
+	x += s.drawIconAt(icon, x, baseline, 255) + s.footerFont.Measure(" ").Width
+	s.drawPercent(x, percent, baseline)
+}
+
+// The percentage, with a warning icon when low.
+func (s *screen) drawPercent(x int, percent *int, baseline int) {
+	x += s.footerFont.DrawLine(s.bitmap, batteryPercent(percent), x, baseline, scouterkit.AlignLeft, 255)
+	if percent != nil && *percent <= lowBatteryAt {
+		s.drawIconAt("warning", x+s.footerFont.Measure(" ").Width, baseline, 255)
 	}
 }

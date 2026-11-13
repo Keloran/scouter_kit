@@ -121,6 +121,14 @@ columns dx…dx + 639 on its rows dy…479 (`docs/virtual-display.md`).
   `ERROR_NO_G1_FOUND`, `ERROR_G1_BONDING_ERROR`, `ERROR_G1_FIRMWARE` (not protocol 5; a protocol 4
   arm is recognised by its HELLO reply). A new session switches the panel off (VM.md §6.6: the
   display starts black, and black needs no panel power).
+- **`Deinit()`** ends the session: it waits until the last update is shown, disconnects both arms,
+  stops the Bluetooth thread and frees the session; a second call does nothing, and `Init` may follow
+  in the same process. Waits on other threads end with it (`NextEvent`, `MicRead`, control requests
+  and asset jobs return false or "no answer"), and `Deinit` frees the session only after they have
+  returned. Afterwards every call fails at once and nothing reaches the transport (an application's
+  own `Connection::transport` is stopped, not deleted). Fonts and bitmaps are unloaded (`UnloadAll`):
+  C++ references and C pointers to them must not be used again; the Go and Python handles carry the
+  session's generation and do nothing afterwards. A failed `Init` leaves no thread or connection behind.
 - **`Arm`** (`left`, `right`): one method per instruction of host code (VM.md §2.2) with plain
   values: `WriteArena`, `WriteArenaRLE`, `CopyArena`, `Unpack`, `Fill`, `Blit`, `BlitCompressed`
   (1-bpp source), `GlyphRunCompressed`, `Draw`, `Line`, `WaitUntil` (`SLEEP_UNTIL`), `SetPanel`,

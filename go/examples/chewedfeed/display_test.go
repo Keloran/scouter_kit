@@ -102,8 +102,9 @@ func TestDisplayReadbackAndWake(t *testing.T) {
 	for pass := 0; pass < 2; pass++ {
 		s.draw(p, 0, 1, false)
 		img := s.bitmap.Image()
+		footerRule := s.footerBaseline - s.footerFont.Ascent - 5 // full-width divider above the footer
 		for y := 0; y < s.h; y++ {
-			for x := 0; x < 4; x++ {
+			for x := 0; x < 4 && y != footerRule; x++ {
 				if img.GrayAt(x, y).Y != 0 {
 					t.Fatalf("left padding contains pixels at (%d, %d)", x, y)
 				}

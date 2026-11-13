@@ -27,7 +27,7 @@ func TestTouchNavigationRemembersPagesAcrossScreens(t *testing.T) {
 		t.Fatal("left tap did not move back a page")
 	}
 	for _, left := range []bool{false, true} {
-		if n.touch(4, left) || n.touch(5, left) || n.hidden {
+		if n.touch(4, left) || n.touch(5, left) {
 			t.Fatal("long press and release should be ignored on either arm")
 		}
 	}
@@ -74,17 +74,12 @@ func TestScreenCycleBothDirectionsAndDisplayToggle(t *testing.T) {
 	if n.current().pages[n.current().index].id != "memory" {
 		t.Fatal("screen cycle lost reading position")
 	}
-	n.touch(3, true)
-	if !n.hidden || n.paused {
-		t.Fatal("left triple tap should hide without pausing rotation")
+	if n.touch(3, true) || n.paused {
+		t.Fatal("left triple tap should do nothing")
 	}
 	n.touch(3, false)
-	if !n.hidden || !n.paused {
+	if !n.visible() || !n.paused {
 		t.Fatal("right triple tap should pause without changing visibility")
-	}
-	n.touch(3, true)
-	if n.hidden || !n.paused {
-		t.Fatal("left triple tap lost pause state")
 	}
 	n.replace(viewSystem, []page{{id: "memory"}, {id: "cpu"}})
 	if n.selected != viewSystem || n.current().pages[n.current().index].id != "memory" {

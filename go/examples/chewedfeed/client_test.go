@@ -29,6 +29,8 @@ func TestPublicFetchAndStaleRecovery(t *testing.T) {
 			fmt.Fprint(w, `[{"slug":"healthy","name":"Healthy","attention_mode":"grow"},{"slug":"broken","name":"Broken","attention_mode":"fix","uptime_kuma_slug":"broken"}]`)
 		case "/api/projects/broken/uptime":
 			fmt.Fprint(w, `{"overall_status":"down","monitors":[{"name":"Web","status":"down"}]}`)
+		case "/api/projects/healthy/ticket-counts", "/api/projects/broken/ticket-counts":
+			fmt.Fprint(w, `{"backlog":2,"columns":[{"name":"To do","count":1}]}`)
 		default:
 			t.Errorf("unexpected public endpoint: %s", r.URL.Path)
 			w.WriteHeader(http.StatusNotFound)
@@ -40,7 +42,7 @@ func TestPublicFetchAndStaleRecovery(t *testing.T) {
 		t.Fatal(err)
 	}
 	first := c.fetch(context.Background(), nil)
-	if len(first) != 3 || first[1].rows[0]["slug"] != "broken" {
+	if len(first) != 5 || first[1].rows[0]["slug"] != "broken" {
 		t.Fatalf("missing details or attention ordering: %#v", first)
 	}
 	failing.Store(true)
@@ -78,6 +80,8 @@ func TestPrivateViewsUseSessionCookieAndProjectFilter(t *testing.T) {
 			fmt.Fprint(w, `[{"product_slug":"two"},{"product_slug":"one"}]`)
 		case "/api/projects/one/uptime":
 			fmt.Fprint(w, `{"overall_status":"up","uptime_24h":1}`)
+		case "/api/projects/one/ticket-counts":
+			w.WriteHeader(http.StatusNotFound) // not on TrackLines
 		default:
 			t.Errorf("unexpected endpoint: %s", r.URL.Path)
 			w.WriteHeader(http.StatusNotFound)
@@ -89,7 +93,7 @@ func TestPrivateViewsUseSessionCookieAndProjectFilter(t *testing.T) {
 		t.Fatal(err)
 	}
 	data := c.fetch(context.Background(), nil)
-	if calls.Load() != 4 || len(data) != 4 {
+	if calls.Load() != 5 || len(data) != 5 {
 		t.Fatalf("missing private views: %d calls, %d results", calls.Load(), len(data))
 	}
 	for _, r := range data {
@@ -150,5 +154,33 @@ func TestConfigValidation(t *testing.T) {
 	}
 	if _, err := newClient("https://example.com", "bad;cookie", "", false); err == nil {
 		t.Fatal("accepted cookie injection")
+	}
+}
+
+func TestTicketCounts404IsNotAnError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/projects":
+			fmt.Fprint(w, `[{"slug":"one","name":"One"},{"slug":"two","name":"Two"}]`)
+		case "/api/projects/one/ticket-counts":
+			fmt.Fprint(w, `{"backlog":2,"columns":[{"name":"To do","count":1}]}`)
+		case "/stats":
+			fmt.Fprint(w, `{}`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+	c, err := newClient(srv.URL, "", "", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range c.fetch(context.Background(), nil) {
+		if r.err != "" {
+			t.Errorf("%s: %s", r.key, r.err)
+		}
+		if r.key == "one/ticket-counts" && (len(r.rows) != 1 || r.rows[0]["backlog"] != float64(2)) {
+			t.Errorf("counts not parsed: %v", r.rows)
+		}
 	}
 }

@@ -15,6 +15,10 @@ type displaySettings struct {
 	DX        int     `json:"dx"`
 	DY        int     `json:"dy"`
 	FontScale float64 `json:"font_scale"`
+	// Head pitch (degrees, + looking up): the dashboard shows above ShowAbove or below ShowBelow.
+	ShowAbove   int  `json:"show_above"`
+	ShowBelow   int  `json:"show_below"`
+	AlwaysNotes bool `json:"always_show_notifications"`
 }
 
 const minFontScale, maxFontScale float64 = 0.1, 3
@@ -26,6 +30,9 @@ func (s displaySettings) validate() error {
 	if math.IsNaN(s.FontScale) || s.FontScale < minFontScale || s.FontScale > maxFontScale {
 		return fmt.Errorf("use -font-scale between %g and %g", minFontScale, maxFontScale)
 	}
+	if s.ShowAbove < -90 || s.ShowAbove > 90 || s.ShowBelow < -90 || s.ShowBelow > 90 {
+		return errors.New("use -show-above and -show-below between -90 and 90")
+	}
 	return nil
 }
 
@@ -33,7 +40,7 @@ func (s displaySettings) validate() error {
 // Unmarshalling each layer into the same struct preserves omitted fields.
 func configureDisplay(o options, explicit map[string]bool) (options, error) {
 	cfg := scouterkit.DefaultConfig()
-	s := displaySettings{DX: cfg.DX, DY: cfg.DY, FontScale: 2}
+	s := displaySettings{DX: cfg.DX, DY: cfg.DY, FontScale: 2, ShowAbove: 9, ShowBelow: -30, AlwaysNotes: true}
 	load := func(path, label string, required bool) error {
 		b, err := os.ReadFile(path)
 		if errors.Is(err, os.ErrNotExist) {
@@ -72,10 +79,20 @@ func configureDisplay(o options, explicit map[string]bool) (options, error) {
 	if explicit["font-scale"] {
 		s.FontScale = o.fontScale
 	}
+	if explicit["show-above"] {
+		s.ShowAbove = o.showAbove
+	}
+	if explicit["show-below"] {
+		s.ShowBelow = o.showBelow
+	}
+	if explicit["always-show-notifications"] {
+		s.AlwaysNotes = o.alwaysNotes
+	}
 	if err := s.validate(); err != nil {
 		return o, err
 	}
 	o.dx, o.dy, o.fontScale = s.DX, s.DY, s.FontScale
+	o.showAbove, o.showBelow, o.alwaysNotes = s.ShowAbove, s.ShowBelow, s.AlwaysNotes
 	return o, nil
 }
 
@@ -83,7 +100,8 @@ func saveDisplaySettings(o options) error {
 	if o.configFile == "" {
 		return errors.New("-save-config needs a nonempty -config path")
 	}
-	s := displaySettings{DX: o.dx, DY: o.dy, FontScale: o.fontScale}
+	s := displaySettings{DX: o.dx, DY: o.dy, FontScale: o.fontScale, ShowAbove: o.showAbove, ShowBelow: o.showBelow,
+		AlwaysNotes: o.alwaysNotes}
 	if err := s.validate(); err != nil {
 		return err
 	}

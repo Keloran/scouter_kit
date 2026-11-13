@@ -7,10 +7,11 @@
 // the cookie name. Without it, public statistics, projects and uptime work.
 // Keep the host running for refreshes and navigation. Right tap: next page;
 // left tap: previous; double taps cycle Sites/AI/Notifications/Stats forward
-// on the right and backward on the left; left triple tap: hide/show;
-// right triple tap: pause rotation;
+// on the right and backward on the left; right triple tap: pause rotation;
 // AI usage reads the existing local ai-usagebar cache.
 // Desktop notifications temporarily replace the page for five seconds.
+// Without the host (link lost, or after it exits) the arms show "Not connected"
+// with their batteries and the time, kept up to date by a program on each arm.
 // -preview prints one snapshot without initializing Bluetooth or the glasses.
 package main
 
@@ -46,6 +47,8 @@ type options struct {
 	fontScale               float64
 	configFile              string
 	saveConfig              bool
+	showAbove, showBelow    int
+	alwaysNotes             bool
 }
 
 var stages = log.New(os.Stderr, "chewedfeed: ", log.Ltime|log.Lmicroseconds)
@@ -77,6 +80,9 @@ func main() {
 	flag.IntVar(&o.dy, "dy", geometry.DY, "vertical separation of the eyes in pixels")
 	flag.BoolVar(&o.calibrate, "calibrate", false, "show a left-eye pixel ruler and right-eye crosshair instead of the dashboard")
 	flag.StringVar(&o.configFile, "config", "chewedfeed.local.json", "local display settings file; overrides user config/config.json, then flags override both")
+	flag.IntVar(&o.showAbove, "show-above", 9, "show the dashboard while head pitch is above this (degrees, + looking up)")
+	flag.IntVar(&o.showBelow, "show-below", -30, "show the dashboard while head pitch is below this (degrees); between the two only notifications show")
+	flag.BoolVar(&o.alwaysNotes, "always-show-notifications", true, "show notification popups whatever the head angle")
 	flag.BoolVar(&o.saveConfig, "save-config", false, "save alignment and font scale, then exit without connecting")
 	flag.Float64Var(&o.fontScale, "font-scale", 2, "text scale from 0.1 to 3, including fractional sizes such as 1.5")
 	demo.Usage("chewedfeed [flags]")
@@ -220,7 +226,14 @@ func newScreenScale(cfg scouterkit.Config, scale float64) (*screen, error) {
 	vw, vh := scouterkit.Size()
 	w := min(600, vw-2*max(cfg.DX, -cfg.DX)-16)
 	h := min(400, vh-40)
-	statusW := max(90, w/7)
+	icons := &screen{footerFont: footer}
+	fetchW, _ := icons.iconSize("download")
+	fetchW += footer.Measure(" 00:00").Width + 2*textInset // the Sites fetch time under the mode icon
+	batteryW, _ := icons.iconSize("computer")
+	warnW, _ := icons.iconSize("warning")
+	// case and computer rows: "100%", or a low "20%" with its warning icon
+	batteryW += max(footer.Measure(" 100%").Width, footer.Measure(" 20% ").Width+warnW) + 2*textInset
+	statusW := max(90, w/7, fetchW, batteryW)
 	contentW := w - statusW - 1
 	progress("Allocating dashboard display (%dx%d)", w, h)
 	b, err := scouterkit.CreateBitmap(w, h)
@@ -297,7 +310,7 @@ func (s *screen) render(p page, index, total int, paused bool, popup *notificati
 			line(text, i+1, 255)
 		}
 	}
-	s.drawStatusPanel(paused)
+	s.drawStatusPanel(paused, p.status)
 	s.drawNavigationRow(index, total)
 	scouterkit.Draw(s.bitmap, s.x, s.y)
 	scouterkit.Flush()
@@ -311,8 +324,8 @@ func display(ctx context.Context, f demo.Flags, o options, c *client) error {
 		return fmt.Errorf("connecting to glasses: %w", err)
 	}
 	defer func() {
-		progress("Stopping dashboard and switching panels off")
-		demo.Stop(arms)
+		// The standby program runs on: it shows "Not connected" and the battery once the link is gone.
+		progress("Stopping dashboard; the glasses keep their standby screen")
 		scouterkit.Deinit()
 		progress("Stopped")
 	}()
@@ -323,12 +336,13 @@ func display(ctx context.Context, f demo.Flags, o options, c *client) error {
 	for _, arm := range arms {
 		progress("%s arm ready: firmware %s", arm, arm.State().Firmware)
 	}
-	if err := installCaseGuard(arms); err != nil {
-		return err
-	}
 	s, err := newScreenScale(cfg, o.fontScale)
 	if err != nil {
 		return err
+	}
+	standbyState, err := installStandby(cfg, s, o.fontScale, arms)
+	if err != nil {
+		return fmt.Errorf("standby program: %w", err)
 	}
 	for _, arm := range arms {
 		progress("Enabling touch controls on %s arm", arm)
@@ -448,7 +462,7 @@ func display(ctx context.Context, f demo.Flags, o options, c *client) error {
 			}
 		}
 	}()
-	progress("Single right/left: next/previous page. Double right/left: next/previous screen (Sites, AI, Notifications, Stats). Triple left: display on/off; triple right: pause. Ctrl-C exits.")
+	progress("Single right/left: next/previous page. Double right/left: next/previous screen (Sites, AI, Notifications, Stats). Triple right: pause. Ctrl-C exits.")
 	tick := time.NewTicker(100 * time.Millisecond)
 	defer tick.Stop()
 	next := time.Now().Add(rotation)
@@ -458,9 +472,51 @@ func display(ctx context.Context, f demo.Flags, o options, c *client) error {
 	linkCheck := time.NewTicker(10 * time.Second)
 	defer linkCheck.Stop()
 	missed := make(map[scouterkit.Arm]int)
+	var angleTick <-chan time.Time
+	if len(arms) > 0 {
+		t := time.NewTicker(500 * time.Millisecond)
+		defer t.Stop()
+		angleTick = t.C
+		// A TILT range narrower than ±90 makes the firmware stream every sample; without it,
+		// PITCH read on demand stayed at its first value. Restored on exit (sensor settings
+		// outlive the session).
+		lo := int32(-89)
+		arms[0].SysWrite(scouterkit.PropPitchLo, uint32(lo))
+		defer arms[0].SysWrite(scouterkit.PropPitchLo, uint32(lo-1))
+	}
+	lastAngle := ""
 	for {
 		redraw := false
 		select {
+		case <-angleTick:
+			// Both arms report the same head angles (VM.md §2).
+			v, err := arms[0].Props(scouterkit.PropPitch, scouterkit.PropRoll)
+			line := ""
+			switch {
+			case err != nil:
+				line = fmt.Sprintf("Head angle unavailable: %v", err)
+			case v[0] == scouterkit.Unknown || v[1] == scouterkit.Unknown:
+				line = "Head angle unavailable: arm reports no accelerometer reading"
+			default:
+				line = fmt.Sprintf("Head angle: pitch %d° (+ looking up), roll %d° (+ right ear down)", int32(v[0]), int32(v[1]))
+			}
+			if line != lastAngle {
+				lastAngle = line
+				progress("%s", line)
+			}
+			// No reading: keep the dashboard on.
+			level := err == nil && v[0] != scouterkit.Unknown && int32(v[0]) <= int32(o.showAbove) && int32(v[0]) >= int32(o.showBelow)
+			if level == nav.level {
+				continue
+			}
+			wasVisible := nav.visible()
+			nav.level = level
+			progress("Head level: %t (dashboard shown: %t)", level, nav.visible())
+			if wasVisible && !nav.visible() && !popup.active() {
+				s.hide(arms)
+			}
+			next = time.Now().Add(rotation)
+			redraw = true
 		case <-ctx.Done():
 			progress("Shutdown requested: %v", ctx.Err())
 			return nil
@@ -474,7 +530,7 @@ func display(ctx context.Context, f demo.Flags, o options, c *client) error {
 			if nav.selected == viewNotifications {
 				redraw = true
 			}
-			if nav.visible() {
+			if nav.visible() || o.alwaysNotes && nav.popupVisible() {
 				popup.show(n, time.Now())
 				progress("Desktop notification popup (5s)")
 				redraw = true
@@ -496,6 +552,9 @@ func display(ctx context.Context, f demo.Flags, o options, c *client) error {
 			if !ok {
 				batteryUpdates = nil
 				continue
+			}
+			if c := batteries.casePct; c != nil && (s.batteries.casePct == nil || *c != *s.batteries.casePct) {
+				progress("Case battery: %d%%", *c)
 			}
 			s.batteries = batteries
 			redraw = true
@@ -565,6 +624,14 @@ func display(ctx context.Context, f demo.Flags, o options, c *client) error {
 					if e.Type == scouterkit.EventError || e.Type == scouterkit.EventHalt {
 						return fmt.Errorf("%s arm: event %d, code %d", arm, e.Type, e.Code)
 					}
+					if e.Type == scouterkit.EventNotify && e.A == linkNotice {
+						// The program drew its offline face, which the library's mirror does not know.
+						progress("%s arm link back; repainting", arm)
+						syncStandbyClock(arm, standbyState)
+						s.hide(arms) // flushes black, so the next render sends every pixel again
+						redraw = true
+						continue
+					}
 					if e.Type == scouterkit.EventReset {
 						progress("%s arm session reset; redrawing dashboard", arm)
 						redraw = true
@@ -588,7 +655,6 @@ func display(ctx context.Context, f demo.Flags, o options, c *client) error {
 					if e.Type != scouterkit.EventInput || e.Trigger != int(scouterkit.TriggerTouch) {
 						continue
 					}
-					wasHidden := nav.hidden
 					if !nav.touch(e.A, arm == scouterkit.Left) {
 						continue
 					}
@@ -602,14 +668,7 @@ func display(ctx context.Context, f demo.Flags, o options, c *client) error {
 					case 2:
 						progress("Screen switched to %s, page %d/%d", v.name, v.index+1, len(v.pages))
 					case 3:
-						if arm == scouterkit.Left {
-							progress("Display hidden: %t", nav.hidden)
-						} else {
-							progress("Page rotation paused: %t", nav.paused)
-						}
-					}
-					if nav.hidden && !wasHidden {
-						s.hide(arms)
+						progress("Page rotation paused: %t", nav.paused)
 					}
 					next = time.Now().Add(rotation)
 					redraw = true
@@ -620,13 +679,16 @@ func display(ctx context.Context, f demo.Flags, o options, c *client) error {
 				lastClockMinute = minute
 				redraw = true
 			}
-			statusWidth := s.w - s.w/3 - 2*textInset
+			statusWidth := s.w - s.footerSplit() - 2*textInset
 			if s.status.advance(now, statusWidth, func(text string) int { return s.footerFont.Measure(text).Width }) {
 				redraw = true
 			}
 			if popup.expire(now) {
 				next = now.Add(rotation)
 				redraw = true
+				if !nav.visible() && nav.popupVisible() {
+					s.hide(arms) // head level: back to off
+				}
 				progress("Notification popup ended; dashboard restored")
 			}
 			if !nav.paused && nav.visible() && !popup.active() && now.After(next) {
@@ -635,7 +697,7 @@ func display(ctx context.Context, f demo.Flags, o options, c *client) error {
 				redraw = true
 			}
 		}
-		if redraw && nav.visible() {
+		if redraw && (nav.visible() || popup.active() && nav.popupVisible()) {
 			var note *notification
 			if popup.active() {
 				note = &popup.note

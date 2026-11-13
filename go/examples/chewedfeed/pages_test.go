@@ -130,3 +130,23 @@ func TestFooterStatusKeepsFetchTimeAndStaleWarning(t *testing.T) {
 		}
 	}
 }
+
+func TestSiteTicketCountsPackWholeColumns(t *testing.T) {
+	data := snapshot{
+		{source: source{key: "projects"}, rows: []record{{"slug": "one", "name": "Site"}, {"slug": "two", "name": "Other"}}, at: time.Now()},
+		{source: source{key: "one/ticket-counts"}, at: time.Now(), rows: []record{{"backlog": float64(2), "columns": []any{
+			map[string]any{"name": "To do", "count": float64(1)},
+			map[string]any{"name": "In progress", "count": float64(0)},
+			map[string]any{"name": "Done", "count": float64(6)},
+		}}}},
+		{source: source{key: "two/ticket-counts"}, at: time.Now()}, // 404: not on TrackLines
+	}
+	pages := makePages(data, 24, 20, utf8.RuneCountInString)
+	got := pages[0].lines[len(pages[0].lines)-2:]
+	if got[0] != "Backlog 2 | To do 1" || got[1] != "In progress 0 | Done 6" {
+		t.Fatalf("ticket rows: %q", got)
+	}
+	if strings.Contains(strings.Join(pages[1].lines, "\n"), "Backlog") || strings.HasPrefix(pages[1].status, "STALE") {
+		t.Fatalf("project without TrackLines: %q (%s)", pages[1].lines, pages[1].status)
+	}
+}

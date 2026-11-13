@@ -19,8 +19,11 @@ import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.net.ConnectivityManager
 import android.net.Network
-import android.os.BatteryManager
 import android.os.Handler
+import scouterkit.chewedfeed.notifications.PhoneNotifications
+import scouterkit.chewedfeed.providers.PhoneBattery
+import scouterkit.chewedfeed.providers.PhoneMedia
+import scouterkit.chewedfeed.providers.batteries
 import android.os.IBinder
 import android.os.Looper
 import scouterkit.chewedfeed.render.TEXT_INSET
@@ -149,7 +152,7 @@ class GlassesService : Service(), LifecycleActions {
         }
     }
 
-    // ponytail: no coordinator yet (CF-48): this device takes ownership once its conditions allow. The
+    // ponytail: no coordinator yet (CF-52): this device takes ownership once its conditions allow. The
     // coordinator replaces this with the peer's answer.
     private fun reconcile() = lifecycle.ownership(true)
 
@@ -167,8 +170,6 @@ class GlassesService : Service(), LifecycleActions {
     private fun refresh() {
         main.post { lifecycle.conditions(adapter?.isEnabled == true, permitted(), saved() != null) }
     }
-
-    private fun phoneBattery() = getSystemService(BatteryManager::class.java).getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY).takeIf { it in 0..100 }
 
     private fun prefs() = getSharedPreferences("service", Context.MODE_PRIVATE)
 
@@ -224,7 +225,8 @@ class GlassesService : Service(), LifecycleActions {
 
     // One attempt's session: the two-arm link, the native session, and the dashboard controller deciding what
     // shows: head tilt (Settings: shown while looking up past showAbove or down past showBelow, as the desktop),
-    // the case, touches and notification popups. Until the dashboard runtime (CF-48) the page is a status page.
+    // the case, touches and notification popups. Until the dashboard runtime (CF-52) the page is a status page.
+    // The footer shows the playing title (phone media sessions) or the clock; the panel the batteries.
     private inner class Connection(val attempt: Long, private val left: String, private val right: String) {
         private val sched = HandlerScheduler()
         private val link = ArmsLink(AndroidBleAdapter(this@GlassesService, adapter, sched.looperHandler), arrayOf(left, right), NativeEvents, sched) { s, why ->
@@ -243,6 +245,27 @@ class GlassesService : Service(), LifecycleActions {
         private var generation = 0L
         private var batteries = Batteries()
         private var minute = -1L
+        private val phone = PhoneBattery(this@GlassesService, main)
+        private val media = PhoneMedia(this@GlassesService, PhoneNotifications.component(this@GlassesService), main) { title ->
+            if (conn !== this) return@PhoneMedia
+            clock.setTitle(title, System.currentTimeMillis())
+            dashboard?.invalidate()
+            render()
+            main.removeCallbacks(scroll)
+            if (title.isNotEmpty()) main.postDelayed(scroll, MusicStatus.SCROLL_EVERY)
+        }
+        // While a title shows: its scroll and the title/clock alternation (desktop music.go cadence).
+        private val scroll = object : Runnable {
+            override fun run() {
+                val g = screen ?: return
+                if (conn !== this@Connection || clock.title.isEmpty()) return
+                if (clock.advance(System.currentTimeMillis(), g.renderer.footerWidth(), g::measure)) {
+                    dashboard?.invalidate()
+                    render()
+                }
+                main.postDelayed(this, MusicStatus.SCROLL_EVERY)
+            }
+        }
         private val tick = object : Runnable {
             override fun run() {
                 if (conn !== this@Connection) return
@@ -290,6 +313,8 @@ class GlassesService : Service(), LifecycleActions {
                 }
                 render()
             }
+            phone.start()
+            media.start()
             sample()
             main.postDelayed(tick, TICK_MS)
         }
@@ -302,7 +327,7 @@ class GlassesService : Service(), LifecycleActions {
                 main.post {
                     val d = dashboard ?: return@post
                     if (conn !== this) return@post
-                    batteries = Batteries(st.left.battery, st.right.battery, st.caseBattery, phoneBattery())
+                    batteries = batteries(st, phone.percent)
                     d.pitch(generation, st.pitch)
                     st.left.inCase?.let { d.caseChanged(generation, 0, it) }
                     st.right.inCase?.let { d.caseChanged(generation, 1, it) }
@@ -336,6 +361,9 @@ class GlassesService : Service(), LifecycleActions {
         fun stop() {
             Hub.detach()
             main.removeCallbacks(tick)
+            main.removeCallbacks(scroll)
+            media.stop()
+            phone.stop()
             dashboard?.released()
             dashboard = null
             session.stop {

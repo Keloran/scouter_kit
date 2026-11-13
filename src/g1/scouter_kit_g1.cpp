@@ -52,6 +52,7 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <shared_mutex>
 #include <random>
 #include <set>
 #include <thread>
@@ -1390,6 +1391,10 @@ struct Global {
 };
 
 Global *g = nullptr;
+// Calls that use g without device::Lock() hold it shared (Live); Deinit and a failed Init take it exclusively,
+// after the thread has ended and woken every wait, to clear g. Order: g_life, then device::Lock().
+std::shared_mutex g_life;
+using Live = std::shared_lock<std::shared_mutex>;
 Arm *const kArms[2] = {&left, &right};
 
 uint8_t *ArmBytes(int arm) { return reinterpret_cast<uint8_t *>(kArms[arm]->arena.data()); }
@@ -1723,13 +1728,25 @@ public:
         Run();
         transport->Stop();
       }
-      {
-        std::lock_guard<std::mutex> lock(mutex);
-        finished = true;
-        if (problem == ERROR_NONE && !stop) problem = ERROR_BLUETOOTH_ERROR;
-      }
-      cv.notify_all();
+      FailPending();
     });
+  }
+
+  // The thread ends: every request still waiting gets "no answer" now, and later ones are refused (finished).
+  void FailPending() {
+    std::vector<std::shared_ptr<ControlJob>> jobs;
+    {
+      std::lock_guard<std::mutex> lock(mutex);
+      finished = true;
+      if (problem == ERROR_NONE && !stop) problem = ERROR_BLUETOOTH_ERROR;
+      jobs.swap(controls);
+    }
+    for (auto &job : jobs) job->reply.set_value({-1, {}});
+    for (int i = 0; i < 2; i++) {
+      FailRequests(i);
+      DropJobs(i);
+    }
+    cv.notify_all();
   }
 
   void Shutdown() {
@@ -2271,8 +2288,12 @@ public:
     }
     {
       std::lock_guard<std::mutex> lock(mutex);
-      links[arm].asset_jobs.push_back(std::move(job));
+      if (!finished) {
+        links[arm].asset_jobs.push_back(std::move(job));
+        job.done.reset();
+      }
     }
+    if (job.done) job.done->set_value(-1); // the thread has ended
     transport->Wake();
     return f;
   }
@@ -5157,6 +5178,7 @@ std::pair<int, std::vector<uint8_t>> Control(int arm, uint8_t op, std::vector<ui
   auto future = job->reply.get_future();
   {
     std::lock_guard<std::mutex> lock(g->core->mutex);
+    if (g->core->finished) return {-1, {}};
     g->core->controls.push_back(job);
   }
   g->core->transport->Wake();
@@ -5172,7 +5194,7 @@ bool WaitIdle(int arm) {
   Core *core = g->core.get();
   Link &l = core->links[arm];
   uint64_t want = l.emitted;
-  auto drained = [&] { return core->Settled(arm, want); };
+  auto drained = [&] { return core->Settled(arm, want) || core->finished; };
   auto end = clock::now() + std::chrono::minutes(10), stall = clock::now() + std::chrono::seconds(15);
   uint32_t moved = l.moved;
   std::unique_lock<std::mutex> lock(core->mutex);
@@ -5185,7 +5207,7 @@ bool WaitIdle(int arm) {
     }
     if (!drained() && (now > stall || now > end)) return false;
   }
-  return true;
+  return !core->finished;
 }
 
 // Host code must leave the library's own memory alone.
@@ -5415,6 +5437,7 @@ bool Arm::Load(const Program &program) {
 }
 
 bool Arm::Start(Address table) {
+  Live live(g_life);
   int i = IndexOf(this);
   if (!Ready(i) || !WaitIdle(i)) return false;
   std::vector<uint8_t> body;
@@ -5424,9 +5447,13 @@ bool Arm::Start(Address table) {
   return r.first == 0;
 }
 
-bool Arm::Stop() { return Control(IndexOf(this), CTRL_VM_STOP, {}).first == 0; }
+bool Arm::Stop() {
+  Live live(g_life);
+  return Control(IndexOf(this), CTRL_VM_STOP, {}).first == 0;
+}
 
 bool Arm::Status(VmStatus *s) {
+  Live live(g_life);
   auto r = Control(IndexOf(this), CTRL_VM_STATUS, {});
   if (r.first != 0 || r.second.size() < 32) return false;
   const uint8_t *b = r.second.data();
@@ -5438,6 +5465,7 @@ bool Arm::Status(VmStatus *s) {
 }
 
 bool Arm::Props(std::span<const uint8_t> ids, std::span<uint32_t> values) {
+  Live live(g_life);
   if (ids.empty() || ids.size() > 12 || values.size() < ids.size()) return false;
   auto r = Control(IndexOf(this), CTRL_PROPS, std::vector<uint8_t>(ids.begin(), ids.end()));
   if (r.first != 0 || r.second.size() < 4 * ids.size()) return false;
@@ -5454,6 +5482,7 @@ bool Arm::Prop(Property id, uint32_t *value) {
 }
 
 bool Arm::ReportInputs(uint16_t triggers, uint16_t *in_force) {
+  Live live(g_life);
   int i = IndexOf(this);
   if (!Ready(i)) return false;
   g->core->links[i].inputs = triggers;
@@ -5466,6 +5495,7 @@ bool Arm::ReportInputs(uint16_t triggers, uint16_t *in_force) {
 }
 
 bool Arm::NextEvent(Event *event, int timeout_ms) {
+  Live live(g_life);
   if (!g) return false;
   Core *core = g->core.get();
   Link &l = core->links[IndexOf(this)];
@@ -5483,11 +5513,13 @@ int64_t Arm::Alloc(uint32_t bytes) { return g1::Alloc(bytes); }
 void Arm::Free(Address address) { g1::Free(address); }
 
 uint32_t Arm::DeviceTime(int64_t in_us) {
+  Live live(g_life);
   if (!g) return 0;
   return uint32_t(NowUs() + in_us) + g->core->links[IndexOf(this)].offset.load();
 }
 
 void Arm::Disconnect(int ms) {
+  Live live(g_life);
   int i = IndexOf(this);
   if (!Ready(i)) return;
   g->core->hold_ms[i] = std::max(ms, 1);
@@ -5495,6 +5527,7 @@ void Arm::Disconnect(int ms) {
 }
 
 Arm::State Arm::GetState() {
+  Live live(g_life);
   State s{};
   if (!g) return s;
   int i = IndexOf(this);
@@ -5535,6 +5568,7 @@ Arm::State Arm::GetState() {
 }
 
 bool Arm::SetBrightness(int level) {
+  Live live(g_life);
   if (level < 0 || level > 42 || !Ready(IndexOf(this))) return false;
   SysWrite(PROP_BRIGHTNESS, uint32_t(level));
   return true;
@@ -5551,6 +5585,7 @@ bool Arm::Battery(int *millivolts, int *percent, bool *charging) {
 }
 
 bool Arm::PanelCrc(int y0, int rows, uint32_t *arm_crc, uint32_t *expected_crc) {
+  Live live(g_life);
   int i = IndexOf(this);
   if (!Ready(i) || y0 < 0 || rows <= 0 || y0 + rows > kPanelH || !WaitIdle(i)) return false;
   std::vector<uint8_t> body;
@@ -5568,6 +5603,7 @@ bool Arm::PanelCrc(int y0, int rows, uint32_t *arm_crc, uint32_t *expected_crc) 
 }
 
 bool Arm::ArenaCrc(Address address, uint32_t length, uint32_t *arm_crc, uint32_t *expected_crc) {
+  Live live(g_life);
   int i = IndexOf(this);
   uint64_t end = length ? uint64_t(address) + length : kArenaBytes;
   if (!Ready(i) || end > kArenaBytes || address > end) return false;
@@ -5590,6 +5626,7 @@ bool Arm::ArenaCrc(Address address, uint32_t length, uint32_t *arm_crc, uint32_t
 }
 
 bool Arm::ReadArena(Address address, std::span<uint8_t> bytes) {
+  Live live(g_life);
   int i = IndexOf(this);
   if (!Ready(i) || uint64_t(address) + bytes.size() > kArenaBytes || !WaitIdle(i)) return false;
   for (size_t pos = 0; pos < bytes.size(); pos += 16) {
@@ -5608,6 +5645,7 @@ bool Arm::ReadArena(Address address, std::span<uint8_t> bytes) {
 
 // MIC acts on arrival: after what was queued before (a PANEL = 0 would stop it).
 bool Arm::MicStart(MicRate rate) {
+  Live live(g_life);
   int i = IndexOf(this);
   if (!Ready(i)) return false;
   if (!WaitIdle(i)) {
@@ -5663,6 +5701,7 @@ bool Arm::MicStart(MicRate rate) {
 }
 
 bool Arm::MicStop() {
+  Live live(g_life);
   int i = IndexOf(this);
   if (!Ready(i)) return false;
   Core *core = g->core.get();
@@ -5686,6 +5725,7 @@ bool Arm::MicStop() {
 }
 
 bool Arm::MicRead(MicFrame *frame, int timeout_ms) {
+  Live live(g_life);
   if (!g) return false;
   Core *core = g->core.get();
   Link::Mic &m = core->links[IndexOf(this)].mic;
@@ -5699,6 +5739,7 @@ bool Arm::MicRead(MicFrame *frame, int timeout_ms) {
 }
 
 MicState Arm::GetMicState() {
+  Live live(g_life);
   if (!g) return MicState{};
   Core *core = g->core.get();
   Link::Mic &m = core->links[IndexOf(this)].mic;
@@ -5811,6 +5852,7 @@ std::string Wait(std::vector<std::pair<int, std::future<int>>> &jobs, int second
 } // namespace
 
 bool Store(std::span<const uint8_t> blob, uint8_t type, std::string *error) {
+  Live live(g_life);
   if (!g) return Fail(error, "not initialized");
   if (blob.empty() || blob.size() > kArenaBytes) return Fail(error, "an asset has 1 ... 262144 bytes");
   AssetId id = AssetIdOf(blob);
@@ -5841,6 +5883,7 @@ bool Store(std::span<const uint8_t> blob, uint8_t type, std::string *error) {
 }
 
 std::vector<AssetEntry> Assets(const Arm &arm) {
+  Live live(g_life);
   std::vector<AssetEntry> out;
   if (!g) return out;
   int i = IndexOf(&arm);
@@ -5863,6 +5906,7 @@ std::vector<AssetEntry> Assets(const Arm &arm) {
 }
 
 bool Forget(AssetId id, std::string *error) {
+  Live live(g_life);
   if (!g) return Fail(error, "not initialized");
   std::vector<std::pair<int, std::future<int>>> jobs;
   {
@@ -5964,11 +6008,15 @@ InitError Init(GrayConfig *config, std::string *error_message, const Connection 
   }
   if (result != ERROR_NONE) {
     core->Shutdown();
+    {
+      std::unique_lock<std::shared_mutex> life(g_life);
+      std::lock_guard<std::mutex> api(device::Lock());
 #ifdef SCOUTER_G1_EMULATOR
-    g_emulator = nullptr;
+      g_emulator = nullptr;
 #endif
-    for (auto *a : kArms) a->pimpl = nullptr;
-    g = nullptr;
+      for (auto *a : kArms) a->pimpl = nullptr;
+      g = nullptr;
+    }
     return fail(result, text.empty() ? "Bluetooth error" : text);
   }
   {
@@ -6015,13 +6063,17 @@ void Deinit() {
     std::lock_guard<std::mutex> lock(device::Lock());
     device::Detach();
   }
-  core->Shutdown();
-#ifdef SCOUTER_G1_EMULATOR
-  g_emulator = nullptr;
-#endif
-  for (auto *a : kArms) a->pimpl = nullptr;
+  core->Shutdown(); // ends every wait: the calls holding g_life return
   Global *old = g;
-  g = nullptr;
+  {
+    std::unique_lock<std::shared_mutex> life(g_life);
+    std::lock_guard<std::mutex> api(device::Lock());
+#ifdef SCOUTER_G1_EMULATOR
+    g_emulator = nullptr;
+#endif
+    for (auto *a : kArms) a->pimpl = nullptr;
+    g = nullptr;
+  }
   delete old;
 }
 

@@ -9,7 +9,11 @@
 
 #include "../src/g1/scouter_kit_g1.cpp" // the internals are tested too
 
+#include <dirent.h>
+
+#include <atomic>
 #include <cstdio>
+#include <thread>
 #include <vector>
 
 #include "../src/base/departure_mono.inc"
@@ -1380,6 +1384,142 @@ static void TestAssets() {
   g1::Deinit();
 }
 
+// The host-session boundary: Init and Deinit repeat in one process; after Deinit the old session makes no
+// writes, polls or reconnects and every API call fails at once; waits on other threads end within a bounded
+// time; a failed Init or a missing arm leaves no thread behind.
+static int Threads() {
+  int n = 0;
+  if (DIR *d = opendir("/proc/self/task")) {
+    while (dirent *e = readdir(d)) n += e->d_name[0] != '.';
+    closedir(d);
+  }
+  return n;
+}
+
+namespace {
+struct CountingTransport : g1::EmulatorTransport {
+  CountingTransport() : g1::EmulatorTransport("") {}
+  std::atomic<int> writes{0}, polls{0}, starts{0}, stops{0};
+  bool Start(Events *events, const bool present[2]) override {
+    starts++;
+    return EmulatorTransport::Start(events, present);
+  }
+  bool Write(int arm, int channel, const uint8_t *data, size_t n) override {
+    writes++;
+    return EmulatorTransport::Write(arm, channel, data, n);
+  }
+  void Poll(int timeout_ms) override {
+    polls++;
+    EmulatorTransport::Poll(timeout_ms);
+  }
+  void Stop() override {
+    stops++;
+    EmulatorTransport::Stop();
+  }
+};
+} // namespace
+
+static void TestLifecycle() {
+  using clock = std::chrono::steady_clock;
+  auto ms = [](clock::time_point since) {
+    return std::chrono::duration_cast<std::chrono::milliseconds>(clock::now() - since).count();
+  };
+  std::string error;
+  std::thread([] {}).join(); // a runtime's helper threads (a sanitizer's) start with the first thread
+  int base = Threads();
+  for (int cycle = 0; cycle < 5; cycle++) {
+    CHECK(g1::Init(nullptr, &error) == g1::ERROR_NONE);
+    sk::Font &font = sk::LoadFont(kDepartureMonoBlob, "cycle", &error);
+    sk::gray::Bitmap &b = sk::gray::CreateBitmap(100, 16);
+    font.DrawLine(b, "cycle", 0, 12);
+    sk::gray::Draw(b, 100, 20);
+    sk::Flush();
+    WaitShown();
+    uint32_t v = 0;
+    CHECK(g1::left.Prop(g1::PROP_PANEL, &v) && g1::right.GetState().connected);
+    g1::Deinit();
+    g1::Deinit(); // idempotent
+    CHECK(Threads() == base);
+    auto t0 = clock::now();
+    g1::Event e;
+    CHECK(!g1::left.Prop(g1::PROP_PANEL, &v) && !g1::left.NextEvent(&e, 2000) && !g1::right.Stop());
+    CHECK(!g1::right.GetState().connected && g1::Alloc(64) < 0 && ms(t0) < 100);
+    g1::left.SysWrite(g1::PROP_PANEL, 0); // no session: nothing happens
+  }
+
+  // A failed Init (no such adapter) leaves no thread, and the next one works.
+  g1::Connection bad;
+  bad.adapter = "hci7";
+  for (int i = 0; i < 3; i++) CHECK(g1::Init(nullptr, &error, &bad) == g1::ERROR_BLUETOOTH_ERROR);
+  CHECK(Threads() == base);
+  g1::Connection one;
+  one.left = "none";
+  for (int i = 0; i < 2; i++) {
+    CHECK(g1::Init(nullptr, &error, &one) == g1::ERROR_NONE);
+    CHECK(!g1::left.GetState().present && g1::right.GetState().connected);
+    g1::Deinit();
+  }
+  CHECK(Threads() == base);
+
+  // After Deinit the application's transport sees nothing from the old session: no write, poll or reconnect.
+  auto own = std::make_unique<CountingTransport>();
+  g1::g_emulator = own.get();
+  g1::Connection conn;
+  conn.transport = own.get();
+  CHECK(g1::Init(nullptr, &error, &conn) == g1::ERROR_NONE);
+  g1::left.SysWrite(g1::PROP_PANEL, 1);
+  WaitShown();
+  g1::Deinit();
+  CHECK(own->starts == 1 && own->stops == 1);
+  int writes = own->writes, polls = own->polls;
+  g1::left.SysWrite(g1::PROP_PANEL, 0);
+  g1::right.Disconnect(10);
+  uint32_t v = 0;
+  CHECK(!g1::right.Prop(g1::PROP_PANEL, &v));
+  Sleep(300);
+  CHECK(own->writes == writes && own->polls == polls && own->starts == 1);
+  g1::g_emulator = nullptr;
+  own.reset();
+
+  // Waits on other threads end when the session does: Deinit returns within a bounded time and every waiting
+  // call returns false soon after, whatever its timeout.
+  for (int cycle = 0; cycle < 3; cycle++) {
+    CHECK(g1::Init(nullptr, &error) == g1::ERROR_NONE);
+    std::atomic<bool> run{true};
+    std::atomic<int> ended{0};
+    std::vector<std::thread> users;
+    users.emplace_back([&] {
+      g1::Event e;
+      while (run) g1::left.NextEvent(&e, 60000);
+      ended++;
+    });
+    users.emplace_back([&] {
+      g1::MicFrame f;
+      while (run) g1::right.MicRead(&f, 60000);
+      ended++;
+    });
+    users.emplace_back([&] {
+      uint32_t v = 0;
+      while (run) g1::right.Prop(g1::PROP_BATT_PCT, &v);
+      ended++;
+    });
+    users.emplace_back([&] {
+      uint32_t a = 0, b = 0;
+      while (run) g1::left.PanelCrc(0, 8, &a, &b);
+      ended++;
+    });
+    Sleep(200);
+    auto t0 = clock::now();
+    g1::Deinit();
+    CHECK(ms(t0) < 5000);
+    run = false;
+    auto t1 = clock::now();
+    for (auto &t : users) t.join();
+    CHECK(ended == 4 && ms(t1) < 1000);
+    CHECK(Threads() == base);
+  }
+}
+
 int main(int argc, char **argv) {
   bool quick = argc > 1 && std::string(argv[1]) == "quick"; // without the 30 s wait
   if (argc > 2) g_seed = uint32_t(std::atoi(argv[2]));         // of the random host code
@@ -1403,6 +1543,7 @@ int main(int argc, char **argv) {
   TestInCase();
   TestBrightnessMatch();
   TestAssets();
+  TestLifecycle();
   std::printf("%s (%d failures)\n", failures ? "FAILED" : "all tests passed", failures);
   return failures ? 1 : 0;
 }

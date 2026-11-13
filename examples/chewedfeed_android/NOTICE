@@ -1,0 +1,17 @@
+Chewedfeed for Android — the Chewedfeed dashboard on the Even Realities G1 under the ScouterKit firmware,
+without a laptop. Copyright the ScouterKit authors. GPL-3.0-or-later (LICENSE): it reuses the Android glue of
+examples/ssh, which is GPL.
+
+It includes:
+- ScouterKit's C++ library (scouter_kit/src): MIT (scouter_kit/LICENSE), with
+  - Departure Mono 1.500 (https://github.com/rektdeckard/departure-mono), built in as
+    src/base/departure_mono.inc: SIL Open Font License 1.1 (licenses/departure_mono/,
+    scouter_kit/third_party/departure_mono);
+  - moodycamel ConcurrentQueue 1.0.5 (https://github.com/cameron314/concurrentqueue): Simplified BSD
+    (licenses/concurrentqueue/, scouter_kit/third_party/concurrentqueue);
+  - TinyCrypt 0.2.8's SHA-256 (https://github.com/intel/tinycrypt): BSD-3-Clause (licenses/tinycrypt/,
+    scouter_kit/third_party/tinycrypt).
+The app's licenses/ folder is copied from scouter_kit/third_party at build time.
+
+The source tree also has the Gradle 8.10.2 wrapper (gradlew, gradlew.bat, gradle/wrapper/; https://gradle.org):
+Apache-2.0, as gradlew's header says. It is a build tool, not part of the app.

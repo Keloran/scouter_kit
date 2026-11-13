@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A pair of glasses. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <path
+        android:fillColor="#FF1B1F24"
+        android:pathData="M0,0h48v48h-48z" />
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FF7EE787"
+        android:strokeWidth="3"
+        android:pathData="M6,22h14v9h-14z M28,22h14v9h-14z M20,25h8 M6,22l-2,-4 M42,22l2,-4" />
+</vector>

@@ -116,6 +116,8 @@ private:
   std::vector<scouter_kit::Font *> fonts_;
   scouter_kit::gray::Bitmap *canvas_ = nullptr;
   bool present_[2] = {false, false};
+  int pitch_arm_ = -1;                   // the arm whose pitch window we narrowed
+  static constexpr int32_t kPitchLo = -89; // desktop session.go pitchLo
 };
 
 } // namespace chewedfeed

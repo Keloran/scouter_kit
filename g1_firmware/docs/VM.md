@@ -555,6 +555,12 @@ One GATT service; MCUmgr SMP (firmware update) runs beside it.
   a reconnect: the arena and the window are as the arm left them, and the host resends from rx_next. New
   epoch: the arena and the VM are not what the host thinks; it resets its mirror, uploads again and
   redraws.
+- **Changing hosts**: a disconnect retains the VM, arena and panel image, but clears the input-event mask.
+  Before releasing the link, stop programs that can redraw private content and blank the panel. A fresh host
+  uses `RESET_SESSION` with the clear-arena flag, then rebuilds its resources and draws a complete frame.
+  `RESET_SESSION` stops the VM and clears the window; it does not erase the panel's retained image or turn it
+  off. The former host must stop its reconnect worker: an epoch change does not distinguish another host's
+  reset from a reboot. The C++ `keep_sessions` option adopts existing state and is unsuitable for a fresh takeover.
 - Control requests use no window: the control thread checks a request's arguments and replies on
   arrival, also while host code sleeps or draws. An action on the executor (`VM_START`, `VM_STOP`,
   `RESET_SESSION`, the `MIC` indicator) is applied by the executor before its next instruction, within

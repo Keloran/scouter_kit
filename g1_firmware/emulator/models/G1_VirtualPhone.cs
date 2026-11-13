@@ -105,6 +105,9 @@ namespace Antmicro.Renode.Peripherals.Wireless
         public int IntervalUnits { get; set; } = 6;
         public int MaxPdusPerEvent { get; set; } = 6;
         public bool UseDle { get; set; } = true;
+        // Test aid: a second public initiator identity on the next connection, not a paired/encrypted host.
+        public bool UseAlternateIdentity { get; set; }
+        public string ConnectionIdentity() => connectionUsedAlternateIdentity ? "alternate" : "primary";
         // Send one SCAN_REQ before each connection; ADV_IND data and the SCAN_RSP go to the bridge.
         public bool ScanFirst { get; set; }
         public int HeartbeatMs { get; set; }
@@ -502,7 +505,7 @@ namespace Antmicro.Renode.Peripherals.Wireless
             pdu.AddRange(AdvAccessAddress);
             pdu.Add(0x83);
             pdu.Add(12);
-            pdu.AddRange(InitA);
+            pdu.AddRange(InitiatorAddress);
             pdu.AddRange(advA);
             Inject(pdu);
             this.Log(LogLevel.Info, "vphone: SCAN_REQ sent");
@@ -510,11 +513,12 @@ namespace Antmicro.Renode.Peripherals.Wireless
 
         private void SendConnectInd()
         {
+            connectionUsedAlternateIdentity = UseAlternateIdentity;
             var pdu = new List<byte>();
             pdu.AddRange(AdvAccessAddress);
             pdu.Add(0x85);
             pdu.Add(0x22);
-            pdu.AddRange(InitA);
+            pdu.AddRange(InitiatorAddress);
             pdu.AddRange(advA);
             pdu.AddRange(DataAccessAddress);
             pdu.AddRange(new byte[] { 0x55, 0x55, 0x55 });
@@ -1037,6 +1041,7 @@ namespace Antmicro.Renode.Peripherals.Wireless
         private readonly List<string> bridgeLinkEvents = new List<string>();
         private readonly LimitTimer tickTimer;
         private double silentUntil = -1;
+        private bool connectionUsedAlternateIdentity;
 
         private const int DesiredMtu = 247;
         private const int MaxLlPayload = 27;
@@ -1044,5 +1049,7 @@ namespace Antmicro.Renode.Peripherals.Wireless
         private static readonly byte[] DataAccessAddress = { 0x29, 0x41, 0x76, 0x71 };
         // Same public address as g1-fw's virtual central; the QSPI seed stores it as the bonded phone.
         private static readonly byte[] InitA = { 0x11, 0x22, 0x33, 0x44, 0x55, 0x66 };
+        private static readonly byte[] AlternateInitA = { 0xFF, 0xEE, 0xDD, 0xCC, 0xBB, 0xAA };
+        private byte[] InitiatorAddress => UseAlternateIdentity ? AlternateInitA : InitA;
     }
 }

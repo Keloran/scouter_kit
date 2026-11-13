@@ -25,6 +25,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import common  # noqa: E402
 from common import BUILD, FW, RUNS, SK, WORK, g  # noqa: E402
 import peer_check as pc  # noqa: E402
+from handover import handover_body  # noqa: E402
 
 PREFIX = os.environ.get("G1_RUN_PREFIX", "v5")
 VER = os.environ.get("G1_VERSION", "0.5.2")
@@ -2216,6 +2217,14 @@ def test_sessions(name):
     return run(name, APP, sessions_body)
 
 
+def test_handover(name):
+    return run(name, APP, handover_body)
+
+
+def test_handover_identity(name):
+    return run(name, APP, lambda e, res: handover_body(e, res, alternate=True))
+
+
 # ---------------------------------------------------------------- the accelerometer (M3, 0.5.2)
 
 LSM = "sysbus.twim2.lsm6dso"
@@ -3324,7 +3333,8 @@ TESTS = {"smoke": test_smoke, "vectors": test_vectors, "chain": test_chain, "cha
          "panel_prop": test_panel_prop, "in_case": test_in_case, "case_hold": test_case_hold, "case_blank": test_case_blank, "mic_popup_standby": test_mic_popup_standby,
          "touch": test_touch, "restore": test_restore, "light": test_light, "gyro": test_gyro,
          "bad_packets": test_bad_packets, "no_panel": test_no_panel, "starve": test_starve,
-         "sessions": test_sessions, "imu": test_imu, "diag": test_diag, "pair_link": test_pair_link,
+         "sessions": test_sessions, "handover": test_handover, "handover_identity": test_handover_identity,
+         "imu": test_imu, "diag": test_diag, "pair_link": test_pair_link,
          "peer": test_peer, "pair_stream": test_pair_stream,
          "panel_read": test_panel_read, "video": test_video, "panel_guard": test_panel_guard,
          "assets": test_assets}

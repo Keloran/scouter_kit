@@ -89,6 +89,8 @@ fun reduce(s: State, e: Event): Transition {
                 ACTIVE -> yieldArms(n, n.transfer, ReleaseIntent.LOCAL_STOP, n.enrolled)
                 REQUESTING -> done(n.copy(phase = IDLE, generation = n.generation + 1),
                     fx(CANCEL_TIMERS), fx(SEND_ABORT), fx(PUBLISH_STATUS))
+                RECOVERING, IDLE -> done(n.copy(phase = IDLE, generation = n.generation + 1),
+                    fx(CANCEL_TIMERS), fx(PUBLISH_STATUS))
                 else -> done(n, fx(PUBLISH_STATUS))
             }
         }
@@ -110,6 +112,9 @@ private fun availability(s0: State, eligible: Boolean, nonce: String?): Transiti
     val was = s0.eligible
     val s = s0.copy(eligible = eligible)
     return when {
+        !eligible && s.phase == RECOVERING ->
+            // Retire queued recovery callbacks before a later, fresh resume.
+            done(s.copy(phase = IDLE, generation = s.generation + 1), fx(CANCEL_TIMERS), fx(PUBLISH_STATUS))
         !eligible && (s.phase == ACTIVE || s.phase == ACQUIRING) ->
             // Lid closed, suspend or app unavailable: release even when pinned or not sleeping.
             if (s.phase == ACQUIRING) rollback(s)

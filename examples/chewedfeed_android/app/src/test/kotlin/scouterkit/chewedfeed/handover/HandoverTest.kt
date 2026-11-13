@@ -89,6 +89,44 @@ private fun canonical(t: Transition): String {
 
 class HandoverTest {
     @Test
+    fun inactiveStopRetiresCallbacksAndAllowsResume() {
+        for (role in Role.entries) for (enrolled in listOf(false, true)) {
+            for (phase in listOf(Phase.IDLE, Phase.RECOVERING)) {
+                val initial = State(role, enrolled, eligible = true, phase = phase, generation = 7,
+                    transfer = "1".repeat(32))
+                val stopped = reduce(initial, Event.Stop(7))
+                assertEquals(Phase.IDLE, stopped.state.phase)
+                assertEquals(false, stopped.state.eligible)
+                assertEquals(8L, stopped.state.generation)
+                assertEquals(listOf(EffectKind.CANCEL_TIMERS, EffectKind.PUBLISH_STATUS), stopped.effects.map { it.kind })
+                val resumed = reduce(stopped.state, Event.Availability(true, 8, "2".repeat(32))).state
+                assertEquals(if (enrolled) Phase.RECOVERING else Phase.ACQUIRING, resumed.phase)
+                for (event in listOf(Event.Timeout(Timer.RETRY, 60000, 7, "3".repeat(32)),
+                    Event.Released("1".repeat(32), 7), Event.Stop(7))) {
+                    val late = reduce(resumed, event)
+                    assertEquals(resumed, late.state)
+                    assertEquals(listOf(EffectKind.IGNORE), late.effects.map { it.kind })
+                }
+            }
+        }
+    }
+
+    @Test
+    fun unavailableRecoveryRetiresCallbacks() {
+        for (role in Role.entries) {
+            val initial = State(role, enrolled = true, eligible = true, phase = Phase.RECOVERING, generation = 7)
+            val unavailable = reduce(initial, Event.Availability(false, 7))
+            assertEquals(Phase.IDLE, unavailable.state.phase)
+            assertEquals(false, unavailable.state.eligible)
+            assertEquals(8L, unavailable.state.generation)
+            assertEquals(listOf(EffectKind.CANCEL_TIMERS, EffectKind.PUBLISH_STATUS), unavailable.effects.map { it.kind })
+            val resumed = reduce(unavailable.state, Event.Availability(true, 8)).state
+            assertEquals(Phase.RECOVERING, resumed.phase)
+            assertEquals(resumed, reduce(resumed, Event.Timeout(Timer.PEER_SUSPECT, 60000, 7)).state)
+        }
+    }
+
+    @Test
     fun sharedFixtures() {
         var steps = 0
         for (sc in fixture("transitions.json").getJSONArray("scenarios").objects()) {

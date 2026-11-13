@@ -16,6 +16,6 @@ class BuildTest {
     @Test
     fun abiVersionMatchesNative() {
         // native/boundary.hpp kAbiVersion
-        assertEquals(1, Native.ABI_VERSION)
+        assertEquals(2, Native.ABI_VERSION)
     }
 }

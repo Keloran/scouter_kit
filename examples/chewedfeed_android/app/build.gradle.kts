@@ -103,4 +103,5 @@ tasks.named("preBuild") { dependsOn(copyAssets) }
 
 dependencies {
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20240303") // the JVM tests read the shared handover fixtures
 }

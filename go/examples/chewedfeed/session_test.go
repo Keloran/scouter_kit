@@ -218,6 +218,10 @@ func TestDashboardReleaseResume(t *testing.T) {
 // Every arm unreachable for 5 checks: the dashboard releases the glasses,
 // records why, and acquires them again instead of exiting.
 func TestDashboardRecoversFromLostArms(t *testing.T) {
+	checks := newQualificationLinkLog()
+	previousLog := stages.Writer()
+	stages.SetOutput(checks)
+	defer func() { checks.unblock(); stages.SetOutput(previousLog) }()
 	defer func(every, first time.Duration) { hostLinkCheck, reconnectFirst = every, first }(hostLinkCheck, reconnectFirst)
 	hostLinkCheck, reconnectFirst = 100*time.Millisecond, 100*time.Millisecond
 	o := sessionOptions()
@@ -226,6 +230,7 @@ func TestDashboardRecoversFromLostArms(t *testing.T) {
 	done := make(chan error, 1)
 	go func() { done <- dashboard(ctx, host, o, fakeClient(t, `[]`), nil) }()
 	defer func() {
+		checks.unblock()
 		cancel()
 		if err := <-done; err != nil {
 			t.Errorf("dashboard: %v", err)
@@ -240,6 +245,22 @@ func TestDashboardRecoversFromLostArms(t *testing.T) {
 	}
 	scouterkit.Left.EmulateDisconnect(5 * time.Second)
 	scouterkit.Right.EmulateDisconnect(5 * time.Second)
+	select {
+	case <-checks.four:
+	case <-time.After(5 * time.Second):
+		t.Fatal("dashboard did not reach four disconnect checks")
+	}
+	if state := host.Status(); state.State != hostActive || state.Generation != 1 {
+		t.Fatal("dashboard released before five missing checks")
+	}
+	close(checks.allowFour)
+	select {
+	case <-checks.lost:
+	case <-checks.six:
+		t.Fatal("dashboard did not release on the fifth missing check")
+	case <-time.After(2 * time.Second):
+		t.Fatal("dashboard did not release after the fifth check")
+	}
 	sawLoss := false
 	for host.Status().Generation < 2 {
 		if st := host.Status(); st.State == hostReleased && st.Err != nil {

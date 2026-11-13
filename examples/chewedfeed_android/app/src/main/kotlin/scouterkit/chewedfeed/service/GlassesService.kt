@@ -20,19 +20,25 @@ import android.content.pm.ServiceInfo
 import android.net.ConnectivityManager
 import android.net.Network
 import android.os.Handler
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.Executors
+import scouterkit.chewedfeed.settings.Prefs
+import scouterkit.chewedfeed.settings.AppSettings
+import scouterkit.chewedfeed.runtime.TextArea
+import scouterkit.chewedfeed.runtime.SitesSource
+import scouterkit.chewedfeed.runtime.DashboardRuntime
+import scouterkit.chewedfeed.bluetooth.Scheduler
+import scouterkit.chewedfeed.bluetooth.Cancellable
+import scouterkit.chewedfeed.api.androidSessionCredentials
+import scouterkit.chewedfeed.api.ApiRepository
 import scouterkit.chewedfeed.notifications.PhoneNotifications
 import scouterkit.chewedfeed.providers.PhoneBattery
 import scouterkit.chewedfeed.providers.PhoneMedia
-import scouterkit.chewedfeed.providers.batteries
 import android.os.IBinder
 import android.os.Looper
 import scouterkit.chewedfeed.dashboard.Screen
-import scouterkit.chewedfeed.dashboard.Navigation
-import scouterkit.chewedfeed.dashboard.Dashboard
 import scouterkit.chewedfeed.GlassesStatus
 import scouterkit.chewedfeed.GlassesEvent
-import java.time.format.DateTimeFormatter
-import java.time.LocalTime
 import android.os.SystemClock
 import scouterkit.chewedfeed.DisplaySettings
 import scouterkit.chewedfeed.GlassesSession
@@ -47,12 +53,8 @@ import scouterkit.chewedfeed.bluetooth.BluetoothWatch
 import scouterkit.chewedfeed.bluetooth.HandlerScheduler
 import scouterkit.chewedfeed.bluetooth.LinkStatus
 import scouterkit.chewedfeed.bluetooth.NativeEvents
-import scouterkit.chewedfeed.dashboard.Page
-import scouterkit.chewedfeed.notifications.FeedEvent
 import scouterkit.chewedfeed.notifications.Hub
-import scouterkit.chewedfeed.render.Batteries
 import scouterkit.chewedfeed.render.GlassesScreen
-import scouterkit.chewedfeed.render.MusicStatus
 
 // Keeps the glasses session going with the screen off: a connectedDevice foreground service with a status
 // notification and a Stop action. Started explicitly from the app; a sticky restart after process death comes
@@ -73,8 +75,8 @@ class GlassesService : Service(), LifecycleActions {
         override fun onReceive(c: Context, i: Intent) = refresh()
     }
     private val network = object : ConnectivityManager.NetworkCallback() {
-        override fun onAvailable(n: Network) { State.online = true; State.changed() }
-        override fun onLost(n: Network) { State.online = false; State.changed() }
+        override fun onAvailable(n: Network) { State.online = true; State.changed(); main.post { conn?.network(true) } }
+        override fun onLost(n: Network) { State.online = false; State.changed(); main.post { conn?.network(false) } }
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -129,6 +131,8 @@ class GlassesService : Service(), LifecycleActions {
         cancelRetry()
         runCatching { unregisterReceiver(bluetoothReceiver) }
         runCatching { getSystemService(ConnectivityManager::class.java).unregisterNetworkCallback(network) }
+        runCatching { api.close() }
+        runCatching { waiter.shutdownNow() }
         State.phase = Phase.STOPPED; State.detail = ""; State.changed()
         super.onDestroy()
     }
@@ -222,10 +226,9 @@ class GlassesService : Service(), LifecycleActions {
             .build()
     }
 
-    // One attempt's session: the two-arm link, the native session, and the dashboard controller deciding what
-    // shows: head tilt (Settings: shown while looking up past showAbove or down past showBelow, as the desktop),
-    // the case, touches and notification popups. Until the dashboard runtime (CF-52) the page is a status page.
-    // The footer shows the playing title (phone media sessions) or the clock; the panel the batteries.
+    // One attempt's session: the two-arm link, the native session and the dashboard runtime (Sites from the API,
+    // notifications, music and batteries, shown or hidden by head tilt, the case and touches). Everything it
+    // started stops with it; nothing from a stopped connection draws.
     private inner class Connection(val attempt: Long, private val left: String, private val right: String) {
         private val sched = HandlerScheduler()
         private val link = ArmsLink(AndroidBleAdapter(this@GlassesService, adapter, sched.looperHandler), arrayOf(left, right), NativeEvents, sched) { s, why ->
@@ -236,34 +239,13 @@ class GlassesService : Service(), LifecycleActions {
             }
         }
         private val watch = BluetoothWatch(this@GlassesService, link)
-        private val session = GlassesSession(callbacks = { main.post(it) }, onEvents = { gen, events -> events(gen, events) })
+        private val session = GlassesSession(callbacks = { main.post(it) }, onEvents = { _, events -> events(events) })
         private val settings = DisplaySettings.load(this@GlassesService)
-        private val clock = MusicStatus()
         private var screen: GlassesScreen? = null
-        private var dashboard: Dashboard? = null
-        private var generation = 0L
-        private var batteries = Batteries()
-        private var minute = -1L
+        private var runtime: DashboardRuntime? = null
         private val phone = PhoneBattery(this@GlassesService, main)
         private val media = PhoneMedia(this@GlassesService, PhoneNotifications.component(this@GlassesService), main) { title ->
-            if (conn !== this) return@PhoneMedia
-            clock.setTitle(title, System.currentTimeMillis())
-            dashboard?.invalidate()
-            render()
-            main.removeCallbacks(scroll)
-            if (title.isNotEmpty()) main.postDelayed(scroll, MusicStatus.SCROLL_EVERY)
-        }
-        // While a title shows: its scroll and the title/clock alternation (desktop music.go cadence).
-        private val scroll = object : Runnable {
-            override fun run() {
-                val g = screen ?: return
-                if (conn !== this@Connection || clock.title.isEmpty()) return
-                if (clock.advance(System.currentTimeMillis(), g.renderer.footerWidth(), g::measure)) {
-                    dashboard?.invalidate()
-                    render()
-                }
-                main.postDelayed(this, MusicStatus.SCROLL_EVERY)
-            }
+            if (conn === this) runtime?.title(title)
         }
         private val tick = object : Runnable {
             override fun run() {
@@ -294,64 +276,46 @@ class GlassesService : Service(), LifecycleActions {
         private fun opened(gen: Long, g: GlassesScreen?) {
             if (g == null) return lifecycle.failed(attempt, why = "no font or canvas")
             screen = g
-            val rows = g.renderer.layout.rows
-            val width = g.renderer.layout.textW
-            val page = Page("service", "Chewedfeed", listOf("Phone connected", "Dashboard coming soon"), "Unavailable")
-            // History pages measure with the session font from the main thread: native calls take the session lock.
-            dashboard = Dashboard(Navigation(listOf(page), emptyList(), emptyList()), settings.displayOptions(), SystemClock::elapsedRealtime) { h ->
-                h.pages(width, rows) { t -> g.measure(t) }
-            }.also { it.acquired(gen) }
-            generation = gen
+            val l = g.renderer.layout
+            // Measuring uses the session font from the main thread: native calls take the session lock.
+            val area = TextArea(l.textW, l.rows, g.renderer.footerWidth()) { t -> g.measure(t) }
+            val r = DashboardRuntime(settings, AppSettings.load(Prefs(this@GlassesService, "app")), area, mainScheduler,
+                SystemClock::elapsedRealtime, System::currentTimeMillis, sites, ::draw)
+            runtime = r
             lifecycle.connected(attempt)
-            Hub.attach(mainExecutor) { e ->
-                val d = dashboard ?: return@attach
-                if (conn !== this) return@attach
-                when (e) {
-                    is FeedEvent.Show -> d.notify(e.note, LocalTime.now().format(RECEIVED), e.key)
-                    is FeedEvent.Dismiss -> d.dismissed(e.key)
-                }
-                render()
-            }
+            r.network(State.online)
+            r.start(gen)
+            Hub.attach(mainExecutor) { e -> if (conn === this) runtime?.notification(e) }
             phone.start()
             media.start()
             sample()
             main.postDelayed(tick, TICK_MS)
         }
 
-        // Head angle, case and batteries, read on the session thread (both arms report the same angles); then
-        // what to show.
+        fun network(online: Boolean) = runtime?.network(online)
+
+        // Head angle, case and batteries, read on the session thread; then what to show.
         private fun sample() {
             session.draw { f ->
                 val st = f.status() ?: return@draw
-                main.post {
-                    val d = dashboard ?: return@post
-                    if (conn !== this) return@post
-                    batteries = batteries(st, phone.percent)
-                    d.pitch(generation, st.pitch)
-                    st.left.inCase?.let { d.caseChanged(generation, 0, it) }
-                    st.right.inCase?.let { d.caseChanged(generation, 1, it) }
-                    val m = System.currentTimeMillis() / 60_000
-                    if (m != minute) { minute = m; d.invalidate() } // the footer clock
-                    render()
-                }
+                main.post { if (conn === this) runtime?.sampled(st, phone.percent) }
             }
         }
 
-        private fun events(gen: Long, events: List<GlassesEvent>) {
-            val d = dashboard ?: return
+        private fun events(events: List<GlassesEvent>) {
             if (conn !== this) return
-            for (e in events) if (e.type == GlassesEvent.INPUT && e.trigger == GlassesEvent.TRIGGER_TOUCH) d.touch(gen, e.arm, e.a)
-            render()
+            for (e in events) if (e.type == GlassesEvent.INPUT && e.trigger == GlassesEvent.TRIGGER_TOUCH) runtime?.touch(e.arm, e.a)
         }
 
-        // Only when the screen changed: the page (or a popup), or black and off.
-        private fun render() {
-            val d = dashboard ?: return
+        // The page or a popup, or black and off.
+        private fun draw(s: Screen) {
             val g = screen ?: return
-            when (val s = d.poll() ?: return) {
+            val r = runtime ?: return
+            when (s) {
                 Screen.Hidden -> session.draw { g.hide() }
-                is Screen.Shown -> session.draw {
-                    g.show(s.page, s.index, s.total, s.paused, s.popup, batteries) { w -> clock.line(System.currentTimeMillis(), w, g::measure) }
+                is Screen.Shown -> {
+                    val b = r.batteries
+                    session.draw { g.show(s.page, s.index, s.total, s.paused, s.popup, b) { w -> r.footer(w) } }
                 }
             }
         }
@@ -360,16 +324,38 @@ class GlassesService : Service(), LifecycleActions {
         fun stop() {
             Hub.detach()
             main.removeCallbacks(tick)
-            main.removeCallbacks(scroll)
             media.stop()
             phone.stop()
-            dashboard?.released()
-            dashboard = null
+            runtime?.stop()
+            runtime = null
             session.stop {
                 watch.stop()
                 sched.quit()
                 session.close()
             }
+        }
+    }
+
+    // The Chewedfeed API for the runtime: the repository fetches on its executor; the wait for the result runs
+    // here, the answer on the main thread.
+    private val api by lazy { ApiRepository(androidSessionCredentials(this)) }
+    private val waiter by lazy { Executors.newSingleThreadExecutor { r -> Thread(r, "api-wait").apply { isDaemon = true } } }
+    private val sites = SitesSource { config, done ->
+        val r = api.refresh(config)
+        val f = waiter.submit {
+            val snapshot = runCatching { r.await(config.refreshTimeoutMs + 5_000L, TimeUnit.MILLISECONDS) }.getOrNull()
+            main.post { done(snapshot) }
+        }
+        object : Cancellable {
+            override fun cancel() { r.cancel(); f.cancel(true) }
+        }
+    }
+    private val mainScheduler = object : Scheduler {
+        override fun post(task: () -> Unit) { main.post(task) }
+        override fun postDelayed(ms: Long, task: () -> Unit): Cancellable {
+            val r = Runnable(task)
+            main.postDelayed(r, ms)
+            return object : Cancellable { override fun cancel() = main.removeCallbacks(r) }
         }
     }
 
@@ -389,7 +375,6 @@ class GlassesService : Service(), LifecycleActions {
         private const val CHANNEL = "glasses"
         private const val NOTIFICATION = 1
         private const val TICK_MS = 500L // the desktop's head-angle interval
-        private val RECEIVED = DateTimeFormatter.ofPattern("HH:mm")
 
         fun start(c: Context) = c.startForegroundService(Intent(c, GlassesService::class.java).setAction(ACTION_START))
         fun present(c: Context) = c.startForegroundService(Intent(c, GlassesService::class.java).setAction(ACTION_PRESENT))

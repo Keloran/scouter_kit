@@ -47,6 +47,9 @@ class DashboardRuntime(
     private val sites: SitesSource,
     private val draw: (Screen) -> Unit,
     private val zone: ZoneId = ZoneId.systemDefault(),
+    // Navigation for the next owner, and a transferred one to restore. It outlives this runtime (the laptop's
+    // page arrives before the glasses connect): the owner wires its notify to restoreSnapshot().
+    val bridge: SnapshotBridge = SnapshotBridge(),
 ) {
     private val formatter = PageFormatter(zone)
     private val music = MusicStatus(zone)
@@ -58,8 +61,6 @@ class DashboardRuntime(
     ) { h -> h.pages(text.width, text.rows, text.measure) }
     var batteries = Batteries()
         private set
-    // Navigation for the next owner, and a transferred one to restore (CF-52's coordinator moves the messages).
-    val bridge = SnapshotBridge { scheduler.post(::restore) }
     private var generation = 0L
     private var running = false
     private var refreshing: Cancellable? = null
@@ -74,6 +75,7 @@ class DashboardRuntime(
         this.generation = generation
         running = true
         dashboard.acquired(generation)
+        restoreSnapshot() // the previous owner's page, if its release committed one
         if (app.sites) refresh()
         render()
     }
@@ -110,7 +112,7 @@ class DashboardRuntime(
 
     // A committed snapshot from the previous owner: its view, page and paused state. This phone's own rotation
     // and project settings stay (device-local, as saved in Settings).
-    private fun restore() {
+    fun restoreSnapshot() {
         if (!running) return
         val s = bridge.take() ?: return
         s.apply(dashboard.nav, UiSnapshot.Overrides(rotate = true, project = true), app.rotateSeconds * 1000L, app.project)

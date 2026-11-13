@@ -50,10 +50,12 @@ class DashboardRuntimeTest {
         object : Cancellable { override fun cancel() { cancels++ } }
     }
     private val drawn = mutableListOf<Screen>()
+    private lateinit var runtimeRef: DashboardRuntime
+    private val bridge: scouterkit.chewedfeed.handover.SnapshotBridge = scouterkit.chewedfeed.handover.SnapshotBridge { runtimeRef.restoreSnapshot() }
     private val text = TextArea(40, 8, 20) { it.codePointCount(0, it.length) }
 
     private fun runtime(app: AppSettings = AppSettings(), display: DisplaySettings = DisplaySettings()) =
-        DashboardRuntime(display, app, text, scheduler, { now }, { now }, sites, { drawn += it }, ZoneOffset.UTC)
+        DashboardRuntime(display, app, text, scheduler, { now }, { now }, sites, { drawn += it }, ZoneOffset.UTC, bridge)
 
     private val shown get() = drawn.last() as Screen.Shown
 
@@ -178,6 +180,7 @@ class DashboardRuntimeTest {
     @Test
     fun navigationTravelsThroughTheBridge() {
         val r = runtime(AppSettings(rotateSeconds = 12, project = "one"))
+        runtimeRef = r
         r.start(1)
         requests[0].second(data)
         r.sampled(status(), null)

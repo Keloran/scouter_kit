@@ -189,6 +189,11 @@ object StrictJson {
             is Boolean -> out.append(v)
             is JsonNumber -> out.append(v.text)
             is Int, is Long -> out.append(v.toString())
+            is Double, is Float -> {
+                val d = (v as Number).toDouble()
+                require(!d.isNaN() && !d.isInfinite()) { "not a finite JSON number" }
+                out.append(v.toString())
+            }
             is String -> {
                 out.append('"')
                 for (c in v) when {

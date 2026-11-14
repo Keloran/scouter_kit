@@ -73,7 +73,7 @@ func (n dashboardNative) Readiness() h.Arms {
 
 // prepareOwnershipPeer does not run for preview or desktop-only handover.
 // Invitations and credentials never enter log messages or local status.
-func prepareOwnershipPeer(ctx context.Context, s ownershipSettings) (*h.Store, string, h.Route, error) {
+func prepareOwnershipPeer(ctx context.Context, s ownershipSettings) (*h.Store, string, *h.DiscoveryRoute, error) {
 	if s.Endpoint == "" && s.Invitation == "" {
 		return nil, "", nil, nil
 	}
@@ -135,7 +135,15 @@ func prepareOwnershipPeer(ctx context.Context, s ownershipSettings) (*h.Store, s
 	if !ok || peer.Role != h.Phone {
 		return nil, "", nil, errors.New("enroll the selected phone before connecting")
 	}
-	return store, id, h.DirectRoute{Addr: endpoint}, nil
+	// The configured endpoint first, then the phone's LAN advertisement (CF-53): its address may change.
+	route := &h.DiscoveryRoute{Endpoint: endpoint, Browse: h.Browse, Report: func(err error) {
+		if err != nil {
+			progress("Phone: not reachable on this network (no answer at the configured endpoint or by discovery)")
+		} else {
+			progress("Phone: reachable")
+		}
+	}}
+	return store, id, route, nil
 }
 
 func coordinatedDisplay(ctx context.Context, f demo.Flags, o options, client *client) error {
@@ -187,6 +195,7 @@ func coordinatedDisplay(ctx context.Context, f demo.Flags, o options, client *cl
 		go func() {
 			defer network.Done()
 			h.Link(runCtx, store, route, peerID, h.Options{Role: h.Laptop, Optional: optional, Heartbeat: ctrl.Heartbeat}, func(conn *h.Conn) {
+				route.Confirm() // authenticated as the enrolled phone: remember this address
 				ctrl.serveLink(runCtx, conn)
 			})
 		}()

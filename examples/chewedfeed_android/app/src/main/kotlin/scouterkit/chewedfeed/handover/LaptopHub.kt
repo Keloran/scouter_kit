@@ -4,13 +4,18 @@ package scouterkit.chewedfeed.handover
 // ownership coordinator) and Setup (pairing, through the enroller): it listens while either uses it, so they never
 // compete for the port. Callbacks run on connection threads; set them to null to refuse connections (closed at
 // once, before any message reaches anything).
-class LaptopHub(val store: PeerStore, private val port: Int = PeerServer.DEFAULT_PORT) {
+// advertise: announces the listener on the LAN while it is open (LanAdvert), closed with it.
+class LaptopHub(
+    val store: PeerStore, private val port: Int = PeerServer.DEFAULT_PORT,
+    private val advertise: (Int) -> AutoCloseable = { AutoCloseable {} },
+) {
     val enroller = Enroller(store)
     @Volatile var heartbeat: () -> Map<String, Any?> = { linkedMapOf("phase" to "idle", "ready_epoch" to 0) }
     @Volatile var onConn: ((PeerConn) -> ((Message) -> Unit))? = null
     @Volatile var onClosed: ((PeerConn) -> Unit)? = null
     @Volatile var onEnrolled: ((Peer, String) -> Unit)? = null
     private var server: PeerServer? = null
+    private var advert: AutoCloseable? = null
     private val users = HashSet<String>()
 
     fun laptopEnrolled() = store.peers().any { it.role == "laptop" }
@@ -23,6 +28,7 @@ class LaptopHub(val store: PeerStore, private val port: Int = PeerServer.DEFAULT
                 onEnrolled = { p, code -> onEnrolled?.invoke(p, code) },
                 port = port,
                 onClosed = { c, _ -> onClosed?.invoke(c) })
+            advert = advertise(server!!.port)
         }
         users += user
     }
@@ -30,6 +36,8 @@ class LaptopHub(val store: PeerStore, private val port: Int = PeerServer.DEFAULT
     @Synchronized fun close(user: String) {
         users -= user
         if (users.isEmpty()) {
+            advert?.close()
+            advert = null
             server?.stop()
             server = null
         }

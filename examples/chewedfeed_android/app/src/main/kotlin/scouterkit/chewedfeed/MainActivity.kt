@@ -8,15 +8,13 @@ import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
 import android.util.Log
-import android.widget.Button
-import android.widget.LinearLayout
 import android.widget.RadioButton
 import android.widget.RadioGroup
-import android.widget.ScrollView
 import android.widget.TextView
 import scouterkit.chewedfeed.handover.PhoneAddress
 import scouterkit.chewedfeed.service.GlassesService
 import scouterkit.chewedfeed.service.Holder
+import scouterkit.chewedfeed.service.Phase
 import scouterkit.chewedfeed.service.Progress
 import scouterkit.chewedfeed.service.ownershipView
 import scouterkit.chewedfeed.settings.AppSettings
@@ -25,8 +23,7 @@ import scouterkit.chewedfeed.settings.Prefs
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.LinkedBlockingQueue
 
-// Placeholder launcher: shows the native backend and opens the settings. The emulated flavor also runs a
-// self-check of the glasses session on the emulated arms (start, draw, read back, stop, three times).
+// Connection overview. The emulated flavor also runs a three-round native session self-check.
 class MainActivity : Activity() {
     private var session: GlassesSession? = null
 
@@ -36,66 +33,74 @@ class MainActivity : Activity() {
         val status = TextView(this).apply {
             text = getString(R.string.status, Native.backend(), Native.abiVersion())
         }
-        val settings = Button(this).apply {
-            setText(R.string.settings)
-            setOnClickListener { startActivity(Intent(this@MainActivity, SettingsActivity::class.java)) }
-        }
-        setContentView(ScrollView(this).apply { addView(LinearLayout(this@MainActivity).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(32, 32, 32, 32)
-            addView(status)
-            if (BuildConfig.FLAVOR == "glasses") addView(Button(this@MainActivity).apply {
-                setText(R.string.setup)
-                setOnClickListener { startActivity(Intent(this@MainActivity, SetupActivity::class.java)) }
+        actionBar?.hide()
+        val ui = AppUi(this)
+        val page = ui.screen(R.string.home_title, R.string.home_subtitle)
+        if (BuildConfig.FLAVOR == "glasses") {
+            val connection = ui.card(page, R.string.connection_title)
+            connection.addView(android.widget.ImageView(this).apply {
+                setImageResource(R.drawable.glasses)
+                importantForAccessibility = android.view.View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                layoutParams = android.widget.LinearLayout.LayoutParams(-1, ui.dp(100))
+                setPadding(0, ui.dp(8), 0, ui.dp(12))
             })
-            addView(settings)
-            if (BuildConfig.FLAVOR == "glasses") {
-                // Ownership: who holds the glasses, the connection's progress, Connect / Disconnect, the owner mode;
-                // then the battery setting.
-                addView(holder)
-                addView(service)
-                addView(Button(this@MainActivity).apply {
-                    setText(R.string.start_glasses)
-                    setOnClickListener {
-                        if (permissions()) {
-                            requested = true
-                            showService()
-                            GlassesService.start(this@MainActivity)
-                        }
-                    }
-                })
-                addView(Button(this@MainActivity).apply {
-                    setText(R.string.stop_glasses)
-                    setOnClickListener { requested = false; GlassesService.stop(this@MainActivity) }
-                })
-                val app = AppSettings.load(Prefs(this@MainActivity, "app"))
-                addView(RadioGroup(this@MainActivity).apply {
-                    for ((mode, label) in listOf(OwnerMode.PREFER_LAPTOP to R.string.owner_prefer_laptop, OwnerMode.KEEP_ON_PHONE to R.string.owner_keep_phone)) {
-                        addView(RadioButton(this@MainActivity).apply {
-                            id = mode.ordinal + 1
-                            setText(label)
-                            isChecked = app.owner == mode
-                        })
-                    }
-                    setOnCheckedChangeListener { _, id ->
-                        val kv = Prefs(this@MainActivity, "app")
-                        AppSettings.load(kv).copy(owner = OwnerMode.entries[id - 1]).save(kv)
-                        GlassesService.reload(this@MainActivity) // pin or unpin now
-                    }
-                })
-                addView(laptop)
-                addView(address)
-                addView(battery)
-                addView(Button(this@MainActivity).apply {
-                    setText(R.string.battery_settings)
-                    setOnClickListener { startActivity(Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) }
-                })
-                addView(Button(this@MainActivity).apply {
-                    setText(R.string.glasses_check)
-                    setOnClickListener { startActivity(Intent(this@MainActivity, GlassesCheckActivity::class.java)) }
-                })
-            }
-        }) })
+            ui.styleStatus(holder, prominent = true)
+            ui.styleStatus(service)
+            connection.addView(holder)
+            connection.addView(service)
+            connection.addView(connectionButton)
+            val essentials = ui.card(page, R.string.essentials_title)
+            essentials.addView(ui.button(R.string.settings) {
+                startActivity(Intent(this, SettingsActivity::class.java))
+            })
+            essentials.addView(ui.button(R.string.setup) {
+                startActivity(Intent(this, SetupActivity::class.java))
+            })
+            val handover = ui.card(page, R.string.handover_title, R.string.handover_subtitle)
+            val app = AppSettings.load(Prefs(this, "app"))
+            handover.addView(RadioGroup(this).apply {
+                for ((mode, label) in listOf(OwnerMode.PREFER_LAPTOP to R.string.owner_prefer_laptop,
+                    OwnerMode.KEEP_ON_PHONE to R.string.owner_keep_phone)) {
+                    addView(RadioButton(this@MainActivity).apply {
+                        id = mode.ordinal + 1
+                        setText(label)
+                        textSize = 14f
+                        minHeight = ui.dp(56)
+                        setPadding(ui.dp(4), ui.dp(8), 0, ui.dp(8))
+                        isChecked = app.owner == mode
+                    })
+                }
+                setOnCheckedChangeListener { _, id ->
+                    val kv = Prefs(this@MainActivity, "app")
+                    AppSettings.load(kv).copy(owner = OwnerMode.entries[id - 1]).save(kv)
+                    GlassesService.reload(this@MainActivity)
+                }
+            })
+            ui.styleStatus(laptop)
+            handover.addView(laptop)
+            val background = ui.disclosure(page, R.string.background_title, R.string.battery_help)
+            ui.styleStatus(battery)
+            background.addView(battery)
+            background.addView(ui.button(R.string.battery_settings) {
+                startActivity(Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+            })
+            val details = ui.disclosure(page, R.string.diagnostics_title, R.string.diagnostics_subtitle)
+            ui.styleStatus(address)
+            details.addView(address)
+            details.addView(ui.button(R.string.glasses_check) {
+                startActivity(Intent(this, GlassesCheckActivity::class.java))
+            })
+            ui.styleStatus(status)
+            details.addView(status)
+        } else {
+            val preview = ui.card(page, R.string.connection_title)
+            ui.styleStatus(status)
+            preview.addView(status)
+            preview.addView(ui.button(R.string.settings) {
+                startActivity(Intent(this, SettingsActivity::class.java))
+            })
+        }
+        setContentView(ui.scroll(page))
         if (BuildConfig.FLAVOR == "emulated") {
             val s = GlassesSession(callbacks = { it.run() }, onEvents = { _, _ -> })
             session = s
@@ -104,6 +109,19 @@ class MainActivity : Activity() {
                 Log.i(TAG, "self-check: $result")
                 runOnUiThread { status.append("\n$result") }
             }, "self-check").start()
+        }
+    }
+
+    private val connectionButton by lazy {
+        AppUi(this).button(R.string.connect, primary = true) {
+            if (requested || GlassesService.State.phase != Phase.STOPPED) {
+                requested = false
+                GlassesService.stop(this)
+            } else if (permissions()) {
+                requested = true
+                GlassesService.start(this)
+            }
+            showService()
         }
     }
 
@@ -129,6 +147,7 @@ class MainActivity : Activity() {
 
     private fun showService() {
         val st = GlassesService.State
+        connectionButton.setText(if (requested || st.phase != Phase.STOPPED) R.string.disconnect else R.string.connect)
         val view = ownershipView(st.phase, requested, st.owner)
         if (view.progress != Progress.REQUESTED) requested = false
         holder.setText(when (view.holder) {
@@ -171,7 +190,12 @@ class MainActivity : Activity() {
     private var askedNotifications = false
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
-        if (checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED) GlassesService.start(this)
+        if (checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED &&
+            checkSelfPermission(Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED) {
+            requested = true
+            GlassesService.start(this)
+            showService()
+        }
     }
 
     override fun onDestroy() {

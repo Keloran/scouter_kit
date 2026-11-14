@@ -1,0 +1,11 @@
+<resources>
+    <color name="canvas">#F2F5F3</color>
+    <color name="surface">#FFFFFF</color>
+    <color name="field">#F0F4F2</color>
+    <color name="ink">#192E29</color>
+    <color name="ink_secondary">#536860</color>
+    <color name="accent">#246B53</color>
+    <color name="on_accent">#FFFFFF</color>
+    <color name="accent_soft">#E4F1E9</color>
+    <color name="ripple">#33246B53</color>
+</resources>

@@ -15,7 +15,6 @@ import android.os.Handler
 import android.os.Looper
 import android.widget.Button
 import android.widget.LinearLayout
-import android.widget.ScrollView
 import android.widget.TextView
 import scouterkit.chewedfeed.bluetooth.PairFinder
 import scouterkit.chewedfeed.bluetooth.PairScan
@@ -45,28 +44,38 @@ class SetupActivity : Activity() {
         super.onCreate(savedInstanceState)
         setTitle(R.string.setup)
         actionBar?.setDisplayHomeAsUpEnabled(true)
-        list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(32, 32, 32, 32) }
-        paired = TextView(this)
-        state = TextView(this)
-        list.addView(paired)
-        list.addView(Button(this).apply { setText(R.string.scan_glasses); setOnClickListener { scanPairs() } })
-        list.addView(Button(this).apply { setText(R.string.forget_glasses); setOnClickListener { forget() } })
-        list.addView(companion)
-        list.addView(Button(this).apply { setText(R.string.companion_set_up); setOnClickListener { associate() } })
-        list.addView(Button(this).apply {
-            setText(R.string.calibrate)
-            setOnClickListener { startActivity(Intent(this@SetupActivity, CalibrationActivity::class.java)) }
+        val ui = AppUi(this)
+        val page = ui.screen(R.string.setup, R.string.setup_subtitle)
+        val glasses = ui.card(page, R.string.connection_title, R.string.scan_help)
+        paired = TextView(this).also { ui.styleStatus(it) }
+        state = TextView(this).also {
+            ui.styleStatus(it)
+            it.accessibilityLiveRegion = android.view.View.ACCESSIBILITY_LIVE_REGION_POLITE
+        }
+        glasses.addView(paired)
+        glasses.addView(ui.button(R.string.scan_glasses, primary = true) { scanPairs() })
+        glasses.addView(state)
+        list = ui.column()
+        glasses.addView(list)
+        val fit = ui.card(page, R.string.fit_title, R.string.fit_subtitle)
+        fit.addView(ui.button(R.string.calibrate) {
+            startActivity(Intent(this, CalibrationActivity::class.java))
         })
-        // Laptop handover: this phone hosts; the laptop enrolls with the invitation shown here and then dials in.
-        list.addView(TextView(this).apply { setText(R.string.laptop_section) })
-        list.addView(laptopState)
-        list.addView(Button(this).apply { setText(R.string.laptop_pair); setOnClickListener { pairLaptop() } })
-        list.addView(invitationText)
-        list.addView(copyButton)
-        list.addView(Button(this).apply { setText(R.string.laptop_forget); setOnClickListener { forgetLaptop() } })
-        list.addView(Button(this).apply { setText(R.string.laptop_new_key); setOnClickListener { newPhoneKey() } })
-        list.addView(state)
-        setContentView(ScrollView(this).apply { addView(list) })
+        val background = ui.card(page, R.string.background_title)
+        ui.styleStatus(companion)
+        background.addView(companion)
+        background.addView(ui.button(R.string.companion_set_up) { associate() })
+        val laptop = ui.card(page, R.string.handover_title, R.string.laptop_section)
+        ui.styleStatus(laptopState)
+        laptop.addView(laptopState)
+        laptop.addView(ui.button(R.string.laptop_pair) { pairLaptop() })
+        laptop.addView(invitationText)
+        laptop.addView(copyButton)
+        val manage = ui.disclosure(page, R.string.manage_title, R.string.manage_subtitle)
+        manage.addView(ui.button(R.string.forget_glasses) { forget() })
+        manage.addView(ui.button(R.string.laptop_forget) { forgetLaptop() })
+        manage.addView(ui.button(R.string.laptop_new_key) { newPhoneKey() })
+        setContentView(ui.scroll(page))
     }
 
     private val hub by lazy { AndroidPeers.hub(this) }
@@ -74,17 +83,16 @@ class SetupActivity : Activity() {
     private val laptopState by lazy { TextView(this) }
     private val invitationText by lazy { TextView(this).apply { setTextIsSelectable(true); visibility = android.view.View.GONE } }
     private val copyButton by lazy {
-        Button(this).apply {
-            setText(R.string.laptop_copy)
-            visibility = android.view.View.GONE
-            setOnClickListener {
-                val clip = android.content.ClipData.newPlainText("invitation", invitationText.text)
-                // The invitation's secret: kept out of clipboard previews (Android 13+).
-                clip.description.extras = android.os.PersistableBundle().apply { putBoolean("android.content.extra.IS_SENSITIVE", true) }
-                getSystemService(android.content.ClipboardManager::class.java).setPrimaryClip(clip)
+        AppUi(this).button(R.string.laptop_copy) {
+            val clip = android.content.ClipData.newPlainText("invitation", invitationText.text)
+            // Keep the invitation secret out of clipboard previews (Android 13+).
+            clip.description.extras = android.os.PersistableBundle().apply {
+                putBoolean("android.content.extra.IS_SENSITIVE", true)
             }
-        }
+            getSystemService(android.content.ClipboardManager::class.java).setPrimaryClip(clip)
+        }.apply { visibility = android.view.View.GONE }
     }
+
     private var pairing = false
 
     private fun showLaptop() {
@@ -232,7 +240,7 @@ class SetupActivity : Activity() {
         val s = PairScan(a) { pairs ->
             main.post {
                 for (p in pairs) {
-                    val b = found.getOrPut(p.pairId) { Button(this).also { list.addView(it) } }
+                    val b = found.getOrPut(p.pairId) { AppUi(this).button(R.string.scan_glasses) {}.also { list.addView(it) } }
                     b.text = getString(R.string.setup_found, p.pairId,
                         getString(if (p.left != null) R.string.arm_found else R.string.arm_missing, getString(R.string.left)),
                         getString(if (p.right != null) R.string.arm_found else R.string.arm_missing, getString(R.string.right)))

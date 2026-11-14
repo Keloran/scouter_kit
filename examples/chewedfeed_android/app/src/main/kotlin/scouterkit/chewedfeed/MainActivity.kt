@@ -143,7 +143,7 @@ class MainActivity : Activity() {
             else getString(R.string.phone_address, endpoints.joinToString("  ") { "-peer-endpoint $it" })
         laptop.setText(when (st.laptop) {
             "connected" -> R.string.laptop_link_connected
-            "unreachable" -> R.string.laptop_link_unreachable
+            "unreachable" -> if (endpoints.isEmpty()) R.string.laptop_link_no_wifi else R.string.laptop_link_unreachable
             else -> R.string.laptop_handover_unset
         })
         if (view.progress == Progress.REQUESTED) return service.setText(R.string.progress_requested)

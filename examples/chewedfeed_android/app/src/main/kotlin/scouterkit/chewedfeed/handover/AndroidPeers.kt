@@ -20,7 +20,7 @@ object AndroidPeers {
     private var hub: LaptopHub? = null
 
     // The process's one store and listener (Setup and the glasses service share them).
-    @Synchronized fun hub(context: Context): LaptopHub = hub ?: LaptopHub(open(context.applicationContext)).also { hub = it }
+    @Synchronized fun hub(context: Context): LaptopHub = hub ?: context.applicationContext.let { app -> LaptopHub(open(app), advertise = { port -> LanAdvert.start(app, port) }) }.also { hub = it }
 
     fun open(context: Context): PeerStore {
         val file = File(context.noBackupFilesDir, "peers.json")

@@ -20,11 +20,47 @@ type armBattery struct {
 }
 
 type batteryStatus struct {
-	host *int
-	arms []armBattery
-	// The case reports its battery only while an arm is in it: the last value seen.
-	casePct *int
-	caseAt  time.Time
+	host         *int
+	hostCharging bool // on mains power, or a system battery charging
+	arms         []armBattery
+	// The case reports its battery only while an arm is in it (its CASE events and props): the last value seen.
+	casePct      *int
+	caseCharging bool
+	caseAt       time.Time
+}
+
+// hostCharging: the laptop is on mains power, or one of its system batteries is charging.
+func hostCharging(root string) bool {
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		return false
+	}
+	read := func(dir, field string) string {
+		b, _ := os.ReadFile(filepath.Join(root, dir, field))
+		return strings.TrimSpace(string(b))
+	}
+	for _, entry := range entries {
+		dir := entry.Name()
+		switch read(dir, "type") {
+		case "Mains":
+			if read(dir, "online") == "1" {
+				return true
+			}
+		case "Battery":
+			if read(dir, "scope") != "Device" && read(dir, "status") == "Charging" {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// newerCase keeps whichever case reading is more recent (a CASE event can be newer than the last poll).
+func (s batteryStatus) newerCase(other batteryStatus) batteryStatus {
+	if other.casePct != nil && (s.casePct == nil || other.caseAt.After(s.caseAt)) {
+		s.casePct, s.caseCharging, s.caseAt = other.casePct, other.caseCharging, other.caseAt
+	}
+	return s
 }
 
 // Only system batteries count: peripherals can also appear in power_supply.
@@ -70,7 +106,7 @@ func hostBattery(root string) *int {
 }
 
 func readBatteries(root string, arms []scouterkit.Arm) batteryStatus {
-	s := batteryStatus{host: hostBattery(root)}
+	s := batteryStatus{host: hostBattery(root), hostCharging: hostCharging(root)}
 	for _, arm := range arms {
 		reading := armBattery{arm: arm}
 		if arm.State().Connected {
@@ -81,9 +117,9 @@ func readBatteries(root string, arms []scouterkit.Arm) batteryStatus {
 		}
 		s.arms = append(s.arms, reading)
 		if s.casePct == nil && arm.State().Connected {
-			if v, err := arm.Props(scouterkit.PropCaseBattPct); err == nil && v[0] <= 100 {
+			if v, err := arm.Props(scouterkit.PropCaseBattPct, scouterkit.PropCaseCharging); err == nil && v[0] <= 100 {
 				n := int(v[0])
-				s.casePct, s.caseAt = &n, time.Now()
+				s.casePct, s.caseCharging, s.caseAt = &n, v[1] == 1, time.Now()
 			}
 		}
 	}
@@ -101,13 +137,14 @@ func monitorBatteries(parent context.Context, arms []scouterkit.Arm) (<-chan bat
 		ticker := time.NewTicker(30 * time.Second)
 		defer ticker.Stop()
 		var lastCase *int
+		var lastCaseCharging bool
 		var lastCaseAt time.Time
 		for {
 			s := readBatteries("/sys/class/power_supply", arms)
 			if s.casePct == nil {
-				s.casePct, s.caseAt = lastCase, lastCaseAt
+				s.casePct, s.caseCharging, s.caseAt = lastCase, lastCaseCharging, lastCaseAt
 			}
-			lastCase, lastCaseAt = s.casePct, s.caseAt
+			lastCase, lastCaseCharging, lastCaseAt = s.casePct, s.caseCharging, s.caseAt
 			select {
 			case updates <- s:
 			case <-ctx.Done():

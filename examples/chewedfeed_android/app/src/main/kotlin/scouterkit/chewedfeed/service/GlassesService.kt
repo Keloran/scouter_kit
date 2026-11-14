@@ -42,6 +42,7 @@ import scouterkit.chewedfeed.api.ApiRepository
 import scouterkit.chewedfeed.notifications.PhoneNotifications
 import scouterkit.chewedfeed.providers.PhoneBattery
 import scouterkit.chewedfeed.providers.PhoneMedia
+import scouterkit.chewedfeed.providers.LastCase
 import android.os.IBinder
 import android.os.Looper
 import scouterkit.chewedfeed.dashboard.Screen
@@ -424,13 +425,16 @@ class GlassesService : Service(), LifecycleActions {
         private fun sample() {
             session.draw { f ->
                 val st = f.status() ?: return@draw
-                main.post { if (conn === this) runtime?.sampled(st, phone.percent) }
+                main.post { if (conn === this) runtime?.sampled(st, phone.percent, phone.charging) }
             }
         }
 
         private fun events(events: List<GlassesEvent>) {
             if (conn !== this) return
-            for (e in events) if (e.type == GlassesEvent.INPUT && e.trigger == GlassesEvent.TRIGGER_TOUCH) runtime?.touch(e.arm, e.a)
+            for (e in events) when {
+                e.type == GlassesEvent.INPUT && e.trigger == GlassesEvent.TRIGGER_TOUCH -> runtime?.touch(e.arm, e.a)
+                e.type == GlassesEvent.INPUT && e.trigger == GlassesEvent.TRIGGER_CASE -> LastCase.event(e.a) // shown at the next sample
+            }
         }
 
         // The page or a popup, or black and off.

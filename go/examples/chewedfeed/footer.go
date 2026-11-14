@@ -52,6 +52,10 @@ var statusIcons = map[string][]string{
 		"      ## ", "      ## ", "   ## ## ", "   ## ## ", "## ## ## ",
 		"## ## ## ", "## ## ## ", "#########",
 	},
+	// Charging: shown in place of the low-battery warning, no wider than it.
+	"charging": {
+		"   ##", "  ## ", " ##  ", "#####", "  ## ", " ##  ", "##   ", "#    ",
+	},
 	"warning": {
 		"     #     ", "    # #    ", "   # # #   ", "   # # #   ", "  #  #  #  ",
 		"  #     #  ", " #   #   # ", "#         #", "###########",
@@ -184,8 +188,8 @@ func (s *screen) drawStatusPanel(paused bool, status string) {
 	// Case and computer: icon, then the battery, one row each.
 	middleTop := panelMid + (panelLower-panelMid-2*s.footerFont.LineSpacing)/2
 	caseBaseline := middleTop + s.footerFont.Ascent
-	s.drawIconBattery("case", s.batteries.casePct, caseBaseline)
-	s.drawIconBattery("computer", s.batteries.host, caseBaseline+s.footerFont.LineSpacing)
+	s.drawIconBattery("case", s.batteries.casePct, s.batteries.caseCharging, caseBaseline)
+	s.drawIconBattery("computer", s.batteries.host, s.batteries.hostCharging, caseBaseline+s.footerFont.LineSpacing)
 
 	modeIcon := "refresh"
 	if paused {
@@ -237,19 +241,22 @@ func (s *screen) batteryValue(arm scouterkit.Arm) *int {
 func (s *screen) drawBatteryValue(label string, percent *int, baseline int) {
 	x := s.statusX + textInset
 	x += s.footerFont.DrawLine(s.bitmap, label+" ", x, baseline, scouterkit.AlignLeft, 255)
-	s.drawPercent(x, percent, baseline)
+	s.drawPercent(x, percent, false, baseline)
 }
 
-func (s *screen) drawIconBattery(icon string, percent *int, baseline int) {
+func (s *screen) drawIconBattery(icon string, percent *int, charging bool, baseline int) {
 	x := s.statusX + textInset
 	x += s.drawIconAt(icon, x, baseline, 255) + s.footerFont.Measure(" ").Width
-	s.drawPercent(x, percent, baseline)
+	s.drawPercent(x, percent, charging, baseline)
 }
 
-// The percentage, with a warning icon when low.
-func (s *screen) drawPercent(x int, percent *int, baseline int) {
+// The percentage, then a bolt while charging, or a warning icon when low.
+func (s *screen) drawPercent(x int, percent *int, charging bool, baseline int) {
 	x += s.footerFont.DrawLine(s.bitmap, batteryPercent(percent), x, baseline, scouterkit.AlignLeft, 255)
-	if percent != nil && *percent <= lowBatteryAt {
+	switch {
+	case charging && percent != nil:
+		s.drawIconAt("charging", x+s.footerFont.Measure(" ").Width, baseline, 255)
+	case percent != nil && *percent <= lowBatteryAt:
 		s.drawIconAt("warning", x+s.footerFont.Measure(" ").Width, baseline, 255)
 	}
 }

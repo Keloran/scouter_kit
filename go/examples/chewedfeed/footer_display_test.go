@@ -190,3 +190,44 @@ func TestContentClearOfDividerAndShortPopups(t *testing.T) {
 		t.Fatalf("the popup is longer than the app and %d lines", popupLines)
 	}
 }
+
+// The bolt beside a charging laptop's "100%" stays inside the status panel at every text scale.
+func TestChargingBoltInThePanel(t *testing.T) {
+	for _, scale := range []float64{0.5, 1, 1.5, 2, 3} {
+		cfg := scouterkit.DefaultConfig()
+		if err := scouterkit.Init(cfg); err != nil {
+			t.Fatal(err)
+		}
+		s, err := newScreenScale(cfg, scale)
+		if err != nil {
+			t.Fatal(err)
+		}
+		full := 100
+		p := page{title: "Project", lines: []string{"PRs: 3"}, status: "Fetched 12:00"}
+		s.batteries = batteryStatus{host: &full}
+		s.draw(p, 0, 1, false)
+		plain := append([]uint8(nil), s.bitmap.Image().Pix...)
+		s.batteries.hostCharging = true
+		s.draw(p, 0, 1, false)
+		img := s.bitmap.Image()
+		changed := false
+		for y := 0; y < s.h && !changed; y++ {
+			for x := s.statusX; x < s.w; x++ {
+				if plain[y*img.Stride+x] != img.Pix[y*img.Stride+x] {
+					changed = true
+					break
+				}
+			}
+		}
+		if !changed {
+			t.Fatalf("scale %v: no bolt drawn", scale)
+		}
+		// The bolt's right edge: the last lit column of the computer row stays inside the bitmap with a margin.
+		w, _ := s.iconSize("charging")
+		need := textInset + func() int { w, _ := s.iconSize("computer"); return w }() + s.footerFont.Measure(" 100% ").Width + w
+		if need > s.statusW {
+			t.Fatalf("scale %v: bolt needs %d px, panel has %d", scale, need, s.statusW)
+		}
+		scouterkit.Deinit()
+	}
+}

@@ -97,7 +97,9 @@ StartResult Session::Start(const StartConfig &config, g1::Transport *transport, 
       // The previous host's image may still be on the panel: off until our first full frame.
       ArmAt(i).SetPanel(false);
       Step(i ? "right: panel off" : "left: panel off", t);
-      ArmAt(i).ReportInputs(1u << g1::TRIGGER_TOUCH | 1u << g1::TRIGGER_CASE);
+      // TILT too: the arm streams head angles only while a program runs or a TILT event can be reported (firmware
+      // exec.c imu_need). The desktop's standby program covers it; this app runs none.
+      ArmAt(i).ReportInputs(1u << g1::TRIGGER_TOUCH | 1u << g1::TRIGGER_CASE | 1u << g1::TRIGGER_TILT);
       Step(i ? "right: inputs" : "left: inputs", t);
       ArmAt(i).SetBrightness(std::clamp(config.brightness, 0, 42));
       Step(i ? "right: brightness" : "left: brightness", t);

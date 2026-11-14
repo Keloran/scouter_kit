@@ -14,6 +14,7 @@ import java.util.Locale
 import scouterkit.chewedfeed.settings.AppSettings
 import scouterkit.chewedfeed.service.GlassesService
 import scouterkit.chewedfeed.api.SessionToken
+import scouterkit.chewedfeed.api.SitesCache
 import scouterkit.chewedfeed.api.androidSessionCredentials
 import scouterkit.chewedfeed.settings.Prefs
 import scouterkit.chewedfeed.notifications.NotificationSettings
@@ -64,7 +65,7 @@ class SettingsActivity : Activity() {
         val token = text(if (saved) R.string.token_label_set else R.string.token_label_unset, "", password = true)
         list.addView(Button(this).apply {
             setText(R.string.token_clear)
-            setOnClickListener { runCatching { tokens.save(null) }; state.setText(R.string.token_cleared) }
+            setOnClickListener { runCatching { tokens.save(null) }; SitesCache.forApp(this@SettingsActivity).clear(); state.setText(R.string.token_cleared) }
         })
         val refresh = field(R.string.refresh_label, String.format(Locale.ROOT, "%d", app.refreshSeconds))
         val rotate = field(R.string.rotate_label, String.format(Locale.ROOT, "%d", app.rotateSeconds))
@@ -110,7 +111,7 @@ class SettingsActivity : Activity() {
                     s.save(this@SettingsActivity)
                     a.save(kv)
                     GlassesService.reload(this@SettingsActivity) // a source switched off clears what the laptop shared
-                    session?.getOrNull()?.let { tokens.save(it); token.setText("") }
+                    session?.getOrNull()?.let { tokens.save(it); SitesCache.forApp(this@SettingsActivity).clear(); token.setText("") }
                     PhoneNotifications.save(this@SettingsActivity,
                         NotificationSettings(mirror.isChecked, PhoneNotifications.parseExcluded(excluded.text.toString())))
                     state.setText(R.string.saved)

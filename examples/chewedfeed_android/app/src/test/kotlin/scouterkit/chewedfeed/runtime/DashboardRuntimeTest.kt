@@ -86,6 +86,28 @@ class DashboardRuntimeTest {
     }
 
     @Test
+    fun offlineStartShowsTheCachedSitesStale() {
+        var cachedFor: ApiConfig? = null
+        val withCache = object : SitesSource {
+            override fun refresh(config: ApiConfig, done: (ApiSnapshot?) -> Unit) = sites.refresh(config, done)
+            override fun cached(config: ApiConfig): ApiSnapshot? {
+                cachedFor = config
+                return ApiSnapshot(data.sources.map { it.copy(err = "cached") })
+            }
+        }
+        val r = DashboardRuntime(DisplaySettings(), AppSettings(rotateSeconds = 0), text, scheduler, { now }, { now }, withCache, { drawn += it }, ZoneOffset.UTC, bridge)
+        r.network(false)
+        r.start(1)
+        assertTrue(cachedFor != null)
+        assertEquals(listOf("summary", "projects/one/0"), r.dashboard.nav.pages(View.SITES).map { it.id }) // no "Fetching…" wait
+        assertTrue(r.dashboard.nav.pages(View.SITES).all { it.status.startsWith("STALE") })
+        assertEquals(0, requests.size) // offline: no request to time out
+        r.network(true)
+        requests.single().second(data) // fresh data replaces it
+        assertTrue(r.dashboard.nav.pages(View.SITES).none { it.status.startsWith("STALE") })
+    }
+
+    @Test
     fun laptopOnlyViewsAndSwitchedOffSources() {
         val r = runtime(AppSettings(sites = false, stats = false))
         r.start(1)

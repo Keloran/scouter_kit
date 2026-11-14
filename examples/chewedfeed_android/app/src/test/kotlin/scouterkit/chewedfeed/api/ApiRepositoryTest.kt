@@ -114,4 +114,62 @@ class ApiRepositoryTest {
             assertFalse(state.toString().contains("private key detail"))
         }
     }
+
+    // CF-63: the disk cache through the repository.
+    private val t0 = System.currentTimeMillis() - 1000
+    private fun diskCache(): SitesCache = SitesCache(java.io.File.createTempFile("sites", ".json").also { it.delete(); it.deleteOnExit() })
+
+    @Test fun offlineStartShowsCachedThenFailuresKeepLastGood() {
+        val cache = diskCache()
+        val config = ApiConfig.create("https://example.invalid")
+        ApiRepository(MemoryCredentials(), ApiFetcher { _, _, _, _ -> listOf(SourceResult("summary", listOf(mapOf("projects" to 2.0)), t0)) }, cache = cache).use {
+            it.refresh(config).await(3, TimeUnit.SECONDS)
+        }
+        // A new process with no network: the cached data at once, marked stale.
+        val failing = ApiFetcher { _, _, previous, _ ->
+            val old = previous.single { s -> s.key == "summary" }
+            listOf(old.copy(err = "offline")) // what ApiClient.retain does for a failed source
+        }
+        ApiRepository(MemoryCredentials(), failing, cache = cache).use { repository ->
+            val cached = repository.cached(config)!!
+            assertEquals("cached", cached.sources.single().err)
+            assertEquals(t0, cached.sources.single().atMs)
+            val after = repository.refresh(config).await(3, TimeUnit.SECONDS)!!
+            assertEquals(listOf(mapOf("projects" to 2.0)), after.sources.single().rows) // last good kept
+        }
+    }
+
+    @Test fun lateDiskReadNeverReplacesFetchedData() {
+        val cache = diskCache()
+        val config = ApiConfig.create("https://example.invalid")
+        var rows = 1.0
+        ApiRepository(MemoryCredentials(), ApiFetcher { _, _, _, _ -> listOf(SourceResult("summary", listOf(mapOf("projects" to rows)), t0)) }, cache = cache).use { repository ->
+            repository.refresh(config).await(3, TimeUnit.SECONDS)
+            rows = 2.0
+            repository.refresh(config).await(3, TimeUnit.SECONDS)
+            assertNull(repository.cached(config)) // fetched already: the disk has nothing newer
+            assertEquals(2.0, repository.snapshot().sources.single().rows.single()["projects"])
+        }
+    }
+
+    @Test fun newSessionOrSignOutClearsTheCache() {
+        val cache = diskCache()
+        val config = ApiConfig.create("https://example.invalid")
+        val credentials = MemoryCredentials(SessionToken.parse("test-session"))
+        ApiRepository(credentials, ApiFetcher { _, _, _, _ -> listOf(SourceResult("summary", listOf(mapOf("projects" to 1.0)), t0)) }, cache = cache).use { repository ->
+            repository.refresh(config).await(3, TimeUnit.SECONDS)
+            repository.saveSession(null)
+        }
+        ApiRepository(credentials, ApiFetcher { _, _, _, _ -> emptyList() }, cache = cache).use { repository ->
+            assertNull(repository.cached(config))
+        }
+        // A different project is a different key: nothing shown, and the old file goes.
+        ApiRepository(MemoryCredentials(), ApiFetcher { _, _, _, _ -> listOf(SourceResult("summary", emptyList(), t0)) }, cache = cache).use {
+            it.refresh(config).await(3, TimeUnit.SECONDS)
+        }
+        ApiRepository(MemoryCredentials(), ApiFetcher { _, _, _, _ -> emptyList() }, cache = cache).use {
+            assertNull(it.cached(ApiConfig.create("https://example.invalid", project = "other")))
+            assertNull(it.cached(config)) // gone with the mismatch
+        }
+    }
 }

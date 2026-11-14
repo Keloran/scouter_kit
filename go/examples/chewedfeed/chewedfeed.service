@@ -1,0 +1,29 @@
+# Opt-in systemd user service for the Chewedfeed dashboard. Nothing installs or enables it. To use it (from go/):
+#   go build -o ~/.local/bin/chewedfeed ./examples/chewedfeed
+#   install -Dm644 examples/chewedfeed/chewedfeed.service ~/.config/systemd/user/chewedfeed.service
+#   systemctl --user daemon-reload && systemctl --user enable --now chewedfeed
+# Settings stay in the user config (chewedfeed/config: display, tilt, peer_endpoint, share_ai, share_system) and the
+# enrolled phone in chewedfeed/peers, both under the user's config directory: a rebuilt binary keeps them. Extra flags
+# (for example -token-file) go in an override: systemctl --user edit chewedfeed.
+# One chewedfeed drives the glasses: a manual run while the service holds them stops with "already running";
+# systemctl --user stop chewedfeed first (it releases both arms), or use the service's own control socket.
+
+[Unit]
+Description=Chewedfeed dashboard on the G1 glasses
+PartOf=graphical-session.target
+After=graphical-session.target
+# Bluetooth off or the glasses away: a few slow retries, then it stays down until started again.
+StartLimitIntervalSec=600
+StartLimitBurst=5
+
+[Service]
+ExecStart=%h/.local/bin/chewedfeed
+Restart=on-failure
+RestartSec=20
+# 2: configuration, credentials or enrollment; 3: another chewedfeed holds the glasses. Retrying cannot help.
+RestartPreventExitStatus=2 3
+# SIGTERM releases both arms (the panels go dark) before exit.
+TimeoutStopSec=20
+
+[Install]
+WantedBy=graphical-session.target

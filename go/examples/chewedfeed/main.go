@@ -35,6 +35,7 @@ import (
 
 	"scouterkit"
 	"scouterkit/examples/internal/demo"
+	"scouterkit/examples/internal/localcontrol"
 )
 
 type options struct {
@@ -113,7 +114,7 @@ func main() {
 	}
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "chewedfeed: %v\n", err)
-		os.Exit(1)
+		os.Exit(exitSetup)
 	}
 	if o.saveConfig {
 		if err := saveDisplaySettings(o); err != nil {
@@ -125,8 +126,39 @@ func main() {
 	}
 	if err := run(f, o); err != nil {
 		fmt.Fprintf(os.Stderr, "chewedfeed: %v\n", err)
-		os.Exit(1)
+		os.Exit(exitCode(err))
 	}
+}
+
+// Exit statuses the service template (chewedfeed.service) does not restart on: retrying cannot help.
+const (
+	exitSetup   = 2 // configuration, credentials or enrollment
+	exitRunning = 3 // another chewedfeed holds the glasses
+)
+
+// setupError: the configuration, credentials or enrollment are wrong.
+type setupError struct{ error }
+
+func (e setupError) Unwrap() error { return e.error }
+
+func exitCode(err error) int {
+	var setup setupError
+	switch {
+	case errors.Is(err, localcontrol.ErrRunning):
+		return exitRunning
+	case errors.As(err, &setup):
+		return exitSetup
+	}
+	return 1
+}
+
+// instanceLock: the glasses have one driver at a time (handover's control socket lock, CF-64).
+func instanceLock(o options) (io.Closer, error) {
+	path := o.ownership.Socket
+	if path == "" {
+		path = localcontrol.DefaultPath()
+	}
+	return localcontrol.Lock(path)
 }
 
 func run(f demo.Flags, o options) error {
@@ -134,6 +166,11 @@ func run(f demo.Flags, o options) error {
 		return errors.New("use -dx between -240 and 240, and -dy between -120 and 120")
 	}
 	if o.calibrate && !o.preview {
+		lock, err := instanceLock(o)
+		if err != nil {
+			return err
+		}
+		defer lock.Close()
 		return calibrate(f, o)
 	}
 	if o.refresh < 30*time.Second || o.rotate < 0 || (o.rotate > 0 && o.rotate < time.Second) || o.stay < 0 {
@@ -147,11 +184,11 @@ func run(f demo.Flags, o options) error {
 		progress("Reading session token file")
 		b, err := os.ReadFile(o.tokenFile)
 		if err != nil {
-			return errors.New("cannot read session token file")
+			return setupError{errors.New("cannot read session token file")}
 		}
 		token = strings.TrimSpace(string(b))
 		if token == "" {
-			return errors.New("session token file is empty")
+			return setupError{errors.New("session token file is empty")}
 		}
 	}
 	c, err := newClient(o.api, token, o.project, o.details)
@@ -200,8 +237,13 @@ func run(f demo.Flags, o options) error {
 		return errors.New("no API data available")
 	}
 	if o.ownership.Enabled {
-		return coordinatedDisplay(ctx, f, o, c)
+		return coordinatedDisplay(ctx, f, o, c) // its control socket holds the lock
 	}
+	lock, err := instanceLock(o)
+	if err != nil {
+		return err
+	}
+	defer lock.Close()
 	return display(ctx, f, o, c)
 }
 

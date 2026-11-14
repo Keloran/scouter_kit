@@ -20,7 +20,10 @@ type ownershipSettings struct {
 	PeerID     string `json:"peer_id"`
 	Endpoint   string `json:"peer_endpoint"`
 	Invitation string `json:"enroll_invitation"`
-	config     string
+	// Telemetry for the phone (off by default): AI usage windows, and aggregate CPU, memory and battery.
+	ShareAI     bool `json:"share_ai"`
+	ShareSystem bool `json:"share_system"`
+	config      string
 }
 
 func (s *ownershipSettings) register(f *flag.FlagSet) {
@@ -31,14 +34,16 @@ func (s *ownershipSettings) register(f *flag.FlagSet) {
 	f.StringVar(&s.PeerID, "peer-id", "", "enrolled phone key ID (empty: the only enrolled phone)")
 	f.StringVar(&s.Endpoint, "peer-endpoint", "", "phone host:port; TLS requires an enrolled pinned key")
 	f.StringVar(&s.Invitation, "enroll-invitation", "", "file containing a phone's single-use enrollment invitation")
+	f.BoolVar(&s.ShareAI, "share-ai", false, "send AI usage windows (no plan or account details) to the phone")
+	f.BoolVar(&s.ShareSystem, "share-system", false, "send aggregate CPU, memory and battery (no processes) to the phone")
 }
 
-// withUserPeerEndpoint takes peer_endpoint from the user config (<user config>/chewedfeed/config or config.json,
-// the file that holds the display settings) when neither -peer-endpoint nor -handover-config was given, so a
-// launcher can start the dashboard with its phone handover and no flags. -handover=false still disables it.
+// withUserPeerEndpoint takes peer_endpoint, share_ai and share_system from the user config (<user
+// config>/chewedfeed/config or config.json, the file that holds the display settings) when neither the matching
+// flag nor -handover-config was given, so a launcher can start the dashboard with its phone handover and no
+// flags. -handover=false still disables it.
 func withUserPeerEndpoint(s ownershipSettings, explicit map[string]bool, configDir string) ownershipSettings {
-	if s.Endpoint != "" || s.config != "" || explicit["peer-endpoint"] || explicit["handover-config"] ||
-		explicit["handover"] && !s.Enabled || configDir == "" {
+	if s.config != "" || explicit["handover-config"] || explicit["handover"] && !s.Enabled || configDir == "" {
 		return s
 	}
 	for _, name := range []string{"config", "config.json"} {
@@ -48,9 +53,20 @@ func withUserPeerEndpoint(s ownershipSettings, explicit map[string]bool, configD
 		}
 		var f struct {
 			PeerEndpoint string `json:"peer_endpoint"`
+			ShareAI      *bool  `json:"share_ai"`
+			ShareSystem  *bool  `json:"share_system"`
 		}
-		if json.Unmarshal(b, &f) == nil && f.PeerEndpoint != "" {
+		if json.Unmarshal(b, &f) != nil {
+			continue
+		}
+		if f.PeerEndpoint != "" && s.Endpoint == "" && !explicit["peer-endpoint"] {
 			s.Endpoint = f.PeerEndpoint // checked by configureOwnership like the flag
+		}
+		if f.ShareAI != nil && !explicit["share-ai"] {
+			s.ShareAI = *f.ShareAI
+		}
+		if f.ShareSystem != nil && !explicit["share-system"] {
+			s.ShareSystem = *f.ShareSystem
 		}
 	}
 	return s
@@ -77,6 +93,12 @@ func configureOwnership(flags ownershipSettings, explicit map[string]bool) (owne
 		}
 		if explicit["handover"] {
 			s.Enabled = flags.Enabled
+		}
+		if explicit["share-ai"] {
+			s.ShareAI = flags.ShareAI
+		}
+		if explicit["share-system"] {
+			s.ShareSystem = flags.ShareSystem
 		}
 		for name, pair := range map[string][2]*string{
 			"control-socket": {&s.Socket, &flags.Socket}, "peer-store": {&s.Store, &flags.Store},

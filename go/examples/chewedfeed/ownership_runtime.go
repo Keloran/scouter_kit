@@ -178,12 +178,21 @@ func coordinatedDisplay(ctx context.Context, f demo.Flags, o options, client *cl
 	go ctrl.run(runCtx)
 	var network sync.WaitGroup
 	if store != nil {
-		network.Add(1)
+		optional := []string{h.CapSnapshot}
+		share := o.ownership.ShareAI || o.ownership.ShareSystem
+		if share {
+			optional = append(optional, h.CapTelemetry) // offered only when something is shared
+		}
+		network.Add(2)
 		go func() {
 			defer network.Done()
-			h.Link(runCtx, store, route, peerID, h.Options{Role: h.Laptop, Optional: []string{h.CapSnapshot}, Heartbeat: ctrl.Heartbeat}, func(conn *h.Conn) {
+			h.Link(runCtx, store, route, peerID, h.Options{Role: h.Laptop, Optional: optional, Heartbeat: ctrl.Heartbeat}, func(conn *h.Conn) {
 				ctrl.serveLink(runCtx, conn)
 			})
+		}()
+		go func() {
+			defer network.Done()
+			publishTelemetry(runCtx, o.ownership.ShareAI, o.ownership.ShareSystem, o.aiUsageDir, o.aiRefresh, ctrl.Telemetry)
 		}()
 	}
 	var serverErr error
@@ -210,7 +219,8 @@ func coordinatedDisplay(ctx context.Context, f demo.Flags, o options, client *cl
 
 func (c *ownershipController) serveLink(ctx context.Context, conn *h.Conn) {
 	select {
-	case c.packets <- ownershipPacket{link: conn, session: conn.PeerSession, snapshot: conn.Negotiated(h.CapSnapshot)}:
+	case c.packets <- ownershipPacket{link: conn, session: conn.PeerSession, snapshot: conn.Negotiated(h.CapSnapshot),
+		telemetry: conn.Negotiated(h.CapTelemetry)}:
 	case <-ctx.Done():
 		conn.Close()
 		return

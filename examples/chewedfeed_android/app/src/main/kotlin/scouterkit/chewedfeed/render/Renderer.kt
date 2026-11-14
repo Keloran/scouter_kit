@@ -189,7 +189,7 @@ class Renderer(private val s: Surface, val layout: Layout) {
         // Case and this device: icon, then the battery, one row each.
         val caseBaseline = panelMid + (panelLower - panelMid - 2 * m.lineSpacing) / 2 + m.ascent
         percent(x0 + drawIcon("case", x0, caseBaseline, 255) + s.measure(" "), b.case, caseBaseline, b.caseCharging)
-        val hostBaseline = caseBaseline + m.lineSpacing
+        val hostBaseline = caseBaseline + m.lineSpacing + 3 // 3 px lower: clear of the case line (user)
         percent(x0 + drawIcon("phone", x0, hostBaseline, 255) + s.measure(" "), b.host, hostBaseline, b.hostCharging)
 
         // Rotation mode, and for fetched data (Sites download, AI cache) its time under it.

@@ -735,6 +735,7 @@ func dashboard(ctx context.Context, host *glassesHost, o options, c *client, con
 				continue
 			}
 			scr := d.s.screen
+			batteries = batteries.newerCase(scr.batteries) // a CASE event may be newer than this poll
 			if c := batteries.casePct; c != nil && (scr.batteries.casePct == nil || *c != *scr.batteries.casePct) {
 				progress("Case battery: %d%%", *c)
 			}
@@ -905,6 +906,11 @@ func (d *dashState) events(redraw *bool, next *time.Time, rotation time.Duration
 			}
 			if e.Type == scouterkit.EventReset {
 				progress("%s arm session reset; redrawing dashboard", arm)
+				*redraw = true
+			}
+			if pct, charging, ok := caseReading(e); ok {
+				b := &s.screen.batteries
+				b.casePct, b.caseCharging, b.caseAt = pct, charging, time.Now()
 				*redraw = true
 			}
 			if inCase, ok := caseEvent(e); ok {

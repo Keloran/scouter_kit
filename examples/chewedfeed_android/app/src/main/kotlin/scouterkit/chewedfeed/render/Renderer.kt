@@ -18,8 +18,11 @@ interface Surface {
     fun text(text: String, x: Int, baseline: Int, gray: Int) // left-aligned
 }
 
-// Percentages; null: not reported. host is this device (the phone).
-data class Batteries(val left: Int? = null, val right: Int? = null, val case: Int? = null, val host: Int? = null)
+// Percentages; null: not reported. host is this device (the phone). Charging shows a bolt by the percentage.
+data class Batteries(
+    val left: Int? = null, val right: Int? = null, val case: Int? = null, val host: Int? = null,
+    val caseCharging: Boolean = false, val hostCharging: Boolean = false,
+)
 
 // Original pixel icons (go/examples/chewedfeed footer.go), drawn directly so no emoji coverage is needed.
 val STATUS_ICONS: Map<String, List<String>> = mapOf(
@@ -32,6 +35,8 @@ val STATUS_ICONS: Map<String, List<String>> = mapOf(
     "download" to listOf("    #    ", "    #    ", "    #    ", " #  #  # ", "  # # #  ", "   ###   ", "    #    ", "#       #", "#########"),
     "cache" to listOf("#########", "#       #", "#########", " #     # ", " # ### # ", " #     # ", " #     # ", " ####### "),
     "sample" to listOf("      ## ", "      ## ", "   ## ## ", "   ## ## ", "## ## ## ", "## ## ## ", "## ## ## ", "#########"),
+    // Charging: shown in place of the low-battery warning, no wider than it.
+    "charging" to listOf("   ##", "  ## ", " ##  ", "#####", "  ## ", " ##  ", "##   ", "#    "),
     "warning" to listOf("     #     ", "    # #    ", "   # # #   ", "   # # #   ", "  #  #  #  ", "  #     #  ", " #   #   # ", "#         #", "###########"),
     "unknown" to listOf(" ##### ", "#     #", "      #", "    ## ", "   #   ", "       ", "   #   "),
     "bell" to listOf("    ###    ", "   #   #   ", "  #     #  ", "  #     #  ", "  #     #  ", " #       # ", " #       # ", "###########", "    # #    ", "     #     "),
@@ -182,9 +187,9 @@ class Renderer(private val s: Surface, val layout: Layout) {
 
         // Case and this device: icon, then the battery, one row each.
         val caseBaseline = panelMid + (panelLower - panelMid - 2 * m.lineSpacing) / 2 + m.ascent
-        percent(x0 + drawIcon("case", x0, caseBaseline, 255) + s.measure(" "), b.case, caseBaseline)
+        percent(x0 + drawIcon("case", x0, caseBaseline, 255) + s.measure(" "), b.case, caseBaseline, b.caseCharging)
         val hostBaseline = caseBaseline + m.lineSpacing
-        percent(x0 + drawIcon("phone", x0, hostBaseline, 255) + s.measure(" "), b.host, hostBaseline)
+        percent(x0 + drawIcon("phone", x0, hostBaseline, 255) + s.measure(" "), b.host, hostBaseline, b.hostCharging)
 
         // Rotation mode, and for fetched data (Sites download, AI cache) its time under it.
         val mode = if (paused) "hand" else "refresh"
@@ -205,10 +210,13 @@ class Renderer(private val s: Surface, val layout: Layout) {
         }
     }
 
-    // The percentage, with a warning icon when low.
-    private fun percent(x: Int, p: Int?, baseline: Int) {
+    // The percentage, then a bolt while charging, or a warning icon when low.
+    private fun percent(x: Int, p: Int?, baseline: Int, charging: Boolean = false) {
         val w = text(if (p == null) "--%" else "$p%", x, baseline, 255)
-        if (p != null && p <= LOW_BATTERY_AT) drawIcon("warning", x + w + s.measure(" "), baseline, 255)
+        when {
+            charging && p != null -> drawIcon("charging", x + w + s.measure(" "), baseline, 255)
+            p != null && p <= LOW_BATTERY_AT -> drawIcon("warning", x + w + s.measure(" "), baseline, 255)
+        }
     }
 }
 

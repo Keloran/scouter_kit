@@ -91,9 +91,9 @@ class DashboardRuntime(
     fun footer(width: Int) = music.line(wall(), width, text.measure)
 
     // The glasses' status, sampled by the service: head angle, case, batteries; also the clock's minute.
-    fun sampled(st: GlassesStatus, phone: Int?) {
+    fun sampled(st: GlassesStatus, phone: Int?, phoneCharging: Boolean = false) {
         if (!running) return
-        batteries = batteries(st, phone)
+        batteries = batteries(st, phone, phoneCharging)
         dashboard.pitch(generation, st.pitch)
         st.left.inCase?.let { dashboard.caseChanged(generation, 0, it) }
         st.right.inCase?.let { dashboard.caseChanged(generation, 1, it) }

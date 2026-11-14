@@ -147,4 +147,20 @@ class RendererTest {
         assertTrue(b.calls.contains("font 2"))
         assertNull(GlassesScreen.open(Frame(b, 4), 640, 480, 0, 2.0, ::departureMono)) // a stopped generation
     }
+
+    // The bolt by a charging phone's "100%" (and the case's) stays inside the status panel at every scale.
+    @Test
+    fun chargingBoltFitsThePanel() {
+        for ((c, _) in desktop) {
+            val (rec, l) = layout(c.first, c.second, c.third)
+            Renderer(rec, l).render(page, 0, 1, false, null, Batteries(100, 100, 100, 100, caseCharging = true, hostCharging = true)) { "" }
+            val bolts = rec.boxes.filter { it.text == null && it.x0 >= l.statusX }
+            assertTrue("$c", bolts.all { it.x1 <= l.w })
+            val plain = layout(c.first, c.second, c.third).let { (r2, l2) ->
+                Renderer(r2, l2).render(page, 0, 1, false, null, Batteries(100, 100, 100, 100)) { "" }; r2.boxes.size
+            }
+            assertTrue("$c: no bolt drawn", rec.boxes.size > plain)
+        }
+        assertTrue(STATUS_ICONS.getValue("charging")[0].length <= STATUS_ICONS.getValue("warning")[0].length)
+    }
 }

@@ -62,9 +62,13 @@ class ProvidersTest {
 
     @Test
     fun batteriesAreUnknownRatherThanStale() {
+        LastCase.clear()
+        assertEquals(Batteries(0, null, null, 100), batteries(status(true, 0, 101, -1), 100)) // 0% is a reading; no case yet
         assertEquals(Batteries(80, 70, 55, 41), batteries(status(true, 80, 70, 55), 41))
-        assertEquals(Batteries(null, 70, null, null), batteries(status(false, 80, 70, null), null)) // left gone: unknown, not 80
-        assertEquals(Batteries(0, null, null, 100), batteries(status(true, 0, 101, -1), 100)) // 0% is a reading
+        // Left gone: unknown, not 80. The case keeps its last reading once the glasses are out of it.
+        assertEquals(Batteries(null, 70, 55, null), batteries(status(false, 80, 70, null), null))
+        assertEquals(Batteries(80, 70, 55, 41, hostCharging = true), batteries(status(true, 80, 70, null), 41, phoneCharging = true))
+        assertEquals(false, batteries(status(true, 80, 70, null), null, phoneCharging = true).hostCharging) // no phone reading: no bolt
         assertEquals(50, batteryPercent(50, 100))
         assertEquals(100, batteryPercent(255, 255))
         assertEquals(null, batteryPercent(-1, 100))
@@ -95,5 +99,21 @@ class ProvidersTest {
         assertEquals("ABCDE", m.line(now, 5, chars)) // the title again, from the start
         assertTrue(m.setTitle("", now))
         assertEquals("Thu 1 Jan 00:00", m.line(now, 5, chars)) // nothing playing: the clock
+    }
+
+    @Test
+    fun caseFromCaseEvents() {
+        LastCase.clear()
+        LastCase.event(1 or 4 or (73 shl 8)) // in the case, charging, 73 %
+        val b = batteries(status(true, 80, 70, null), null)
+        assertEquals(73, b.case)
+        assertTrue(b.caseCharging)
+        LastCase.event(1 or (0xFF shl 8)) // battery unknown: the last reading stays
+        assertEquals(73, batteries(status(true, 80, 70, null), null).case)
+        LastCase.event(40 shl 8) // out of the case, not charging, 40 %
+        val c = batteries(status(true, 80, 70, null), null)
+        assertEquals(40, c.case)
+        assertEquals(false, c.caseCharging)
+        LastCase.clear()
     }
 }

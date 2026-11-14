@@ -27,6 +27,19 @@ func caseEvent(e scouterkit.Event) (inCase, ok bool) {
 	return false, false
 }
 
+// caseReading: what a CASE input event says about the case itself (bits 2 CASE_CHARGING, 8-15 CASE_BATT_PCT,
+// 0xFF unknown; VM.md §6.3). The arms send one when the case state changes, so the case's battery is known even
+// when no poll happened while the glasses were in it.
+func caseReading(e scouterkit.Event) (percent *int, charging, ok bool) {
+	if e.Type != scouterkit.EventInput || e.Trigger != int(scouterkit.TriggerCase) {
+		return nil, false, false
+	}
+	if p := int(e.A>>8) & 0xFF; p <= 100 {
+		percent = &p
+	}
+	return percent, e.A&4 != 0, percent != nil
+}
+
 func (s caseState) any() bool {
 	for _, inCase := range s {
 		if inCase {

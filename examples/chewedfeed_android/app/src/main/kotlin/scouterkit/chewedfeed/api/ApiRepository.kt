@@ -28,6 +28,7 @@ class ApiRepository(
     private val credentials: SessionCredentialStore,
     private val fetcher: ApiFetcher = ApiClient(),
     private val executor: ExecutorService = Executors.newFixedThreadPool(2),
+    private val cache: SitesCache? = null, // the last good data on disk (CF-63)
 ) : AutoCloseable {
     private val lock = Any()
     private val credentialLock = Any()
@@ -36,8 +37,30 @@ class ApiRepository(
     private var active: ApiRefresh? = null
     private var current = ApiSnapshot()
     private var cacheKey: String? = null // internal digest, never logged or published
+    private var fetched = false // a refresh committed since the last invalidation: the disk has nothing newer
 
     fun snapshot(): ApiSnapshot = synchronized(lock) { current }
+
+    // The cached Sites for these settings, marked "cached" (shown stale) until a refresh replaces them; becomes the
+    // last-good data a failing source keeps. Only before anything newer arrived: a late disk read never replaces
+    // fetched data. null: nothing usable cached (or the saved session cannot be read).
+    fun cached(config: ApiConfig): ApiSnapshot? {
+        val credential = try { synchronized(credentialLock) { credentials.load() } } catch (_: Exception) { return null }
+        val key = keyFor(config, credential)
+        val sources = cache?.load(key) ?: return null
+        return synchronized(lock) {
+            if (closed || fetched) return null
+            current = ApiSnapshot(Collections.unmodifiableList(sources.map { it.copy(err = "cached") }),
+                if (credential == null) ApiSessionState.PUBLIC else ApiSessionState.CONFIGURED)
+            cacheKey = key
+            current
+        }
+    }
+
+    private fun keyFor(config: ApiConfig, credential: SessionToken?): String {
+        val fingerprint = credential?.let { token -> MessageDigest.getInstance("SHA-256").digest(token.cookie.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) } } ?: "public"
+        return listOf(config.base.toASCIIString(), config.project, config.details.toString(), fingerprint).joinToString("\n")
+    }
 
     fun refresh(config: ApiConfig): ApiRefresh {
         val (old, next) = synchronized(lock) {
@@ -64,8 +87,7 @@ class ApiRepository(
             return commit(id, null, ApiSnapshot(session = ApiSessionState.UNAVAILABLE, notice = "Saved session unavailable; re-enter or clear the session cookie"))
         }
         cancellation.check()
-        val fingerprint = credential?.let { token -> MessageDigest.getInstance("SHA-256").digest(token.cookie.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) } } ?: "public"
-        val key = listOf(config.base.toASCIIString(), config.project, config.details.toString(), fingerprint).joinToString("\n")
+        val key = keyFor(config, credential)
         val previous = synchronized(lock) {
             if (id != generation || closed) return null
             if (cacheKey == key) current.sources else {
@@ -77,14 +99,18 @@ class ApiRepository(
         cancellation.check()
         val expired = data.any { it.err.startsWith("HTTP 401 ") || it.err.startsWith("HTTP 403 ") }
         val session = when { expired -> ApiSessionState.EXPIRED; credential == null -> ApiSessionState.PUBLIC; else -> ApiSessionState.CONFIGURED }
-        return commit(id, key, ApiSnapshot(Collections.unmodifiableList(data.toList()), session,
+        val committed = commit(id, key, ApiSnapshot(Collections.unmodifiableList(data.toList()), session,
             if (expired) "Session missing or expired; re-enter the session cookie or use public mode" else ""))
+        // Failed sources kept their last-good rows (ApiClient.retain); a source never fetched is left out.
+        if (committed != null && !expired) cache?.save(key, data.filter { it.err.isEmpty() || it.atMs != null })
+        return committed
     }
 
     private fun commit(id: Long, key: String?, value: ApiSnapshot): ApiSnapshot? = synchronized(lock) {
         if (id != generation || closed) return null
         current = value
         cacheKey = key
+        fetched = true
         active = null
         value
     }
@@ -94,6 +120,7 @@ class ApiRepository(
             check(!closed) { "API repository closed" }
             generation++
             cacheKey = null
+            fetched = false
             current = ApiSnapshot()
             active.also { active = null }
         }
@@ -102,10 +129,12 @@ class ApiRepository(
 
     fun saveSession(token: SessionToken?) = synchronized(credentialLock) {
         invalidate()
+        cache?.clear() // sign-out or another session: nothing of the old one stays on disk
         try { credentials.save(token) } finally { invalidate() }
     }
     fun importSession(reader: Reader) = synchronized(credentialLock) {
         invalidate()
+        cache?.clear()
         try { credentials.import(reader) } finally { invalidate() }
     }
 

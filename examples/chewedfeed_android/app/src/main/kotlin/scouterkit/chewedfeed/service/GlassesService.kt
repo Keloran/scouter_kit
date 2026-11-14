@@ -40,6 +40,9 @@ import scouterkit.chewedfeed.bluetooth.Scheduler
 import scouterkit.chewedfeed.bluetooth.Cancellable
 import scouterkit.chewedfeed.api.androidSessionCredentials
 import scouterkit.chewedfeed.api.ApiRepository
+import scouterkit.chewedfeed.api.ApiSnapshot
+import scouterkit.chewedfeed.api.ApiConfig
+import scouterkit.chewedfeed.api.SitesCache
 import scouterkit.chewedfeed.notifications.PhoneNotifications
 import scouterkit.chewedfeed.providers.PhoneBattery
 import scouterkit.chewedfeed.providers.PhoneMedia
@@ -479,17 +482,22 @@ class GlassesService : Service(), LifecycleActions {
 
     // The Chewedfeed API for the runtime: the repository fetches on its executor; the wait for the result runs
     // here, the answer on the main thread.
-    private val api by lazy { ApiRepository(androidSessionCredentials(this)) }
+    private val api by lazy { ApiRepository(androidSessionCredentials(this), cache = SitesCache.forApp(this)) }
     private val waiter by lazy { Executors.newSingleThreadExecutor { r -> Thread(r, "api-wait").apply { isDaemon = true } } }
-    private val sites = SitesSource { config, done ->
-        val r = api.refresh(config)
-        val f = waiter.submit {
-            val snapshot = runCatching { r.await(config.refreshTimeoutMs + 5_000L, TimeUnit.MILLISECONDS) }.getOrNull()
-            main.post { done(snapshot) }
+    private val sites = object : SitesSource {
+        override fun refresh(config: ApiConfig, done: (ApiSnapshot?) -> Unit): Cancellable {
+            val r = api.refresh(config)
+            val f = waiter.submit {
+                val snapshot = runCatching { r.await(config.refreshTimeoutMs + 5_000L, TimeUnit.MILLISECONDS) }.getOrNull()
+                main.post { done(snapshot) }
+            }
+            return object : Cancellable {
+                override fun cancel() { r.cancel(); f.cancel(true) }
+            }
         }
-        object : Cancellable {
-            override fun cancel() { r.cancel(); f.cancel(true) }
-        }
+
+        // ponytail: a small file read on the main thread at start; move it to the waiter if it ever shows up in traces.
+        override fun cached(config: ApiConfig) = api.cached(config)
     }
     private val mainScheduler = object : Scheduler {
         override fun post(task: () -> Unit) { main.post(task) }

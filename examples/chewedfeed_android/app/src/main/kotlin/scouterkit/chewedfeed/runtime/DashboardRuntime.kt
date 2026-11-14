@@ -29,6 +29,9 @@ import java.util.Locale
 // The Chewedfeed API, asynchronously: done(snapshot, or null when cancelled or failed) on the runtime's scheduler.
 fun interface SitesSource {
     fun refresh(config: ApiConfig, done: (ApiSnapshot?) -> Unit): Cancellable
+
+    // The last good data saved on this phone (CF-63), at once: an offline start shows it, stale, without waiting.
+    fun cached(config: ApiConfig): ApiSnapshot? = null
 }
 
 // The text area the pages are formatted for (Layout.textW and rows, the footer label's width, the font).
@@ -80,7 +83,11 @@ class DashboardRuntime(
         dashboard.acquired(generation)
         remoteChanged()
         restoreSnapshot() // the previous owner's page, if its release committed one
-        if (app.sites) refresh()
+        if (app.sites) {
+            if (last == null) last = runCatching { app.apiConfig() }.getOrNull()?.let { sites.cached(it) }
+            showSites()
+            refresh()
+        }
         render()
     }
 

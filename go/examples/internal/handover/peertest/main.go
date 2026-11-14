@@ -32,7 +32,8 @@ func main() {
 	dir := flag.String("dir", "", "a fresh directory for this peer's key and enrolled peers")
 	stay := flag.Duration("for", time.Minute, "how long to serve")
 	invitation := flag.String("invitation", "", "a phone's invitation: enroll as the laptop and dial it")
-	script := flag.String("script", "", `with -invitation: "handover" plays a laptop handing the glasses over and back`)
+	script := flag.String("script", "", `with -invitation: "handover" plays a laptop handing the glasses over and back; `+
+		`"telemetry" sends one system and one AI reading as the desktop builds them`)
 	flag.Parse()
 	if *dir == "" {
 		fmt.Fprintln(os.Stderr, "peertest: -dir is required")
@@ -115,6 +116,9 @@ func guest(store *handover.Store, text string, stay time.Duration, script string
 	if script == "handover" {
 		return handoverScript(ctx, c, out)
 	}
+	if script == "telemetry" {
+		return telemetryScript(ctx, c, out)
+	}
 	if err := c.Send("availability", 0, "", handover.AvailabilityBody{Eligible: true, Lid: "open", Awake: true, Reason: "resume"}); err != nil {
 		return err
 	}
@@ -183,4 +187,35 @@ func handoverScript(ctx context.Context, c *handover.Conn, out *json.Encoder) er
 	}
 	_, err = until("released")
 	return err
+}
+
+// telemetryScript sends a system and an AI reading built from the protocol's Go types, as the desktop's
+// telemetry.go does, then waits for the phone's next message (it must keep the link) and prints it.
+func telemetryScript(ctx context.Context, c *handover.Conn, out *json.Encoder) error {
+	if !c.Negotiated(handover.CapTelemetry) {
+		return fmt.Errorf("the phone did not negotiate %s", handover.CapTelemetry)
+	}
+	cpu, battery := 37.5, 64
+	at := uint64(time.Now().Add(-3 * time.Second).UnixMilli())
+	system, _ := json.Marshal(handover.SystemValues{CPUPercent: &cpu, MemoryUsedBytes: 6 << 30, MemoryTotalBytes: 16 << 30, BatteryPercent: &battery})
+	used, reset := 42.0, uint64(time.Now().Add(2*time.Hour).UnixMilli())
+	ai, _ := json.Marshal([]handover.AIWindow{{Provider: "claude", Window: "short", UsedPercent: &used, ResetUnixMs: &reset}})
+	for _, t := range []handover.Telemetry{
+		{SchemaVersion: 1, Revision: 1, Source: "system", SampleUnixMs: &at, AgeMs: 3000, Status: "fresh", Values: system},
+		{SchemaVersion: 1, Revision: 1, Source: "ai", SampleUnixMs: &at, AgeMs: 3000, Status: "fresh", Values: ai},
+	} {
+		if err := c.Send("telemetry", 0, "", handover.TelemetryBody{Telemetry: t}); err != nil {
+			return err
+		}
+	}
+	select {
+	case m, ok := <-c.Recv():
+		if !ok {
+			return fmt.Errorf("connection ended: %v", c.Err())
+		}
+		out.Encode(map[string]string{"got": m.Kind})
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }

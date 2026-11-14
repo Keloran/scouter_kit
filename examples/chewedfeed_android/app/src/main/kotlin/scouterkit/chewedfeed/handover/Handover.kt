@@ -18,6 +18,8 @@ object Policy {
     const val RETRY_MAX_MS = 60000L
     const val PHONE_PROBE_EXTRA_MS = 2000L // added to the suspect and retry probe delays on the phone
     const val RETRY_JITTER_FRACTION = 0.2
+    const val TELEMETRY_STALE_MS = 90000L // policy.json timers_ms.telemetry_stale (system readings)
+    const val AI_STALE_MS = 300000L       // timers_ms.ai_stale
 
     // Delay before retry number `failures` (0 = the first): doubling from RETRY_INITIAL_MS to RETRY_MAX_MS,
     // plus jitter (0..1, the caller's random draw) times RETRY_JITTER_FRACTION. Reset failures on success.

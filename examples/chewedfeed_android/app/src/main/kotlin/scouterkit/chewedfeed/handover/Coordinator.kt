@@ -39,6 +39,9 @@ class Coordinator(
     private val onStatus: (OwnershipStatus) -> Unit = {},
     private val nonce: () -> String = PeerConn::newNonce,
     private val jitter: () -> Double = Math::random,
+    // The laptop's shared readings: passed on as they come, never an ownership event.
+    private val remote: RemoteTelemetry? = null,
+    private val onTelemetry: () -> Unit = {},
 ) {
     var state = State(Role.PHONE, enrolled)
         private set
@@ -115,6 +118,7 @@ class Coordinator(
         if (peer != null) return link.close()
         peer = link
         peerSnapshots = link.negotiated(Wire.CAP_SNAPSHOT)
+        remote?.linkUp(link.negotiated(Wire.CAP_TELEMETRY)) // a laptop that stopped sharing: its data is cleared
         snapshotNotice = false
         lastStatus = ""
         apply(Event.RouteRestored(state.generation))
@@ -159,6 +163,7 @@ class Coordinator(
                 snapshots.receive(m.session, transfer, StrictJson.write(b))
             }
             "released" -> apply(Event.Released(transfer, state.generation, nonce()))
+            "telemetry" -> if (remote?.accept(m.session, b) == true) onTelemetry()
             "ready" -> apply(Event.PeerStatus(true, true, state.peerEligible, state.peerPinned, state.generation, nonce()))
             "heartbeat" -> {
                 apply(Event.PeerStatus(b["phase"] == "active", true, state.peerEligible, state.peerPinned, state.generation, nonce()))

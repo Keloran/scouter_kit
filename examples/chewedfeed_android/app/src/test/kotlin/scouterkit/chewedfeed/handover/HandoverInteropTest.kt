@@ -140,4 +140,50 @@ class HandoverInteropTest {
             exec.shutdownNow()
         }
     }
+
+    // Go producer compatibility: readings built from the protocol's Go types (as the desktop's telemetry.go does)
+    // reach the phone's real coordinator and store, and show as the desktop would show them.
+    @Test
+    fun telemetryFromTheGoLaptop() {
+        val exec = java.util.concurrent.Executors.newSingleThreadScheduledExecutor()
+        val scheduler = object : scouterkit.chewedfeed.bluetooth.Scheduler {
+            override fun post(task: () -> Unit) { exec.execute(task) }
+            override fun postDelayed(ms: Long, task: () -> Unit): scouterkit.chewedfeed.bluetooth.Cancellable {
+                val f = exec.schedule(task, ms, TimeUnit.MILLISECONDS)
+                return object : scouterkit.chewedfeed.bluetooth.Cancellable { override fun cancel() { f.cancel(false) } }
+            }
+        }
+        val glasses = object : OwnershipNative {
+            override fun acquire(done: (Boolean) -> Unit) = done(false)
+            override fun release(done: () -> Unit) = done()
+            override fun abort() {}
+        }
+        val remote = RemoteTelemetry { System.nanoTime() / 1_000_000 }
+        val arrived = java.util.concurrent.CountDownLatch(2)
+        val phone = memoryStore()
+        val enroller = Enroller(phone)
+        lateinit var coordinator: Coordinator
+        exec.submit { coordinator = Coordinator(true, glasses, scheduler, { System.nanoTime() / 1_000_000 }, SnapshotBridge(), remote = remote, onTelemetry = { arrived.countDown() }) }.get()
+        val server = PeerServer(phone, PeerOptions("phone", heartbeat = { coordinator.heartbeat() }), enroller,
+            { c -> val link = ConnLink(c); exec.execute { coordinator.linkUp(link) }; { m -> exec.execute { coordinator.message(link, m) } } },
+            port = 0, bind = InetAddress.getLoopbackAddress())
+        try {
+            exec.submit { coordinator.start(eligible = false, pinned = false) }.get()
+            val (p, out) = go("-invitation", enroller.invite("phone", listOf("127.0.0.1:${server.port}")).encode(), "-script", "telemetry")
+            line(out) // the enrollment code
+            assertTrue(arrived.await(15, TimeUnit.SECONDS))
+            assertTrue(p.waitFor(20, TimeUnit.SECONDS))
+            assertEquals(0, p.exitValue()) // the link stayed up after both readings
+            val stats = remote.statsView(System.currentTimeMillis())!!.single()
+            assertEquals(listOf("CPU: 37.5%", "RAM: 6.0/16.0G", "Laptop battery: 64%"), stats.lines)
+            assertTrue(stats.status.startsWith("Sampled"))
+            val ai = remote.aiView(System.currentTimeMillis())!!.single()
+            assertEquals("ai/claude", ai.id)
+            assertTrue(ai.lines.first().startsWith("5h: 42.0% used (58.0% left)"))
+            exec.submit { assertEquals(Phase.IDLE, coordinator.state.phase) }.get() // ownership untouched
+        } finally {
+            server.stop()
+            exec.shutdownNow()
+        }
+    }
 }

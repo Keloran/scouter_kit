@@ -12,6 +12,7 @@ import android.widget.ScrollView
 import android.widget.TextView
 import java.util.Locale
 import scouterkit.chewedfeed.settings.AppSettings
+import scouterkit.chewedfeed.service.GlassesService
 import scouterkit.chewedfeed.api.SessionToken
 import scouterkit.chewedfeed.api.androidSessionCredentials
 import scouterkit.chewedfeed.settings.Prefs
@@ -108,6 +109,7 @@ class SettingsActivity : Activity() {
                 } else {
                     s.save(this@SettingsActivity)
                     a.save(kv)
+                    GlassesService.reload(this@SettingsActivity) // a source switched off clears what the laptop shared
                     session?.getOrNull()?.let { tokens.save(it); token.setText("") }
                     PhoneNotifications.save(this@SettingsActivity,
                         NotificationSettings(mirror.isChecked, PhoneNotifications.parseExcluded(excluded.text.toString())))

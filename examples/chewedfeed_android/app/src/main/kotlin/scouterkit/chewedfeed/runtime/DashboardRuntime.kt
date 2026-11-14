@@ -12,6 +12,7 @@ import scouterkit.chewedfeed.dashboard.Navigation
 import scouterkit.chewedfeed.dashboard.Page
 import scouterkit.chewedfeed.dashboard.Screen
 import scouterkit.chewedfeed.dashboard.View
+import scouterkit.chewedfeed.handover.RemoteTelemetry
 import scouterkit.chewedfeed.handover.SnapshotBridge
 import scouterkit.chewedfeed.handover.UiSnapshot
 import scouterkit.chewedfeed.notifications.FeedEvent
@@ -50,6 +51,8 @@ class DashboardRuntime(
     // Navigation for the next owner, and a transferred one to restore. It outlives this runtime (the laptop's
     // page arrives before the glasses connect): the owner wires its notify to restoreSnapshot().
     val bridge: SnapshotBridge = SnapshotBridge(),
+    // The laptop's shared AI usage and stats (CF-56/57); null: none (placeholders).
+    private val remote: RemoteTelemetry? = null,
 ) {
     private val formatter = PageFormatter(zone)
     private val music = MusicStatus(zone)
@@ -75,6 +78,7 @@ class DashboardRuntime(
         this.generation = generation
         running = true
         dashboard.acquired(generation)
+        remoteChanged()
         restoreSnapshot() // the previous owner's page, if its release committed one
         if (app.sites) refresh()
         render()
@@ -90,6 +94,17 @@ class DashboardRuntime(
     // The footer's middle label for a width (the renderer asks).
     fun footer(width: Int) = music.line(wall(), width, text.measure)
 
+    private var remoteAt = Long.MIN_VALUE / 2
+
+    // The laptop's readings changed (or aged): the AI and Stats views follow; placeholders while it shares nothing.
+    fun remoteChanged(draw: Boolean = true) {
+        remoteAt = clock()
+        val now = wall()
+        if (app.ai) dashboard.nav.replace(View.AI, remote?.aiView(now, zone) ?: listOf(placeholder("ai", "AI usage")))
+        if (app.stats) dashboard.nav.replace(View.STATS, remote?.statsView(now, zone) ?: listOf(placeholder("system", "System monitor")))
+        if (draw && running) render()
+    }
+
     // The glasses' status, sampled by the service: head angle, case, batteries; also the clock's minute.
     fun sampled(st: GlassesStatus, phone: Int?, phoneCharging: Boolean = false) {
         if (!running) return
@@ -99,6 +114,7 @@ class DashboardRuntime(
         st.right.inCase?.let { dashboard.caseChanged(generation, 1, it) }
         val m = wall() / 60_000
         if (m != minute) { minute = m; dashboard.invalidate() }
+        if (clock() - remoteAt >= 5_000) remoteChanged(draw = false) // ages and staleness move on
         render()
     }
 

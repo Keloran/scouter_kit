@@ -22,6 +22,7 @@ import android.net.Network
 import android.os.Handler
 import scouterkit.chewedfeed.settings.OwnerMode
 import scouterkit.chewedfeed.handover.SnapshotBridge
+import scouterkit.chewedfeed.handover.RemoteTelemetry
 import scouterkit.chewedfeed.handover.PeerConn
 import scouterkit.chewedfeed.handover.OwnershipNative
 import scouterkit.chewedfeed.handover.Message
@@ -82,6 +83,8 @@ class GlassesService : Service(), LifecycleActions {
     // Ownership with the laptop (handover): the coordinator decides; acquire and release go through Lifecycle.
     private val hub by lazy { AndroidPeers.hub(this) }
     private val snapshots = SnapshotBridge { main.post { conn?.restoreSnapshot() } }
+    // The laptop's shared AI usage and stats: kept while the laptop holds the glasses, shown when the phone does.
+    private val remote = RemoteTelemetry(SystemClock::elapsedRealtime)
     private var coordinator: Coordinator? = null
     private val links = java.util.concurrent.ConcurrentHashMap<PeerConn, ConnLink>()
     private var acquireDone: ((Boolean) -> Unit)? = null
@@ -212,10 +215,12 @@ class GlassesService : Service(), LifecycleActions {
     private fun reconcile() {
         if (coordinator != null) return syncAvailability()
         val enrolled = hub.laptopEnrolled()
+        val app = AppSettings.load(Prefs(this, "app"))
+        remote.enable(app.ai, app.stats) // a source switched off in Settings is cleared and ignored
         val c = Coordinator(enrolled, glasses, mainScheduler, SystemClock::elapsedRealtime, snapshots, { st ->
             State.owner = st.owner; State.laptop = if (!st.enrolled) "none" else if (st.laptopConnected) "connected" else "unreachable"
             State.changed()
-        })
+        }, remote = remote, onTelemetry = { conn?.remoteChanged() })
         coordinator = c
         if (enrolled) listen()
         eligibleSent = lifecycle.eligible
@@ -268,7 +273,10 @@ class GlassesService : Service(), LifecycleActions {
             eligibleSent = null
             reconcile()
         } else {
-            c.pin(AppSettings.load(Prefs(this, "app")).owner == OwnerMode.KEEP_ON_PHONE)
+            val app = AppSettings.load(Prefs(this, "app"))
+            c.pin(app.owner == OwnerMode.KEEP_ON_PHONE)
+            remote.enable(app.ai, app.stats)
+            conn?.remoteChanged()
         }
     }
 
@@ -404,7 +412,7 @@ class GlassesService : Service(), LifecycleActions {
             // Measuring uses the session font from the main thread: native calls take the session lock.
             val area = TextArea(l.textW, l.rows, g.renderer.footerWidth()) { t -> g.measure(t) }
             val r = DashboardRuntime(settings, AppSettings.load(Prefs(this@GlassesService, "app")), area, mainScheduler,
-                SystemClock::elapsedRealtime, System::currentTimeMillis, sites, ::draw, bridge = snapshots)
+                SystemClock::elapsedRealtime, System::currentTimeMillis, sites, ::draw, bridge = snapshots, remote = remote)
             runtime = r
             lifecycle.connected(attempt)
             r.network(State.online)
@@ -420,6 +428,8 @@ class GlassesService : Service(), LifecycleActions {
         fun network(online: Boolean) = runtime?.network(online)
 
         fun restoreSnapshot() = runtime?.restoreSnapshot()
+
+        fun remoteChanged() = runtime?.remoteChanged()
 
         // Head angle, case and batteries, read on the session thread; then what to show.
         private fun sample() {

@@ -154,6 +154,25 @@ class CoordinatorTest {
     }
 
     @Test
+    fun telemetryIsPassedOnAndNeverChangesOwnership() {
+        val remote = RemoteTelemetry { now }
+        var changed = 0
+        val c = Coordinator(true, glasses, scheduler, { now }, bridge, nonce = { "%032x".format(++n) }, jitter = { 0.0 },
+            remote = remote, onTelemetry = { changed++ })
+        c.start(eligible = true, pinned = false)
+        val l = Laptop()
+        c.linkUp(l)
+        c.message(l, l.msg("status", "", laptopActive, epoch = 1))
+        val before = c.state
+        c.message(l, l.msg("telemetry", "", linkedMapOf("telemetry" to linkedMapOf("schema_version" to 1, "revision" to 1, "source" to "system",
+            "sample_unix_ms" to 1_800_000_000_000L, "age_ms" to 0, "status" to "fresh",
+            "values" to linkedMapOf("cpu_percent" to 3.5, "memory_used_bytes" to 1, "memory_total_bytes" to 2, "battery_percent" to null))), epoch = 1))
+        assertEquals(1, changed)
+        assertEquals(before, c.state) // ownership untouched
+        assertTrue(remote.statsView(0)!!.single().lines.first() == "CPU: 3.5%")
+    }
+
+    @Test
     fun theLaptopWakesAndAsks() {
         val c = phoneActiveWithLaptop()
         val l = laptop!!

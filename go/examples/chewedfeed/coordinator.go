@@ -27,11 +27,18 @@ type ownershipLink interface {
 }
 
 type ownershipPacket struct {
-	link     ownershipLink
-	message  *h.Message // nil: new connection; down: retired connection
-	down     bool
-	session  string // authenticated hello metadata, set only for a new link
-	snapshot bool
+	link      ownershipLink
+	message   *h.Message // nil: new connection; down: retired connection
+	down      bool
+	session   string // authenticated hello metadata, set only for a new link
+	snapshot  bool
+	telemetry bool // the phone takes telemetry (both hellos listed it)
+}
+
+// A telemetry reading and when it was taken off the sampler (its age grows while it waits for a link).
+type ownershipTelemetry struct {
+	t  h.Telemetry
+	at time.Time
 }
 
 type ownershipTimer struct {
@@ -77,6 +84,7 @@ type ownershipController struct {
 	requests  chan ownershipRequest
 	results   chan ownershipResult
 	timeouts  chan ownershipTimer
+	telemetry chan h.Telemetry
 	done      chan struct{}
 	clock     ownershipClock
 	jitter    func() float64
@@ -101,14 +109,17 @@ type ownershipController struct {
 	snapshots         *snapshotBridge
 	peerSession       string
 	peerSnapshots     bool
+	peerTelemetry     bool
+	latest            map[string]ownershipTelemetry // the newest reading per source, for a new link
 	snapshotNotice    bool
 }
 
 func newOwnershipController(native ownershipNative, power <-chan powerEvent, enrolled bool) *ownershipController {
 	c := &ownershipController{native: native, power: power, state: h.NewState(h.Laptop, enrolled),
 		packets: make(chan ownershipPacket, 32), requests: make(chan ownershipRequest, 16),
-		results: make(chan ownershipResult, 1), timeouts: make(chan ownershipTimer, 32),
-		done: make(chan struct{}), clock: realOwnershipClock(), jitter: rand.Float64, timers: make(map[h.Timer]func()), reason: "startup"}
+		results: make(chan ownershipResult, 1), timeouts: make(chan ownershipTimer, 32), telemetry: make(chan h.Telemetry, 4),
+		latest: map[string]ownershipTelemetry{},
+		done:   make(chan struct{}), clock: realOwnershipClock(), jitter: rand.Float64, timers: make(map[h.Timer]func()), reason: "startup"}
 	c.publish()
 	return c
 }
@@ -123,6 +134,27 @@ func (c *ownershipController) Heartbeat() h.HeartbeatBody {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.heartbeat
+}
+
+// Telemetry hands a new reading to the controller; never blocks (a full queue drops it: the next one follows).
+// It never changes ownership.
+func (c *ownershipController) Telemetry(t h.Telemetry) {
+	select {
+	case c.telemetry <- t:
+	default:
+	}
+}
+
+// sendTelemetry sends a reading, its age brought up to now, if the phone takes telemetry.
+func (c *ownershipController) sendTelemetry(r ownershipTelemetry) {
+	if c.peer == nil || !c.peerTelemetry {
+		return
+	}
+	t := r.t
+	t.AgeMs += uint64(max(0, c.clock.now().Sub(r.at).Milliseconds()))
+	if err := c.peer.Send("telemetry", c.state.Generation, "", h.TelemetryBody{Telemetry: t}); err != nil {
+		c.peer.Close() // the route worker reports loss
+	}
 }
 
 func (c *ownershipController) Release(ctx context.Context) (bool, error) { return c.command(ctx, true) }
@@ -377,7 +409,7 @@ func (c *ownershipController) packet(p ownershipPacket) {
 	if p.down {
 		if c.peer == p.link {
 			c.snapshots.finish(false)
-			c.peerSession, c.peerSnapshots, c.snapshotNotice = "", false, false
+			c.peerSession, c.peerSnapshots, c.snapshotNotice, c.peerTelemetry = "", false, false, false
 			c.peer = nil
 			c.reason = "peer_lost"
 			c.apply(h.RouteLost, h.EventData{})
@@ -390,10 +422,13 @@ func (c *ownershipController) packet(p ownershipPacket) {
 			return
 		}
 		c.peer = p.link
-		c.peerSession, c.peerSnapshots = p.session, p.snapshot
+		c.peerSession, c.peerSnapshots, c.peerTelemetry = p.session, p.snapshot, p.telemetry
 		c.snapshotNotice = false
 		c.lastStatus = ""
 		c.apply(h.RouteRestored, h.EventData{})
+		for _, r := range c.latest { // the phone starts from the newest readings
+			c.sendTelemetry(r)
+		}
 		return
 	}
 	if c.peer != p.link {
@@ -562,6 +597,10 @@ func (c *ownershipController) run(ctx context.Context) {
 			c.completeRequests()
 		case r := <-c.results:
 			c.result(r)
+		case t := <-c.telemetry:
+			r := ownershipTelemetry{t, c.clock.now()}
+			c.latest[t.Source] = r
+			c.sendTelemetry(r)
 		case p := <-c.packets:
 			c.packet(p)
 		case t := <-c.timeouts:

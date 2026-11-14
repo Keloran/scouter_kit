@@ -28,7 +28,7 @@ data class Batteries(
 val STATUS_ICONS: Map<String, List<String>> = mapOf(
     "computer" to listOf(" ########### ", " #         # ", " #         # ", " #         # ", " #         # ", " ########### ", "     ###     ", "  #########  "),
     // A handset upright: taller than wide, a screen between the top bar and the home button.
-    "phone" to listOf(" ##### ", "#  #  #", "#######", "#     #", "#     #", "#     #", "#     #", "#######", "#  #  #", " ##### "),
+    "phone" to listOf("    ##### ", "   #  #  #", "   #######", "   #     #", "   #     #", "   #     #", "   #     #", "   #######", "   #  #  #", "    ##### "), // 3 columns of margin: sits 3 px right
     "case" to listOf("  #########  ", " #         # ", "#############", "#           #", "#     #     #", "#           #", " #         # ", "  #########  "),
     "glasses" to listOf("#           #", "#           #", " ##### ##### ", " #   ###   # ", " #   # #   # ", " #   # #   # ", " ##### ##### "),
     "refresh" to listOf("   #####     ", "  #     #  # ", " #      # ## ", " #      #### ", "             ", " ####      # ", " ## #      # ", " #  #     #  ", "     #####   "),

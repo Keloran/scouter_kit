@@ -271,7 +271,7 @@ internal fun checkStep(before: State, e: Event, t: Transition): String? {
     if (EffectKind.SEND_REQUEST in names) {
         if (!a.eligible || !a.peerReachable) return "request without eligibility or a control path"
         if (a.role == Role.PHONE && !a.pinned && a.peerEligible) return "phone overrode the laptop preference"
-        if (a.role == Role.LAPTOP && (a.peerPinned || e !is Event.PreferLocal || e.stableMs < Policy.LAPTOP_STABILITY_MS)) return "unstable laptop preference"
+        if (a.role == Role.LAPTOP && (a.peerPinned && a.peerEligible || e !is Event.PreferLocal || e.stableMs < Policy.LAPTOP_STABILITY_MS)) return "unstable laptop preference"
     }
     if (a.transfer != before.transfer) {
         val incoming = (e as? Event.ReleaseRequest)?.transfer ?: (e as? Event.ReleaseNotice)?.transfer

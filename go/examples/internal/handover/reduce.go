@@ -41,7 +41,7 @@ func Reduce(s State, e Event) Transition {
 		}
 		s.Phase, s.Transfer = Requesting, d.Transfer
 		s.Generation++
-		return done(s, effect(PublishStatus))
+		return done(s, effect(PublishStatus), schedule(ReleaseTimer, RequestDeadlineMs))
 	case ReleaseComplete:
 		return releaseComplete(s, d)
 	case ArmsChanged:
@@ -190,7 +190,9 @@ func preferLocal(s State, stableMs int64, nonce string) Transition {
 	if s.Phase != Idle || !s.Enrolled || !s.Eligible || !s.PeerReachable || nonce == "" {
 		return ignore(s)
 	}
-	if s.Role == Laptop && (s.PeerPinned || stableMs < LaptopStabilityMs) {
+	// A pin binds only while the phone can drive the glasses (eligible): a stopped or unusable pinned phone
+	// leaves them to the laptop.
+	if s.Role == Laptop && (s.PeerPinned && s.PeerEligible || stableMs < LaptopStabilityMs) {
 		return ignore(s)
 	}
 	if s.Role == Phone && !s.Pinned && s.PeerEligible {
@@ -202,12 +204,12 @@ func preferLocal(s State, stableMs int64, nonce string) Transition {
 func request(s State, nonce string) Transition {
 	s.Phase, s.Transfer = Requesting, nonce
 	s.Generation++
-	return done(s, effect(SendRequest))
+	return done(s, effect(SendRequest), schedule(ReleaseTimer, RequestDeadlineMs))
 }
 
 func releaseRequest(s State, d EventData) Transition {
 	refuse := d.Transfer == "" || d.Target == s.Role ||
-		s.Role == Phone && s.Pinned && d.Reason != "manual" ||
+		s.Role == Phone && s.Pinned && s.Eligible && d.Reason != "manual" ||
 		s.Role == Laptop && s.Eligible && !(d.Reason == "manual" && d.PeerPinned)
 	if refuse {
 		return done(s, effect(PublishStatus))
@@ -220,6 +222,12 @@ func releaseRequest(s State, d EventData) Transition {
 		s.Phase, s.Transfer, s.ReleaseIntent = Yielding, d.Transfer, Handover
 		s.Generation++
 		return done(s, effect(SendRelease), effect(ReleaseBoth))
+	case Requesting:
+		// Both asked at once (cold start, pin while the laptop prefers): the same rules that refuse the other
+		// side's request decide; it would refuse ours, so ours is withdrawn and theirs goes through.
+		s.Phase, s.Transfer, s.ReleaseIntent = Yielding, d.Transfer, Handover
+		s.Generation++
+		return done(s, effect(CancelTimers), effect(SendRelease), effect(ReleaseBoth), schedule(ReleaseTimer, ReleaseDeadlineMs))
 	}
 	return done(s, effect(PublishStatus))
 }
@@ -321,6 +329,13 @@ func timeout(s State, timer Timer, elapsed int64, nonce string) Transition {
 			// Still no confirmation: force the links down, but never report released for it.
 			s.Phase = Degraded
 			return done(s, effect(ForceDisconnect), effect(PublishStatus))
+		}
+		if s.Phase == Requesting && elapsed >= RequestDeadlineMs {
+			// No released for this request (the peer was busy releasing for another reason, or lost it):
+			// withdraw it; prefer_local asks again with a new transfer.
+			s.Phase = Idle
+			s.Generation++
+			return done(s, effect(SendAbort), effect(PublishStatus))
 		}
 	case PeerSuspect:
 		if s.PeerReachable {

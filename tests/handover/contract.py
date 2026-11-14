@@ -323,7 +323,7 @@ def validate_step(before, event, after, effects):
         if after["role"] == "phone":
             require(after["pinned"] or not after["peer_eligible"], "phone violates laptop preference")
         else:
-            require(not after["peer_pinned"] and event["kind"] == "prefer_local" and
+            require(not (after["peer_pinned"] and after["peer_eligible"]) and event["kind"] == "prefer_local" and
                     event["data"]["stable_ms"] >= POLICY["timers_ms"]["laptop_stability"],
                     "laptop preference unstable or phone pinned")
     if after["transfer"] != before["transfer"]:
@@ -365,7 +365,8 @@ def validate_step(before, event, after, effects):
         if event["kind"] == "release_request":
             data = event["data"]
             require(data["target"] != before["role"], "release to self")
-            require(not (before["role"] == "phone" and before["pinned"]), "pinned phone yielded")
+            require(not (before["role"] == "phone" and before["pinned"] and before["eligible"] and data["reason"] != "manual"),
+                    "pinned phone yielded")
             if before["role"] == "laptop" and before["eligible"]:
                 require(data["reason"] == "manual" and data["peer_pinned"], "laptop preference violated")
     if event["kind"] == "clock_adjusted":

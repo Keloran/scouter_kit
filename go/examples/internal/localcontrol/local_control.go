@@ -106,11 +106,11 @@ type Server struct {
 // ErrRunning: another process holds the socket.
 var ErrRunning = errors.New("another chewedfeed is already running")
 
-// Listen creates the private directory (0700, owned by this user), takes the
-// instance lock, removes a stale socket left by a dead process, and listens.
-func Listen(path string, ctrl Controller) (*Server, error) {
-	dir := filepath.Dir(path)
-	if err := privateDir(dir); err != nil {
+// Lock takes the instance lock for the control socket at path (in a private directory, 0700, owned by this
+// user) until the file is closed or the process ends: one chewedfeed drives the glasses, with or without
+// handover. ErrRunning when another holds it.
+func Lock(path string) (*os.File, error) {
+	if err := privateDir(filepath.Dir(path)); err != nil {
 		return nil, err
 	}
 	lock, err := os.OpenFile(path+".lock", os.O_RDWR|os.O_CREATE, 0o600)
@@ -120,8 +120,17 @@ func Listen(path string, ctrl Controller) (*Server, error) {
 	if err := syscall.Flock(int(lock.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
 		lock.Close()
 		if errors.Is(err, syscall.EWOULDBLOCK) {
-			return nil, fmt.Errorf("%w (control socket %s)", ErrRunning, path)
+			return nil, fmt.Errorf("%w (control socket %s); stop it first (systemctl --user stop chewedfeed, if it runs as the service)", ErrRunning, path)
 		}
+		return nil, err
+	}
+	return lock, nil
+}
+
+// Listen takes the instance lock, removes a stale socket left by a dead process, and listens.
+func Listen(path string, ctrl Controller) (*Server, error) {
+	lock, err := Lock(path)
+	if err != nil {
 		return nil, err
 	}
 	// The lock is ours, so a socket here belongs to a process that is gone.

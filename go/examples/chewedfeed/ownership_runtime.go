@@ -152,7 +152,7 @@ func coordinatedDisplay(ctx context.Context, f demo.Flags, o options, client *cl
 	}
 	store, peerID, route, err := prepareOwnershipPeer(ctx, o.ownership)
 	if err != nil {
-		return err
+		return setupError{err} // enrollment or peer settings: not fixed by a restart
 	}
 	runCtx, stop := context.WithCancel(ctx)
 	defer stop()

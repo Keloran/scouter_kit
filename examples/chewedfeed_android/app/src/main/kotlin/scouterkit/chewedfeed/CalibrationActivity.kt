@@ -6,9 +6,7 @@ import android.bluetooth.BluetoothManager
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.widget.Button
 import android.widget.LinearLayout
-import android.widget.ScrollView
 import android.widget.TextView
 import scouterkit.chewedfeed.bluetooth.AndroidBleAdapter
 import scouterkit.chewedfeed.bluetooth.ArmsLink
@@ -44,27 +42,62 @@ class CalibrationActivity : Activity() {
         setTitle(R.string.calibrate)
         actionBar?.setDisplayHomeAsUpEnabled(true)
         settings = DisplaySettings.load(this)
-        state = TextView(this)
-        values = TextView(this).apply { textSize = 20f }
-        val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(32, 32, 32, 32) }
-        list.addView(TextView(this).apply { setText(R.string.calibrate_help) })
-        list.addView(values)
-        for (step in listOf(1, 10)) list.addView(LinearLayout(this).apply {
-            for ((n, label) in listOf(Nudge.LEFT to "←", Nudge.UP to "↑", Nudge.DOWN to "↓", Nudge.RIGHT to "→"))
-                addView(Button(this@CalibrationActivity).apply {
-                    text = if (step == 1) label else "$label$label"
-                    setOnClickListener { move(n, step) }
-                })
-        })
-        list.addView(Button(this).apply {
-            setText(R.string.save)
-            setOnClickListener {
-                DisplaySettings.load(this@CalibrationActivity).copy(dx = settings.dx, dy = settings.dy).save(this@CalibrationActivity)
+        val ui = AppUi(this)
+        val page = ui.screen(R.string.calibrate, R.string.calibrate_subtitle)
+        ui.card(page, R.string.calibrate_pattern, R.string.calibrate_help)
+        state = TextView(this).also {
+            ui.styleStatus(it)
+            it.accessibilityLiveRegion = android.view.View.ACCESSIBILITY_LIVE_REGION_POLITE
+        }
+        val adjustment = ui.card(page, R.string.calibrate_adjust)
+        values = TextView(this).also {
+            ui.styleStatus(it)
+            it.accessibilityLiveRegion = android.view.View.ACCESSIBILITY_LIVE_REGION_POLITE
+        }
+        adjustment.addView(values)
+        for ((step, label) in listOf(1 to R.string.calibrate_fine, 10 to R.string.calibrate_coarse)) {
+            adjustment.addView(ui.text(label).apply { setPadding(0, ui.dp(16), 0, 0) })
+            adjustment.addView(LinearLayout(this).apply {
+                for ((index, n) in listOf(Nudge.LEFT, Nudge.UP, Nudge.DOWN, Nudge.RIGHT).withIndex()) {
+                    val description = when (n) {
+                        Nudge.LEFT -> R.plurals.calibrate_left
+                        Nudge.UP -> R.plurals.calibrate_up
+                        Nudge.DOWN -> R.plurals.calibrate_down
+                        Nudge.RIGHT -> R.plurals.calibrate_right
+                    }
+                    addView(ui.button(R.string.calibrate_adjust) { move(n, step) }.apply {
+                        text = when (n) {
+                            Nudge.LEFT -> "←"
+                            Nudge.UP -> "↑"
+                            Nudge.DOWN -> "↓"
+                            Nudge.RIGHT -> "→"
+                        }
+                        textSize = 24f
+                        contentDescription = resources.getQuantityString(description, step, step)
+                        minWidth = 0
+                        setPadding(0, ui.dp(8), 0, ui.dp(8))
+                        layoutParams = LinearLayout.LayoutParams(0, ui.dp(56), 1f).apply {
+                            topMargin = ui.dp(8)
+                            if (index > 0) marginStart = ui.dp(6)
+                        }
+                    })
+                }
+            })
+        }
+        val footer = ui.column().apply {
+            setPadding(ui.dp(20), ui.dp(8), ui.dp(20), ui.dp(12))
+            setBackgroundColor(ui.color(R.color.surface))
+            addView(state)
+            addView(ui.button(R.string.calibrate_save, primary = true) {
+                DisplaySettings.load(this@CalibrationActivity).copy(dx = settings.dx, dy = settings.dy)
+                    .save(this@CalibrationActivity)
                 state.setText(R.string.calibrate_saved)
-            }
+            })
+        }
+        setContentView(ui.column().apply {
+            addView(ui.scroll(page), LinearLayout.LayoutParams(-1, 0, 1f))
+            addView(footer)
         })
-        list.addView(state)
-        setContentView(ScrollView(this).apply { addView(list) })
         showValues()
         connect()
     }
@@ -82,7 +115,7 @@ class CalibrationActivity : Activity() {
     }
 
     private fun showValues() {
-        values.text = "dx ${settings.dx}   dy ${settings.dy}"
+        values.text = getString(R.string.calibrate_values, settings.dx, settings.dy)
     }
 
     private fun move(n: Nudge, step: Int) {

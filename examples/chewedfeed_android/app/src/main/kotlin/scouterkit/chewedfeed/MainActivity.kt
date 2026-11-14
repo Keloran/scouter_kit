@@ -87,9 +87,6 @@ class MainActivity : Activity() {
             val details = ui.disclosure(page, R.string.diagnostics_title, R.string.diagnostics_subtitle)
             ui.styleStatus(address)
             details.addView(address)
-            details.addView(ui.button(R.string.glasses_check) {
-                startActivity(Intent(this, GlassesCheckActivity::class.java))
-            })
             ui.styleStatus(status)
             details.addView(status)
         } else {

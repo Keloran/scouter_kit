@@ -27,7 +27,8 @@ data class Batteries(
 // Original pixel icons (go/examples/chewedfeed footer.go), drawn directly so no emoji coverage is needed.
 val STATUS_ICONS: Map<String, List<String>> = mapOf(
     "computer" to listOf(" ########### ", " #         # ", " #         # ", " #         # ", " #         # ", " ########### ", "     ###     ", "  #########  "),
-    "phone" to listOf(" ####### ", "#       #", "# ##### #", "# #   # #", "# #   # #", "# #   # #", "# ##### #", "#   #   #", " ####### "),
+    // A handset upright: taller than wide, a screen between the top bar and the home button.
+    "phone" to listOf(" ##### ", "#  #  #", "#######", "#     #", "#     #", "#     #", "#     #", "#######", "#  #  #", " ##### "),
     "case" to listOf("  #########  ", " #         # ", "#############", "#           #", "#     #     #", "#           #", " #         # ", "  #########  "),
     "glasses" to listOf("#           #", "#           #", " ##### ##### ", " #   ###   # ", " #   # #   # ", " #   # #   # ", " ##### ##### "),
     "refresh" to listOf("   #####     ", "  #     #  # ", " #      # ## ", " #      #### ", "             ", " ####      # ", " ## #      # ", " #  #     #  ", "     #####   "),

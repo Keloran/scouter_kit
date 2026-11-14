@@ -11,6 +11,7 @@ const (
 	PeerSuspectMs       = 15000
 	LaptopStabilityMs   = 3000
 	ReleaseDeadlineMs   = 5000
+	RequestDeadlineMs   = 2 * ReleaseDeadlineMs // a request without its released is withdrawn (CF-58)
 	AcquireDeadlineMs   = 30000
 	PartialArmsMs       = 2000
 	PhoneColdStartMs    = 2000

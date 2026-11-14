@@ -10,6 +10,7 @@ object Policy {
     const val PEER_SUSPECT_MS = 15000L
     const val LAPTOP_STABILITY_MS = 3000L
     const val RELEASE_DEADLINE_MS = 5000L
+    const val REQUEST_DEADLINE_MS = 2 * RELEASE_DEADLINE_MS // a request without its released is withdrawn (CF-58)
     const val ACQUIRE_DEADLINE_MS = 30000L
     const val PARTIAL_ARMS_MS = 2000L
     const val PHONE_COLD_START_MS = 2000L

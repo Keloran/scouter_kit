@@ -52,7 +52,8 @@ fun reduce(s: State, e: Event): Transition {
             else acquire(s.copy(peerActive = false), s.transfer, Permission.RELEASED)
         is Event.ReleaseNotice ->
             if (s.phase != IDLE || !s.eligible || e.transfer.isEmpty()) ignore(s)
-            else done(s.copy(phase = REQUESTING, transfer = e.transfer, generation = s.generation + 1), fx(PUBLISH_STATUS))
+            else done(s.copy(phase = REQUESTING, transfer = e.transfer, generation = s.generation + 1), fx(PUBLISH_STATUS),
+                schedule(Timer.RELEASE, Policy.REQUEST_DEADLINE_MS))
         is Event.ReleaseComplete -> releaseComplete(s, e)
         is Event.ArmsChanged -> armsChanged(s, Arms(e.left, e.right))
         is Event.Initialized -> {
@@ -154,17 +155,20 @@ private fun peerStatus(s0: State, e: Event.PeerStatus): Transition {
 // phone is not pinned; the phone asks when it is pinned or the laptop is not eligible.
 private fun preferLocal(s: State, stableMs: Long, nonce: String?): Transition {
     if (s.phase != IDLE || !s.enrolled || !s.eligible || !s.peerReachable || nonce.isNullOrEmpty()) return ignore(s)
-    if (s.role == Role.LAPTOP && (s.peerPinned || stableMs < Policy.LAPTOP_STABILITY_MS)) return ignore(s)
+    // A pin binds only while the phone can drive the glasses (eligible): a stopped or unusable pinned phone leaves
+    // them to the laptop.
+    if (s.role == Role.LAPTOP && (s.peerPinned && s.peerEligible || stableMs < Policy.LAPTOP_STABILITY_MS)) return ignore(s)
     if (s.role == Role.PHONE && !s.pinned && s.peerEligible) return ignore(s)
     return request(s, nonce)
 }
 
 private fun request(s: State, nonce: String) =
-    done(s.copy(phase = REQUESTING, transfer = nonce, generation = s.generation + 1), fx(SEND_REQUEST))
+    done(s.copy(phase = REQUESTING, transfer = nonce, generation = s.generation + 1), fx(SEND_REQUEST),
+        schedule(Timer.RELEASE, Policy.REQUEST_DEADLINE_MS))
 
 private fun releaseRequest(s: State, e: Event.ReleaseRequest): Transition {
     val refuse = e.transfer.isEmpty() || e.target == s.role ||
-        s.role == Role.PHONE && s.pinned && e.reason != "manual" ||
+        s.role == Role.PHONE && s.pinned && s.eligible && e.reason != "manual" ||
         s.role == Role.LAPTOP && s.eligible && !(e.reason == "manual" && e.peerPinned)
     if (refuse) return done(s, fx(PUBLISH_STATUS))
     return when (s.phase) {
@@ -172,6 +176,11 @@ private fun releaseRequest(s: State, e: Event.ReleaseRequest): Transition {
         // Nothing native is held: confirm through the same release path, without timers.
         IDLE -> done(s.copy(phase = YIELDING, transfer = e.transfer, releaseIntent = ReleaseIntent.HANDOVER,
             generation = s.generation + 1), fx(SEND_RELEASE), fx(RELEASE_BOTH))
+        // Both asked at once (cold start, pin while the laptop prefers): the same rules that refuse the other side's
+        // request decide; it would refuse ours, so ours is withdrawn and theirs goes through.
+        REQUESTING -> done(s.copy(phase = YIELDING, transfer = e.transfer, releaseIntent = ReleaseIntent.HANDOVER,
+            generation = s.generation + 1), fx(CANCEL_TIMERS), fx(SEND_RELEASE), fx(RELEASE_BOTH),
+            schedule(Timer.RELEASE, Policy.RELEASE_DEADLINE_MS))
         else -> done(s, fx(PUBLISH_STATUS))
     }
 }
@@ -236,8 +245,14 @@ private fun timeout(s: State, timer: Timer, elapsed: Long, nonce: String?): Tran
         Timer.ACQUIRE -> if (s.phase == ACQUIRING && elapsed >= Policy.ACQUIRE_DEADLINE_MS) return rollback(s)
         Timer.PARTIAL_ARMS -> if (s.phase == ACQUIRING && !s.arms.both && elapsed >= Policy.PARTIAL_ARMS_MS) return rollback(s)
         // Still no confirmation: force the links down, but never report released for it.
-        Timer.RELEASE -> if (s.phase == YIELDING && elapsed >= Policy.RELEASE_DEADLINE_MS)
-            return done(s.copy(phase = DEGRADED), fx(FORCE_DISCONNECT), fx(PUBLISH_STATUS))
+        Timer.RELEASE -> {
+            if (s.phase == YIELDING && elapsed >= Policy.RELEASE_DEADLINE_MS)
+                return done(s.copy(phase = DEGRADED), fx(FORCE_DISCONNECT), fx(PUBLISH_STATUS))
+            // No released for this request (the peer was busy releasing for another reason, or lost it): withdraw
+            // it; prefer_local asks again with a new transfer.
+            if (s.phase == REQUESTING && elapsed >= Policy.REQUEST_DEADLINE_MS)
+                return done(s.copy(phase = IDLE, generation = s.generation + 1), fx(SEND_ABORT), fx(PUBLISH_STATUS))
+        }
         Timer.PEER_SUSPECT -> {
             if (s.peerReachable) return done(s, fx(RECONCILE))
             if (s.phase == ACTIVE) return done(s, fx(PUBLISH_STATUS)) // a healthy owner keeps the arms

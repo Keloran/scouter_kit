@@ -127,7 +127,7 @@ func checkStep(before State, e Event, tr Transition) error {
 		if after.Role == Phone && !after.Pinned && after.PeerEligible {
 			return fmt.Errorf("phone overrode the laptop preference")
 		}
-		if after.Role == Laptop && (after.PeerPinned || e.Kind != PreferLocal || e.Data.StableMs < LaptopStabilityMs) {
+		if after.Role == Laptop && (after.PeerPinned && after.PeerEligible || e.Kind != PreferLocal || e.Data.StableMs < LaptopStabilityMs) {
 			return fmt.Errorf("unstable laptop preference or pinned phone")
 		}
 	}
@@ -192,7 +192,7 @@ func checkStep(before State, e Event, tr Transition) error {
 		}
 		if e.Kind == ReleaseRequest {
 			d := e.Data
-			if d.Target == before.Role || before.Role == Phone && before.Pinned && d.Reason != "manual" {
+			if d.Target == before.Role || before.Role == Phone && before.Pinned && before.Eligible && d.Reason != "manual" {
 				return fmt.Errorf("refused release given up")
 			}
 			if before.Role == Laptop && before.Eligible && !(d.Reason == "manual" && d.PeerPinned) {
